@@ -4,3 +4,8 @@ __pycache__/
 .venv/
 *.egg-info/
 .DS_Store
+
+.env
+.env.*
+!.env.example
+fixtures/*_real_*.json
