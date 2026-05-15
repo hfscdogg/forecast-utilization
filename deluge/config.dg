@@ -1,0 +1,120 @@
+/*
+ * config.dg — Single source of truth for every assumption in the automation.
+ *
+ * Every constant here was either confirmed by Dustin/Stacy (2026-05-12 / 2026-05-13 / 2026-05-15)
+ * or marked TODO for verification at first deploy. Field-name assumptions follow
+ * Zoho's display-label-to-underscored-api-name convention.
+ *
+ * Two strict separations are enforced by this file:
+ *   1. FORECAST constants vs ACTUALS constants — per Dustin's rule that they
+ *      are "two different systems and should remain that way for accurate data."
+ *   2. CRM constants (Zoho Events/Users) vs iSolved constants (timecards) —
+ *      the only external dependency in the whole stack.
+ */
+
+/* ============================================================
+ * SHARED — CRM (Zoho) Event module
+ * ============================================================ */
+
+EVENTS_MODULE              = "Events";              /* TODO: confirm exact module API name during first inspector run */
+FIELD_TECHNICIAN_1         = "Owner";               /* primary tech on the event */
+FIELD_TECHNICIAN_2         = "Technician_2";        /* paired tech if event is a 2-tech job (Stacy 2026-05-13) */
+FIELD_DURATION_MAN_HRS     = "Duration_Man_Hrs";    /* TODO: confirm — Zoho usually converts "Duration (Man Hrs)" to this */
+FIELD_START_DATETIME       = "Start_DateTime";
+FIELD_END_DATETIME         = "End_DateTime";
+FIELD_EVENT_TYPE           = "Event_Type";
+FIELD_STATUS               = "Status";
+
+/* Event type whitelist — never blacklist (spec Section 9 closeout) */
+EVENT_TYPE_BILLABLE        = "Billable";
+EVENT_TYPE_NON_BILLABLE    = "Non-Billable";
+EVENT_TYPE_TRAINING        = "Training";            /* counts as worked hours, flagged if it drives OT */
+EVENT_TYPE_PLACEHOLDER     = "Placeholder";         /* PM-only, owner-routed to Ben / Brian */
+EVENT_TYPE_PTO             = "PTO";                 /* explicitly excluded from both forecast and actuals */
+EVENT_TYPE_ONLINE_BOOKING  = "Online-Booking-Block"; /* Dustin's blocks — different from Placeholders, filter out */
+
+STATUS_CANCELLED           = "Cancelled";
+
+/* ============================================================
+ * SHARED — CRM (Zoho) Users / Technicians module
+ * ============================================================ */
+
+USERS_MODULE               = "Users";               /* TODO: may be "Technicians" — confirm during inspector run */
+FIELD_USER_ACTIVE          = "Active";              /* TODO: may not exist yet — add + backfill if missing (Stacy) */
+FIELD_USER_DISPLAY_NAME    = "Display_Name";
+FIELD_USER_ROLE            = "Role";
+FIELD_USER_ISOLVED_ID      = "iSolved_Employee_ID"; /* Phase 4b: one-time backfill, links Zoho user to iSolved employee */
+
+ROLE_TECHNICIAN            = "Technician";          /* only forecast/report on this role */
+
+/* ============================================================
+ * FORECAST — Thursday 4 PM ET
+ * ============================================================ */
+
+FORECAST_SCHEDULE_DAY      = "Thursday";
+FORECAST_SCHEDULE_TIME     = "16:00";               /* America/New_York */
+FORECAST_TIMEZONE          = "America/New_York";
+
+/* The 30-minute adder for non-trip-charge events.
+ * TODO Phase 1: confirm whether this applies to ALL non-trip events or
+ * only non-billable ones. Spec Section 5.2 is ambiguous. Ask Dustin during build. */
+FORECAST_NON_TRIP_ADDER_HRS = 0.5;
+
+FORECAST_WEEKLY_CAP_HRS    = 40;                    /* hard cap, overflow = OT */
+
+FORECAST_HISTORY_FORM      = "Utilization_Forecast_History";
+
+/* ============================================================
+ * ACTUALS (LAGGING) — Monday 4 PM ET, reporting on the week ending 8 days prior
+ * ============================================================ */
+
+ACTUALS_SCHEDULE_DAY       = "Monday";
+ACTUALS_SCHEDULE_TIME      = "16:00";               /* America/New_York */
+ACTUALS_LAG_WEEKS          = 2;                     /* SOP: "two weeks prior to current date" */
+ACTUALS_DRIVE_TIME_ENABLED = false;                 /* spec/SOP: actuals do NOT apply the 30-min drive-time adder */
+
+/* OT pay multiplier — verified from Dustin's spreadsheet 2026-05-15.
+ * actual_hours_paid = hours_worked + (ot * OT_PAY_MULTIPLIER)
+ * Grant (40 worked + 2.88 OT) -> 44.32 paid : 40 + 2.88*1.5 = 44.32 ✓
+ * Stephen (40 worked + 3.92 OT) -> 45.88 paid : 40 + 3.92*1.5 = 45.88 ✓ */
+OT_PAY_MULTIPLIER          = 1.5;
+
+ACTUALS_HISTORY_FORM       = "Utilization_Actuals_History";
+
+/* ============================================================
+ * iSolved API (Phase 4b — Hours Worked source)
+ * ============================================================ */
+
+ISOLVED_TENANT_URL         = "TODO_LIVEWIRE_ISOLVED_TENANT";   /* Dustin or McKenzie */
+ISOLVED_CLIENT_KEY         = "TODO_CLIENT_KEY";                /* OAuth client credentials */
+ISOLVED_CLIENT_SECRET      = "TODO_CLIENT_SECRET";
+ISOLVED_TIMECARD_ENDPOINT  = "TODO_TIMECARD_ENDPOINT";
+ISOLVED_EXCLUDE_CATEGORIES = list();                /* fill with iSolved's exact PTO / Holiday / Sick / Absence category names */
+
+/* ============================================================
+ * Email / distribution
+ * ============================================================ */
+
+EMAIL_SENDER               = "henry@getlivewire.com";
+EMAIL_PARALLEL_RUN_TO      = list("henry@getlivewire.com");    /* Henry-only until 2-week parallel match */
+EMAIL_FULL_DISTRIBUTION    = list("henry@getlivewire.com");    /* TODO: expand at cutover — Leadership/PM/Logistics */
+EMAIL_FAILURE_ALERT_TO     = "henry@getlivewire.com";
+
+/* Brand styling — restyle in Phase 2 from claude.ai/design/p/9c200e29-... guide.
+ * Defaults are clean/neutral placeholders. */
+BRAND_PRIMARY_COLOR        = "#222222";
+BRAND_TABLE_BORDER         = "#dddddd";
+BRAND_FONT_STACK           = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
+
+/* ============================================================
+ * Company-wide metrics (Dustin's spreadsheet 2026-05-15)
+ * ============================================================ */
+
+COMPANY_UTILIZATION_TARGET = 0.625;                 /* "62.5% utilization goal" — congrats list threshold */
+
+/* ============================================================
+ * Placeholder routing (spec Section 6)
+ * ============================================================ */
+
+PLACEHOLDER_OWNER_BUILDER_STANDARDS = "ben@getlivewire.com";       /* TODO confirm */
+PLACEHOLDER_OWNER_AV_ELECTRICAL     = "brian.mosier@getlivewire.com"; /* TODO confirm */
