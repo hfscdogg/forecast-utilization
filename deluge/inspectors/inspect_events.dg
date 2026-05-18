@@ -1,59 +1,44 @@
-// inspect_events.dg — One-off field inspector.
-//
-// Purpose:
-//   1. Confirm the exact API name for "Duration (Man Hrs)"
-//   2. Confirm the API names for Technician_2, Event_Type, Status, Start_DateTime
-//   3. Inspect picklist values for Event_Type and Status
-//   4. Spot-check whether trip charge is a flag, a picklist, or absent
-//
-// Usage:
-//   Paste this entire body into a Creator Standalone Function (return type
-//   void, no arguments). The function must have a Creator Connection named
-//   `zoho_crm_conn` with these CRM scopes:
-//     ZohoCRM.modules.events.READ
-//     ZohoCRM.users.READ
-//     ZohoCRM.settings.READ
-//
-// Expected runtime: under 5 seconds. Reads at most 5 records.
-
-// Step 1: list all field API names on the Events module
-fields_meta = invokeurl
-[
-    url: "https://www.zohoapis.com/crm/v6/settings/fields?module=Events"
-    type: GET
-    connection: "zoho_crm_conn"
-];
-info "=== Events module field metadata ===";
-for each field in fields_meta.get("fields")
+void tmp_inspect_events()
 {
-    info field.get("api_name") + "  |  " + field.get("display_label") + "  |  " + field.get("data_type");
+    // Step 1: list all field API names on the Events module
+    fields_meta = invokeurl
+    [
+        url: "https://www.zohoapis.com/crm/v6/settings/fields?module=Events"
+        type: GET
+        connection: "zoho_crm_conn"
+    ];
+    info "=== Events module field metadata ===";
+    for each field in fields_meta.get("fields")
+    {
+        info field.get("api_name") + "  |  " + field.get("display_label") + "  |  " + field.get("data_type");
+    }
+
+    // Step 2: pull one sample event so we see the raw JSON shape
+    sample_events = invokeurl
+    [
+        url: "https://www.zohoapis.com/crm/v6/Events?per_page=1&sort_by=Modified_Time&sort_order=desc"
+        type: GET
+        connection: "zoho_crm_conn"
+    ];
+    info "=== Sample Event JSON ===";
+    info sample_events.toString();
+
+    // Step 3: picklist values for Event_Type and Status
+    event_type_field = invokeurl
+    [
+        url: "https://www.zohoapis.com/crm/v6/settings/fields/Event_Type?module=Events"
+        type: GET
+        connection: "zoho_crm_conn"
+    ];
+    info "=== Event_Type picklist values ===";
+    info event_type_field.toString();
+
+    status_field = invokeurl
+    [
+        url: "https://www.zohoapis.com/crm/v6/settings/fields/Status?module=Events"
+        type: GET
+        connection: "zoho_crm_conn"
+    ];
+    info "=== Status picklist values ===";
+    info status_field.toString();
 }
-
-// Step 2: pull one sample event with all fields so we see the raw JSON shape
-sample_events = invokeurl
-[
-    url: "https://www.zohoapis.com/crm/v6/Events?per_page=1&sort_by=Modified_Time&sort_order=desc"
-    type: GET
-    connection: "zoho_crm_conn"
-];
-info "=== Sample Event JSON ===";
-info sample_events.toString();
-
-// Step 3: picklist values for Event_Type and Status
-event_type_field = invokeurl
-[
-    url: "https://www.zohoapis.com/crm/v6/settings/fields/Event_Type?module=Events"
-    type: GET
-    connection: "zoho_crm_conn"
-];
-info "=== Event_Type picklist values ===";
-info event_type_field.toString();
-
-status_field = invokeurl
-[
-    url: "https://www.zohoapis.com/crm/v6/settings/fields/Status?module=Events"
-    type: GET
-    connection: "zoho_crm_conn"
-];
-info "=== Status picklist values ===";
-info status_field.toString();

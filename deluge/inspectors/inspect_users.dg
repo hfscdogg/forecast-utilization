@@ -1,57 +1,34 @@
-// inspect_users.dg — One-off field inspector for the Users / Technicians module.
-//
-// Purpose:
-//   1. Confirm whether Users live in the built-in /users endpoint or a custom module
-//   2. Confirm whether an `Active` flag exists (Stacy 2026-05-13 said it should)
-//   3. Confirm the field that distinguishes Technicians from other roles
-//   4. Check whether `iSolved_Employee_ID` already exists (Phase 4b prep)
-//
-// Usage: paste into a Creator Standalone Function (void return, no args),
-// runs against the `zoho_crm_conn` Creator Connection.
-
-// Step 1: list all active users via the built-in users API
-all_users = invokeurl
-[
-    url: "https://www.zohoapis.com/crm/v6/users?type=ActiveUsers"
-    type: GET
-    connection: "zoho_crm_conn"
-];
-info "=== Active users (sample of first 3) ===";
-count = 0;
-for each u in all_users.get("users")
+void tmp_inspect_users()
 {
-    if(count < 3)
+    // Step 1: list all active users via the built-in users API
+    all_users = invokeurl
+    [
+        url: "https://www.zohoapis.com/crm/v6/users?type=ActiveUsers"
+        type: GET
+        connection: "zoho_crm_conn"
+    ];
+    info "=== Active users (sample of first 3) ===";
+    count = 0;
+    for each u in all_users.get("users")
     {
-        info u.toString();
-        count = count + 1;
+        if(count < 3)
+        {
+            info u.toString();
+            count = count + 1;
+        }
+    }
+    info "Total active users returned: " + all_users.get("users").size();
+
+    // Step 2: check if a custom Technicians module exists instead of using built-in users
+    modules_list = invokeurl
+    [
+        url: "https://www.zohoapis.com/crm/v6/settings/modules"
+        type: GET
+        connection: "zoho_crm_conn"
+    ];
+    info "=== All modules (looking for Technicians or similar) ===";
+    for each m in modules_list.get("modules")
+    {
+        info m.get("api_name") + "  |  " + m.get("module_name") + "  |  generated_type=" + m.get("generated_type");
     }
 }
-info "Total active users returned: " + all_users.get("users").size();
-
-// Step 2: check if a custom Technicians module exists instead of using built-in users
-modules_list = invokeurl
-[
-    url: "https://www.zohoapis.com/crm/v6/settings/modules"
-    type: GET
-    connection: "zoho_crm_conn"
-];
-info "=== All modules (looking for Technicians or similar) ===";
-for each m in modules_list.get("modules")
-{
-    info m.get("api_name") + "  |  " + m.get("module_name") + "  |  generated_type=" + m.get("generated_type");
-}
-
-// Step 3: if a custom Technicians module exists, swap "Technicians" below for its
-// api_name and uncomment the block:
-//
-// tech_fields = invokeurl
-// [
-//     url: "https://www.zohoapis.com/crm/v6/settings/fields?module=Technicians"
-//     type: GET
-//     connection: "zoho_crm_conn"
-// ];
-// info "=== Technicians module field metadata ===";
-// for each field in tech_fields.get("fields")
-// {
-//     info field.get("api_name") + "  |  " + field.get("display_label") + "  |  " + field.get("data_type");
-// }
