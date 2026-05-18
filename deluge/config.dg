@@ -16,14 +16,19 @@
  * SHARED — CRM (Zoho) Event module
  * ============================================================ */
 
-EVENTS_MODULE              = "Events";              /* TODO: confirm exact module API name during first inspector run */
-FIELD_TECHNICIAN_1         = "Owner";               /* primary tech on the event */
-FIELD_TECHNICIAN_2         = "Technician_2";        /* paired tech if event is a 2-tech job (Stacy 2026-05-13) */
-FIELD_DURATION_MAN_HRS     = "Duration_Man_Hrs";    /* TODO: confirm — Zoho usually converts "Duration (Man Hrs)" to this */
-FIELD_START_DATETIME       = "Start_DateTime";
-FIELD_END_DATETIME         = "End_DateTime";
-FIELD_EVENT_TYPE           = "Event_Type";
-FIELD_STATUS               = "Status";
+EVENTS_MODULE              = "Events";              /* confirmed via inspector 2026-05-18 */
+FIELD_TECHNICIAN_1         = "Owner";               /* primary tech on the event (ownerlookup) */
+FIELD_TECHNICIAN_2         = "Helper1";             /* API name for "Technician 2" picklist — confirmed 2026-05-18, NOT Technician_2 */
+FIELD_DURATION_MAN_HRS     = "Duration_Man_Hrs";    /* confirmed 2026-05-18, formula field */
+FIELD_DURATION_HRS         = "Duration_Hrs";        /* total event hours, formula field — useful for sanity checks */
+FIELD_START_DATETIME       = "Start_DateTime";      /* confirmed 2026-05-18 */
+FIELD_END_DATETIME         = "End_DateTime";        /* confirmed 2026-05-18 */
+FIELD_EVENT_TYPE           = "Event_Type";          /* picklist, confirmed 2026-05-18 */
+FIELD_EVENT_STATUS         = "Event_Status";        /* picklist, confirmed 2026-05-18 — the spec called this "Status" but the API name is Event_Status */
+FIELD_TRIP_CHARGE          = "Trip_Charge";         /* PICKLIST (not boolean) — confirmed 2026-05-18, values TBD from picklist dump */
+FIELD_BILLED               = "Billed";              /* boolean */
+FIELD_PLACEHOLDER          = "Placeholder";         /* boolean — filter Placeholder events */
+FIELD_HOURS_LOGGED         = "Hours_Logged";        /* double — actual hours logged on the event */
 
 /* Event type whitelist — never blacklist (spec Section 9 closeout) */
 EVENT_TYPE_BILLABLE        = "Billable";
