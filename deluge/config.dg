@@ -30,27 +30,81 @@ FIELD_BILLED               = "Billed";              /* boolean */
 FIELD_PLACEHOLDER          = "Placeholder";         /* boolean — filter Placeholder events */
 FIELD_HOURS_LOGGED         = "Hours_Logged";        /* double — actual hours logged on the event */
 
-/* Event type whitelist — never blacklist (spec Section 9 closeout) */
-EVENT_TYPE_BILLABLE        = "Billable";
-EVENT_TYPE_NON_BILLABLE    = "Non-Billable";
-EVENT_TYPE_TRAINING        = "Training";            /* counts as worked hours, flagged if it drives OT */
-EVENT_TYPE_PLACEHOLDER     = "Placeholder";         /* PM-only, owner-routed to Ben / Brian */
-EVENT_TYPE_PTO             = "PTO";                 /* explicitly excluded from both forecast and actuals */
-EVENT_TYPE_ONLINE_BOOKING  = "Online-Booking-Block"; /* Dustin's blocks — different from Placeholders, filter out */
+/* Event_Type picklist values — confirmed via inspector 2026-05-18.
+ * Whitelist categorization, TODO Dustin to confirm each. See docs/field_mapping.md
+ * for full picklist dump including the "unused" historical values. */
 
-STATUS_CANCELLED           = "Cancelled";
+EVENT_TYPES_BILLABLE = list(
+    "Trim-Out ($$$)",
+    "Rough-In ($$$)",
+    "Finish-Out ($$$)",
+    "Sub Contractor Finish-Out ($$$)",
+    "Retrofit ($$$)",
+    "Discovery - Payment Required ($$$)",
+    "Discovery - Prepaid",                          /* prepaid through package, still billable */
+    "Service - Payment Required ($$$)",
+    "Remote Assistance (Payment Required)"
+    /* TODO Dustin: confirm "Remote Support (Parasol)" — billable? */
+    /* TODO Dustin: confirm "In-House Electrical" — billable? */
+    /* TODO Dustin: confirm "Service Location" — billable? */
+);
+
+EVENT_TYPES_NON_BILLABLE = list(
+    "Service - Warranty / Punchout",
+    "Install - Warranty / Punchout",
+    "Package Overage - Non Billable",
+    "Meeting -Non Billable",
+    "Project Management",
+    "Undersold - Not Billable"
+);
+
+EVENT_TYPE_TRAINING        = "Training";            /* counts as worked, flag if drives OT */
+
+EVENT_TYPE_PLACEHOLDER     = "Place Holder";        /* the Event_Type value (note space) — also see FIELD_PLACEHOLDER boolean */
+
+EVENT_TYPES_EXCLUDED = list(
+    "Scheduled Off",                                /* PTO / off-time — TODO Dustin confirm */
+    "Place Holder",                                 /* covered by FIELD_PLACEHOLDER boolean filter too */
+    "-None-"                                        /* default empty */
+);
+
+/* Event_Status picklist values — confirmed via inspector 2026-05-18.
+ * NOTE: no "Cancelled" value exists. TODO Dustin: how are cancellations tracked?
+ * Possibilities: (1) hard-deleted from CRM, (2) Record_Status__s flag, (3) other.
+ * Until confirmed, the forecast/actuals queries will NOT filter by status — assume
+ * deleted-on-cancel until proven otherwise. */
+EVENT_STATUS_COMPLETE                = "Complete";
+EVENT_STATUS_INCOMPLETE              = "Incomplete";
+EVENT_STATUS_INCOMPLETE_JOB_NOT_READY = "Incomplete - Job Not Ready";
+EVENT_STATUS_READY_TO_BILL           = "Ready to Bill";
+
+/* Trip_Charge picklist — numeric count ("1","2","3","4") or null/"-None-"
+ * Sample observed: null on a single-tech 8-hour job. So "no trip charge"
+ * means Trip_Charge IS NULL OR Trip_Charge = "-None-". */
+TRIP_CHARGE_NONE_VALUES = list(null, "-None-", "0");
 
 /* ============================================================
- * SHARED — CRM (Zoho) Users / Technicians module
+ * SHARED — CRM (Zoho) Users (built-in users endpoint)
  * ============================================================ */
 
-USERS_MODULE               = "Users";               /* TODO: may be "Technicians" — confirm during inspector run */
-FIELD_USER_ACTIVE          = "Active";              /* TODO: may not exist yet — add + backfill if missing (Stacy) */
-FIELD_USER_DISPLAY_NAME    = "Display_Name";
-FIELD_USER_ROLE            = "Role";
-FIELD_USER_ISOLVED_ID      = "iSolved_Employee_ID"; /* Phase 4b: one-time backfill, links Zoho user to iSolved employee */
+USERS_ENDPOINT             = "/crm/v6/users?type=ActiveUsers";
+FIELD_USER_ID              = "id";                  /* matches Owner.id on Events */
+FIELD_USER_FULL_NAME       = "full_name";           /* matches Helper1 picklist display values */
+FIELD_USER_EMAIL           = "email";
+FIELD_USER_STATUS          = "status";              /* "active" for active users */
+USER_STATUS_ACTIVE         = "active";              /* the Active filter — confirmed 2026-05-18 */
+FIELD_USER_ROLE            = "role";                /* nested: role.name */
+FIELD_USER_PROFILE         = "profile";             /* nested: profile.name */
 
-ROLE_TECHNICIAN            = "Technician";          /* only forecast/report on this role */
+/* Technician identification — TODO Stacy: neither role nor profile cleanly
+ * distinguishes techs. Options:
+ *   1. Cross-reference users.full_name with Helper1 picklist "used" values
+ *   2. Add a custom Is_Active_Technician boolean to users module + backfill
+ * Option 2 is cleaner long-term. Option 1 works as a Phase 1 stopgap. */
+TECHNICIAN_FILTER_STRATEGY = "helper1_cross_reference";  /* TODO swap to custom_field once added */
+
+/* iSolved linkage — to be added once McKenzie/Dustin confirm tenant access */
+FIELD_USER_ISOLVED_ID      = "iSolved_Employee_ID"; /* Phase 4b: custom field on Users, one-time backfill */
 
 /* ============================================================
  * FORECAST — Thursday 4 PM ET

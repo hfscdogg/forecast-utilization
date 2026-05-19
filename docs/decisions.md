@@ -96,11 +96,46 @@ Training counts as worked hours. Training-driven OT gets flagged in the email.
 
 ---
 
+## 2026-05-18 — CRM Inspector Run
+
+First successful read of live CRM. Confirmed field shape; documented in
+`docs/field_mapping.md`. Highlights of what changed vs. assumption:
+
+### Confirmed
+- `Duration_Man_Hrs` API name ✓ (matches assumption)
+- Active flag exists ✓ (`users.status == "active"`)
+- No custom Technicians module — built-in users endpoint is the only roster source
+
+### Changed from spec assumptions
+- **Technician 2 field's API name is `Helper1`**, not `Technician_2`. It's a free
+  picklist of name strings, not a user lookup — paired-tech filtering compares
+  by name, not ID.
+- **Event_Status, not Status.** And the picklist has no "Cancelled" value —
+  spec's `Status != Cancelled` rule has no direct map. See open items below.
+- **Event_Type has 22 used values, not 3.** "Billable / Non-Billable / Training"
+  was a simplification. Real categorization tracked in `config.dg` EVENT_TYPES_*
+  lists, with TODOs for Dustin to confirm the ambiguous ones.
+- **Trip_Charge is a numeric picklist** (`1`/`2`/`3`/`4`), not boolean. `null` or
+  `"-None-"` means no trip charge.
+
+### Open items surfaced by the inspector
+1. **Event_Type categorization** — Dustin to confirm each of 22 used values
+   maps to billable / non-billable / training / excluded. Highest-priority
+   open question; affects forecast accuracy directly.
+2. **Cancellation tracking** — no `Cancelled` value in Event_Status. Need to
+   know: are cancelled events deleted, or marked via Record_Status__s, or
+   tracked some other way?
+3. **Technician identification** — neither role nor profile cleanly identifies
+   techs. Stacy to either add a custom `Is_Active_Technician` boolean to the
+   users module + backfill, OR confirm cross-referencing user names against
+   Helper1 picklist "used" values is acceptable as a stopgap.
+
 ## Open verification items (not blocking, surface during build)
 
 1. **30-min adder scope** — spec Section 5.2 is ambiguous whether it applies to all non-trip events or only non-billable. Ask Dustin during parallel-run reconciliation.
 2. **iSolved tenant API access** — confirm Livewire's iSolved tenant has the REST API enabled. Dustin or McKenzie can verify.
 3. **iSolved → Zoho employee mapping** — populate `iSolved_Employee_ID` on each Zoho User. One-time backfill, Stacy or Dustin.
-4. **Exact `Duration (Man Hrs)` API name** — likely `Duration_Man_Hrs`, confirm via inspector script.
-5. **Active flag on Users module** — confirm exists; if not, request Stacy add and backfill.
-6. **iSolved exclusion categories** — exact names for PTO / Holiday / Sick / Absence in iSolved's response payload.
+4. **iSolved exclusion categories** — exact names for PTO / Holiday / Sick / Absence in iSolved's response payload.
+5. **Event_Type categorization** (NEW) — see CRM Inspector Run above.
+6. **Cancellation tracking** (NEW) — see CRM Inspector Run above.
+7. **Technician identification** (NEW) — see CRM Inspector Run above.
