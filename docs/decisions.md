@@ -119,16 +119,64 @@ First successful read of live CRM. Confirmed field shape; documented in
   `"-None-"` means no trip charge.
 
 ### Open items surfaced by the inspector
-1. **Event_Type categorization** — Dustin to confirm each of 22 used values
-   maps to billable / non-billable / training / excluded. Highest-priority
-   open question; affects forecast accuracy directly.
-2. **Cancellation tracking** — no `Cancelled` value in Event_Status. Need to
-   know: are cancelled events deleted, or marked via Record_Status__s, or
-   tracked some other way?
-3. **Technician identification** — neither role nor profile cleanly identifies
-   techs. Stacy to either add a custom `Is_Active_Technician` boolean to the
-   users module + backfill, OR confirm cross-referencing user names against
-   Helper1 picklist "used" values is acceptable as a stopgap.
+1. **Event_Type categorization** — RESOLVED, see Dustin 2026-05-18 below.
+2. **Cancellation tracking** — RESOLVED, see Dustin 2026-05-18 below.
+3. **Technician identification** — still open, pending Stacy.
+
+## 2026-05-18 — Dustin (Event_Type categorization + rules)
+
+### Cancellation tracking — no status filter needed
+
+> "Cancelled events are usually just set to 'incomplete - Job not ready' and we
+> change the time to be 1 minute. We can't just delete them because zoho starts
+> being weird on reporting so we leave them there, adjust their times, and mark
+> them incomplete - job not ready, then put in the 'ActionTaken (office only)'
+> field that the job was cancelled or rescheduled."
+
+**Implication:** the math needs NO status filter. A cancelled event has a
+1-minute duration (~0.017 hr), so it self-neutralizes when Duration_Man_Hrs is
+summed. "Incomplete - Job Not Ready" is also a valid status for genuinely-not-
+ready jobs, so it must never be blanket-filtered. The auto-Notes feature can
+detect cancellations heuristically: status "Incomplete - Job Not Ready" + a
+duration under CANCELLED_EVENT_MAX_HOURS (0.1 hr).
+
+### 30-minute drive-time adder — on-site, no trip charge
+
+> "It applies to all events without trip charges, but is only counted when a
+> technician goes to an actual customer site. If they have a meeting/training
+> at the shop it isn't counted, so location matters."
+
+**Implication:** the 0.5 hr adder applies per event where the event has no trip
+charge AND its Event_Type is on-site (customer location). config.dg
+EVENT_TYPES_ONSITE = billable jobs + warranty/punchout. Shop-based types
+(Training, Meeting, Project Management) get no adder.
+
+### Scheduled Off — excluded
+
+> "Scheduled off just means the tech isn't working that day ... it probably
+> doesn't need to consider it."
+
+**Implication:** "Scheduled Off" is in EVENT_TYPES_EXCLUDED — contributes no
+hours.
+
+### Event types confirmed NOT in use
+
+Dustin: Remote Support (Parasol), Sub Contractor Finish-Out, Discovery -
+Prepaid, Remote Assistance — all unused. Removed from the billable whitelist.
+If one appears it falls through to "unknown" and the email flags it.
+
+**Retrofit** — Dustin says it "shouldn't be used" (work is really a Finish-Out
+or Service) but Brian M used it this week. Kept billable so the hours are not
+lost; the email flags it so Dustin can correct the source record.
+
+**Service Location** — Dustin: an event type he uses to block online booking
+and keep it off reports. "Not billable and shouldn't be considered in the
+calculations at all." Added to EVENT_TYPES_EXCLUDED.
+
+### Still open
+- **In-House Electrical** — Dustin did not address this one. Only Event_Type
+  value still uncategorized. Currently treated as "unknown" (flagged, not
+  counted). Needs a one-line answer: billable or non-billable?
 
 ## Open verification items (not blocking, surface during build)
 

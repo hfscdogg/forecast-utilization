@@ -2,44 +2,43 @@
 Python mirror of Deluge generate_actuals.dg.
 
 Per Dustin's "two different systems" rule, the actuals math is intentionally
-separate from forecast_math.py — no shared "hours" source. The lagging report
-takes Hours Billed from CRM (same shape as forecast) and Hours Worked from
-iSolved (a payroll timecard, not a schedule).
+separate from forecast_math.py — no shared HOURS source. The lagging report
+takes Hours Billed from CRM (same event-type taxonomy as the forecast) and
+Hours Worked from iSolved (a payroll timecard, not a schedule).
 
-Reference: docs/spec_lagging.md and decisions log entry for 2026-05-15.
+The event-type taxonomy in event_types.py IS shared — it is CRM metadata, not
+a "system". Reference: docs/spec_lagging.md, docs/decisions.md (2026-05-18).
 """
+
+from event_types import event_category, is_assigned_to
 
 WEEKLY_CAP_HRS = 40
 OT_PAY_MULTIPLIER = 1.5
 COMPANY_UTILIZATION_TARGET = 0.625
 
 
-def is_assigned_to(event: dict, technician: str) -> bool:
-    return event.get("Owner") == technician or event.get("Technician_2") == technician
-
-
-def is_active_billable(event: dict) -> bool:
-    return event.get("Event_Type") == "Billable" and event.get("Status") != "Cancelled"
-
-
-def is_active_non_billable(event: dict) -> bool:
-    return event.get("Event_Type") == "Non-Billable" and event.get("Status") != "Cancelled"
-
-
-def actuals_for_technician(technician: str, events: list[dict], time_card_total: float) -> dict:
+def actuals_for_technician(technician, events, time_card_total):
     """Apply lagging actuals math for a single tech.
 
-    Hours Billed sums Duration_Man_Hrs from CRM Billable events (no cap).
+    Hours Billed sums Duration_Man_Hrs from CRM billable events (no cap).
     Hours Worked is split: capped at 40, overflow into OT.
-    Actual Hours Paid applies the time-and-a-half OT multiplier (verified from
-    Dustin's spreadsheet 2026-05-15).
+    Actual Hours Paid applies the time-and-a-half OT multiplier (verified
+    from Dustin's spreadsheet 2026-05-15).
+
+    No status filter: cancelled events carry a 1-minute duration by Livewire
+    convention, so they self-neutralize in the hours sum.
     """
     tech_events = [e for e in events if is_assigned_to(e, technician)]
 
-    hours_billed = sum(e["Duration_Man_Hrs"] for e in tech_events if is_active_billable(e))
-    non_billable_hours = sum(
-        e["Duration_Man_Hrs"] for e in tech_events if is_active_non_billable(e)
-    )
+    hours_billed = 0.0
+    non_billable_hours = 0.0
+    for e in tech_events:
+        hrs = e.get("Duration_Man_Hrs") or 0
+        cat = event_category(e)
+        if cat == "billable":
+            hours_billed += hrs
+        elif cat == "non_billable":
+            non_billable_hours += hrs
 
     if time_card_total > WEEKLY_CAP_HRS:
         hours_worked = WEEKLY_CAP_HRS
@@ -72,7 +71,7 @@ def actuals_for_technician(technician: str, events: list[dict], time_card_total:
     }
 
 
-def company_rollup(per_tech_results: list[dict]) -> dict:
+def company_rollup(per_tech_results):
     total_billable = sum(r["hours_billed"] for r in per_tech_results)
     total_non_billable = sum(r["non_billable_hours"] for r in per_tech_results)
     tech_count = len(per_tech_results)

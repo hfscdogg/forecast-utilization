@@ -30,24 +30,27 @@ FIELD_BILLED               = "Billed";              /* boolean */
 FIELD_PLACEHOLDER          = "Placeholder";         /* boolean — filter Placeholder events */
 FIELD_HOURS_LOGGED         = "Hours_Logged";        /* double — actual hours logged on the event */
 
-/* Event_Type picklist values — confirmed via inspector 2026-05-18.
- * Whitelist categorization, TODO Dustin to confirm each. See docs/field_mapping.md
- * for full picklist dump including the "unused" historical values. */
+/* Event_Type picklist — confirmed via inspector 2026-05-18, categorization
+ * confirmed by Dustin 2026-05-18. See docs/field_mapping.md for the full
+ * picklist dump. Whitelist only — never blacklist. */
 
 EVENT_TYPES_BILLABLE = list(
     "Trim-Out ($$$)",
     "Rough-In ($$$)",
     "Finish-Out ($$$)",
-    "Sub Contractor Finish-Out ($$$)",
-    "Retrofit ($$$)",
     "Discovery - Payment Required ($$$)",
-    "Discovery - Prepaid",                          /* prepaid through package, still billable */
     "Service - Payment Required ($$$)",
-    "Remote Assistance (Payment Required)"
-    /* TODO Dustin: confirm "Remote Support (Parasol)" — billable? */
-    /* TODO Dustin: confirm "In-House Electrical" — billable? */
-    /* TODO Dustin: confirm "Service Location" — billable? */
+    "Retrofit ($$$)"                /* Dustin: should be Finish-Out or Service instead,
+                                       but Brian M used it this week. Billable when it
+                                       appears — the email flags it so Dustin can fix
+                                       the source record. */
 );
+
+/* Confirmed NOT in use by Dustin 2026-05-18: Sub Contractor Finish-Out ($$$),
+ * Discovery - Prepaid, Remote Assistance (Payment Required), Remote Support
+ * (Parasol). Deliberately omitted from every whitelist so they fall through
+ * to "unknown" and get flagged in the email if one ever appears (it would be
+ * a data-entry mistake worth surfacing). */
 
 EVENT_TYPES_NON_BILLABLE = list(
     "Service - Warranty / Punchout",
@@ -56,31 +59,68 @@ EVENT_TYPES_NON_BILLABLE = list(
     "Meeting -Non Billable",
     "Project Management",
     "Undersold - Not Billable"
+    /* TODO Dustin: "In-House Electrical" — billable or non-billable? Only
+       Event_Type value still unconfirmed. */
 );
 
 EVENT_TYPE_TRAINING        = "Training";            /* counts as worked, flag if drives OT */
 
 EVENT_TYPE_PLACEHOLDER     = "Place Holder";        /* the Event_Type value (note space) — also see FIELD_PLACEHOLDER boolean */
 
+/* Deliberate exclusions — known and intentional, NOT flagged as unknown. */
 EVENT_TYPES_EXCLUDED = list(
-    "Scheduled Off",                                /* PTO / off-time — TODO Dustin confirm */
-    "Place Holder",                                 /* covered by FIELD_PLACEHOLDER boolean filter too */
-    "-None-"                                        /* default empty */
+    "Scheduled Off",        /* Dustin: tech not working that day — do not count */
+    "Place Holder",         /* PM placeholder, owner-routed, not counted in hours */
+    "Service Location",     /* Dustin: online-booking blocker, not billable, not counted at all */
+    "-None-"                /* default empty value */
+);
+
+/* On-site classification for the 30-minute drive-time adder.
+ * Dustin 2026-05-18: the 0.5 hr adder applies to every event WITHOUT a trip
+ * charge, but ONLY when the tech drives to an actual customer site. Meetings
+ * or training at the shop get no adder.
+ * On-site = billable jobs + warranty/punchout (all at customer locations).
+ * TODO reconcile during parallel run: Package Overage and Undersold are
+ * billing adjustments treated as on-site here since they attach to real
+ * jobs — confirm with Dustin if the forecast drifts. */
+EVENT_TYPES_ONSITE = list(
+    "Trim-Out ($$$)",
+    "Rough-In ($$$)",
+    "Finish-Out ($$$)",
+    "Discovery - Payment Required ($$$)",
+    "Service - Payment Required ($$$)",
+    "Retrofit ($$$)",
+    "Service - Warranty / Punchout",
+    "Install - Warranty / Punchout",
+    "Package Overage - Non Billable",
+    "Undersold - Not Billable"
 );
 
 /* Event_Status picklist values — confirmed via inspector 2026-05-18.
- * NOTE: no "Cancelled" value exists. TODO Dustin: how are cancellations tracked?
- * Possibilities: (1) hard-deleted from CRM, (2) Record_Status__s flag, (3) other.
- * Until confirmed, the forecast/actuals queries will NOT filter by status — assume
- * deleted-on-cancel until proven otherwise. */
+ * Cancellation handling (Dustin 2026-05-18): cancelled events are NOT deleted
+ * (Zoho reporting misbehaves on deletes). Dustin sets Event_Status to
+ * "Incomplete - Job Not Ready", changes the duration to 1 minute, and writes
+ * the reason into Action_Taken_Office_Only.
+ * Consequence: NO status filter is needed. A cancelled event's 1-minute
+ * duration self-neutralizes when Duration_Man_Hrs is summed (~0.017 hr noise).
+ * "Incomplete - Job Not Ready" is ALSO a legitimate status for genuinely-
+ * not-ready jobs, so it must never be blanket-filtered. */
 EVENT_STATUS_COMPLETE                = "Complete";
 EVENT_STATUS_INCOMPLETE              = "Incomplete";
 EVENT_STATUS_INCOMPLETE_JOB_NOT_READY = "Incomplete - Job Not Ready";
 EVENT_STATUS_READY_TO_BILL           = "Ready to Bill";
 
-/* Trip_Charge picklist — numeric count ("1","2","3","4") or null/"-None-"
- * Sample observed: null on a single-tech 8-hour job. So "no trip charge"
- * means Trip_Charge IS NULL OR Trip_Charge = "-None-". */
+FIELD_ACTION_TAKEN         = "Action_Taken_Office_Only";  /* cancellation reason text */
+
+/* Cancelled-event heuristic for the auto-Notes feature: an event with status
+ * "Incomplete - Job Not Ready" AND a duration under this threshold is a
+ * cancellation, not a real not-ready job. Used only for email annotations,
+ * never for filtering hours. */
+CANCELLED_EVENT_MAX_HOURS  = 0.1;
+
+/* Trip_Charge picklist — numeric count ("1".."4") or null/"-None-".
+ * Sample observed: null on a single-tech 8-hour job. "No trip charge" means
+ * Trip_Charge IS NULL OR "-None-" OR "0". */
 TRIP_CHARGE_NONE_VALUES = list(null, "-None-", "0");
 
 /* ============================================================

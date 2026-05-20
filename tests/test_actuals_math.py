@@ -1,7 +1,7 @@
 """
 Tests for the lagging actuals math. Spreadsheet-verified examples from Dustin's
 live Billable Hours Reporting sheet (read 2026-05-15) drive the OT-premium
-expectations.
+expectations. Event types are the real CRM picklist values (2026-05-18).
 
 Run: pytest tests/test_actuals_math.py
 """
@@ -17,19 +17,19 @@ from actuals_math import actuals_for_technician, company_rollup  # noqa: E402
 
 
 def make_event(
-    technician_1: str,
-    duration_hrs: float,
+    owner,
+    duration_hrs,
     *,
-    event_type: str = "Billable",
-    status: str = "Scheduled",
-    technician_2: str | None = None,
-) -> dict:
+    event_type="Finish-Out ($$$)",
+    event_status=None,
+    helper1="No Helper",
+):
     return {
-        "Owner": technician_1,
-        "Technician_2": technician_2,
+        "Owner": owner,
+        "Helper1": helper1,
         "Duration_Man_Hrs": duration_hrs,
         "Event_Type": event_type,
-        "Status": status,
+        "Event_Status": event_status,
     }
 
 
@@ -64,8 +64,7 @@ def test_josh_spreadsheet_example_no_ot():
 
 
 def test_zero_time_card_does_not_divide_by_zero():
-    events = []
-    result = actuals_for_technician("Ghost", events, time_card_total=0)
+    result = actuals_for_technician("Ghost", [], time_card_total=0)
     assert result["actual_utilization"] == 0
     assert result["worked_utilization"] == 0
 
@@ -79,13 +78,30 @@ def test_hours_billed_can_exceed_forty():
     assert result["ot"] == pytest.approx(10.0)
 
 
-def test_cancelled_events_excluded_from_billed():
+def test_cancelled_event_self_neutralizes():
+    """Cancelled events get a 1-minute duration — no status filter needed."""
     events = [
         make_event("Ben", 30.0),
-        make_event("Ben", 5.0, status="Cancelled"),
+        make_event("Ben", 0.0167, event_status="Incomplete - Job Not Ready"),
     ]
     result = actuals_for_technician("Ben", events, time_card_total=38.0)
+    assert result["hours_billed"] == pytest.approx(30.0167, abs=0.001)
+
+
+def test_non_billable_event_type_tracked_separately():
+    events = [
+        make_event("Sam", 30.0, event_type="Finish-Out ($$$)"),
+        make_event("Sam", 6.0, event_type="Project Management"),
+    ]
+    result = actuals_for_technician("Sam", events, time_card_total=40.0)
     assert result["hours_billed"] == pytest.approx(30.0)
+    assert result["non_billable_hours"] == pytest.approx(6.0)
+
+
+def test_paired_tech_counted_via_helper1():
+    events = [make_event("Jordan", 4.0, helper1="Jim")]
+    result = actuals_for_technician("Jim", events, time_card_total=20.0)
+    assert result["hours_billed"] == pytest.approx(4.0)
 
 
 def test_company_rollup_aggregates_correctly():
@@ -101,4 +117,4 @@ def test_company_rollup_aggregates_correctly():
     assert rollup["delta"] == 70
     assert rollup["avg_billable_per_tech"] == pytest.approx(85 / 3)
     assert rollup["company_utilization"] == pytest.approx(0.85)
-    assert set(rollup["techs_above_target"]) == {"A", "C"}  # only those at or above 62.5%
+    assert set(rollup["techs_above_target"]) == {"A", "C"}  # at or above 62.5%
