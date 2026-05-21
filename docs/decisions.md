@@ -178,6 +178,54 @@ calculations at all." Added to EVENT_TYPES_EXCLUDED.
   value still uncategorized. Currently treated as "unknown" (flagged, not
   counted). Needs a one-line answer: billable or non-billable?
 
+## 2026-05-19 — Sheet-derived corrections
+
+Read the live "Billable Hours Reporting (Utilization)" Google Sheet directly
+(Henry has editor access, the Drive tools can read it). Two findings.
+
+### Forecast utilization formula — spec was wrong
+
+The spec (Section 5) said `forecast_utilization = hours_scheduled / 40`. Every
+row of Dustin's sheet instead computes it as:
+
+    forecast_utilization = billable_hours_scheduled / hours_scheduled
+
+Verified against ~15 rows across multiple tabs, e.g. the most recent tab:
+David 17.5 / 20 = 87.50%, Andre 24 / 26.5 = 90.57%, Grant 22.5 / 27.5 =
+81.82%, Bill 30 / 32 = 93.75%, Jim 20 / 26.5 = 75.47%. Older tabs match too
+(Ben 36 / 45 = 80.00%, Mark 41 / 45 = 91.11%, even Todd 32 / 24 = 133.33%).
+
+The sheet is authoritative — it IS Dustin's manual output. forecast_math.py
+now uses billable / scheduled. **Flagged to Henry for a confirm with Dustin.**
+
+Consequence: forecast utilization and actual utilization are BOTH billable-
+fraction metrics, so they are directly comparable. The earlier worry about
+non-comparability (capacity vs billing efficiency) was based on the spec's
+wrong /40 formula. The derived worked_utilization column in actuals_math.py
+is now redundant — left in place for now, candidate for removal.
+
+### hours_scheduled is uncapped
+
+Old tabs show "Hours Scheduled" values above 40 (45 is common), and the
+utilization denominator uses that uncapped figure. So hours_scheduled is NOT
+capped at 40. The 40-hour threshold only feeds forecast_ot (the overflow).
+The spec's "cap hours_scheduled at 40" instruction was also wrong.
+
+### Reference week for validation
+
+Saved fixtures/expected_forecast.json from the most recent tab (labelled
+"10/15-10/21", year unconfirmed). 7 techs have usable forecast numbers
+(David, Andre, Anthony, Grant, Bill, Stephen, Jim). Josh and Patrick have
+blank forecast cells. TODO Henry: confirm the year so the matching CRM
+events can be pulled for a tech-by-tech diff.
+
+### Technician identification — resolved by inference
+
+Henry: office staff (CEO, sales, admin) do not own field events. So the
+technician roster derives from the data: distinct Owner and Helper1 values on
+events of real field-work types in the forecast week. No new CRM field, no
+ask to Stacy. config.dg TECHNICIAN_FILTER_STRATEGY updated.
+
 ## Open verification items (not blocking, surface during build)
 
 1. **30-min adder scope** — spec Section 5.2 is ambiguous whether it applies to all non-trip events or only non-billable. Ask Dustin during parallel-run reconciliation.

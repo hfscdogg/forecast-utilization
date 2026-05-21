@@ -2,6 +2,9 @@
 Tests for the forecast math. Event types are the real CRM picklist values
 confirmed by the inspector run (2026-05-18) and categorized by Dustin.
 
+Forecast utilization = billable_hours_scheduled / hours_scheduled, confirmed
+from Dustin's live spreadsheet (2026-05-19). hours_scheduled is uncapped.
+
 Run: pytest tests/test_forecast_math.py
 """
 
@@ -49,13 +52,26 @@ def test_jim_zimmerman_example_solo_plus_paired_sums_to_five():
     assert result["drive_time_adder"] == 0
 
 
-def test_forty_hour_cap_overflows_into_ot():
+def test_utilization_is_billable_over_scheduled():
+    """Sheet-confirmed formula: billable_hours_scheduled / hours_scheduled.
+    20 billable + 5 non-billable -> 20 / 25 = 0.80."""
+    events = [
+        make_event("Sam", 20.0, event_type="Finish-Out ($$$)", trip_charge="1"),
+        make_event("Sam", 5.0, event_type="Project Management"),
+    ]
+    result = forecast_for_technician("Sam", events)
+    assert result["forecast_utilization"] == pytest.approx(0.80)
+
+
+def test_over_forty_hours_reports_ot_but_does_not_cap_hours_scheduled():
+    """Hours Scheduled is uncapped on the sheet. The 40-hr threshold only
+    feeds forecast_ot."""
     events = [make_event("Andy", 45.0, trip_charge="1")]
     result = forecast_for_technician("Andy", events)
-    assert result["hours_scheduled"] == 40
+    assert result["hours_scheduled"] == pytest.approx(45.0)
     assert result["forecast_ot"] == pytest.approx(5.0)
     assert result["forecast_hours"] == pytest.approx(45.0)
-    assert result["forecast_utilization"] == pytest.approx(1.0)
+    assert result["forecast_utilization"] == pytest.approx(1.0)  # 45 billable / 45
 
 
 def test_under_forty_hours_no_ot():
@@ -63,7 +79,7 @@ def test_under_forty_hours_no_ot():
     result = forecast_for_technician("Ben", events)
     assert result["hours_scheduled"] == pytest.approx(30.0)
     assert result["forecast_ot"] == 0
-    assert result["forecast_utilization"] == pytest.approx(0.75)
+    assert result["forecast_utilization"] == pytest.approx(1.0)  # all billable
 
 
 def test_scheduled_off_excluded_entirely():
@@ -88,8 +104,7 @@ def test_service_location_excluded_entirely():
 
 def test_cancelled_event_self_neutralizes_via_one_minute_duration():
     """Dustin 2026-05-18: cancelled events get a 1-minute duration and status
-    Incomplete - Job Not Ready. No status filter needed — the tiny duration
-    makes them noise (1 min = 0.0167 hr)."""
+    Incomplete - Job Not Ready. No status filter needed."""
     events = [
         make_event("Greg", 30.0, trip_charge="1"),
         make_event(
@@ -113,17 +128,18 @@ def test_paired_tech_counted_when_helper1_matches():
 
 
 def test_training_counts_as_worked_and_flagged_if_drives_ot():
-    """Spec Section 5.5: training counts as worked hours, flag it if it drives OT.
-    Training is shop-based so it gets no drive adder."""
+    """Training counts as worked hours, flag it if it drives OT. Training is
+    shop-based so it gets no drive adder."""
     events = [
         make_event("Anthony", 36.0, trip_charge="1"),
         make_event("Anthony", 6.0, event_type="Training"),
     ]
     result = forecast_for_technician("Anthony", events)
     assert result["training_hours"] == pytest.approx(6.0)
-    assert result["hours_scheduled"] == 40
+    assert result["hours_scheduled"] == pytest.approx(42.0)
     assert result["forecast_ot"] == pytest.approx(2.0)
     assert result["training_drove_ot"] is True
+    assert result["forecast_utilization"] == pytest.approx(36.0 / 42.0)
 
 
 def test_drive_adder_applies_to_onsite_event_without_trip_charge():
@@ -132,6 +148,7 @@ def test_drive_adder_applies_to_onsite_event_without_trip_charge():
     result = forecast_for_technician("Tom", events)
     assert result["drive_time_adder"] == pytest.approx(0.5)
     assert result["hours_scheduled"] == pytest.approx(8.5)
+    assert result["forecast_utilization"] == pytest.approx(8.0 / 8.5)
 
 
 def test_drive_adder_skipped_when_trip_charge_present():
@@ -183,5 +200,4 @@ def test_unknown_event_type_flagged_not_silently_dropped():
     ]
     result = forecast_for_technician("Pat", events)
     assert result["unknown_event_types"] == ["Remote Assistance (Payment Required)"]
-    # unknown-type hours are not counted toward the forecast
     assert result["hours_scheduled"] == pytest.approx(10.0)

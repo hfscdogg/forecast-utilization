@@ -1,0 +1,14 @@
+{
+  "_source": "Billable Hours Reporting (Utilization) Google Sheet, most recent tab labelled '10/15-10/21'",
+  "_note": "Manual forecast numbers, read 2026-05-19. Year of the tab not yet confirmed by Henry. Josh and Patrick have blank forecast cells (0/0) so they are excluded from validation. forecast_utilization in the sheet equals billable_hours_scheduled / hours_scheduled.",
+  "week_label": "10/15-10/21",
+  "technicians": {
+    "David": {"billable_hours_scheduled": 17.5, "hours_scheduled": 20, "forecast_utilization": 0.875},
+    "Andre": {"billable_hours_scheduled": 24, "hours_scheduled": 26.5, "forecast_utilization": 0.9057},
+    "Anthony": {"billable_hours_scheduled": 16, "hours_scheduled": 17.5, "forecast_utilization": 0.9143},
+    "Grant": {"billable_hours_scheduled": 22.5, "hours_scheduled": 27.5, "forecast_utilization": 0.8182},
+    "Bill": {"billable_hours_scheduled": 30, "hours_scheduled": 32, "forecast_utilization": 0.9375},
+    "Stephen": {"billable_hours_scheduled": 16, "hours_scheduled": 17.5, "forecast_utilization": 0.9143},
+    "Jim": {"billable_hours_scheduled": 20, "hours_scheduled": 26.5, "forecast_utilization": 0.7547}
+  }
+}

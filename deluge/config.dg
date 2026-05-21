@@ -136,12 +136,13 @@ USER_STATUS_ACTIVE         = "active";              /* the Active filter — con
 FIELD_USER_ROLE            = "role";                /* nested: role.name */
 FIELD_USER_PROFILE         = "profile";             /* nested: profile.name */
 
-/* Technician identification — TODO Stacy: neither role nor profile cleanly
- * distinguishes techs. Options:
- *   1. Cross-reference users.full_name with Helper1 picklist "used" values
- *   2. Add a custom Is_Active_Technician boolean to users module + backfill
- * Option 2 is cleaner long-term. Option 1 works as a Phase 1 stopgap. */
-TECHNICIAN_FILTER_STRATEGY = "helper1_cross_reference";  /* TODO swap to custom_field once added */
+/* Technician identification — resolved 2026-05-19, no new CRM field needed.
+ * Henry: office staff (CEO / sales / admin) do not own field events. So the
+ * technician roster for a given week is derived from the data: the distinct
+ * set of Owner and Helper1 values appearing on events of real field-work
+ * types (billable / non-billable on-site / training) within that week.
+ * A tech who is totally idle a given week has nothing to forecast anyway. */
+TECHNICIAN_FILTER_STRATEGY = "derive_from_event_ownership";
 
 /* iSolved linkage — to be added once McKenzie/Dustin confirm tenant access */
 FIELD_USER_ISOLVED_ID      = "iSolved_Employee_ID"; /* Phase 4b: custom field on Users, one-time backfill */
