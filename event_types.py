@@ -17,6 +17,7 @@ EVENT_TYPES_BILLABLE = {
     "Discovery - Payment Required ($$$)",
     "Service - Payment Required ($$$)",
     "Retrofit ($$$)",
+    "In-House Electrical",
 }
 
 EVENT_TYPES_NON_BILLABLE = {
@@ -50,6 +51,7 @@ EVENT_TYPES_ONSITE = {
     "Discovery - Payment Required ($$$)",
     "Service - Payment Required ($$$)",
     "Retrofit ($$$)",
+    "In-House Electrical",
     "Service - Warranty / Punchout",
     "Install - Warranty / Punchout",
     "Package Overage - Non Billable",

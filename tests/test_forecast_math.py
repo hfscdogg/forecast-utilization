@@ -63,15 +63,15 @@ def test_utilization_is_billable_over_scheduled():
     assert result["forecast_utilization"] == pytest.approx(0.80)
 
 
-def test_over_forty_hours_reports_ot_but_does_not_cap_hours_scheduled():
-    """Hours Scheduled is uncapped on the sheet. The 40-hr threshold only
-    feeds forecast_ot."""
+def test_over_forty_hours_splits_into_forecast_hours_and_ot():
+    """Hours Scheduled is uncapped. Forecast Hours is the within-40 portion
+    (Hours Scheduled minus the OT overflow). Utilization uses Forecast Hours."""
     events = [make_event("Andy", 45.0, trip_charge="1")]
     result = forecast_for_technician("Andy", events)
     assert result["hours_scheduled"] == pytest.approx(45.0)
     assert result["forecast_ot"] == pytest.approx(5.0)
-    assert result["forecast_hours"] == pytest.approx(45.0)
-    assert result["forecast_utilization"] == pytest.approx(1.0)  # 45 billable / 45
+    assert result["forecast_hours"] == pytest.approx(40.0)
+    assert result["forecast_utilization"] == pytest.approx(45.0 / 40.0)  # 112.5%
 
 
 def test_under_forty_hours_no_ot():
@@ -138,8 +138,9 @@ def test_training_counts_as_worked_and_flagged_if_drives_ot():
     assert result["training_hours"] == pytest.approx(6.0)
     assert result["hours_scheduled"] == pytest.approx(42.0)
     assert result["forecast_ot"] == pytest.approx(2.0)
+    assert result["forecast_hours"] == pytest.approx(40.0)
     assert result["training_drove_ot"] is True
-    assert result["forecast_utilization"] == pytest.approx(36.0 / 42.0)
+    assert result["forecast_utilization"] == pytest.approx(36.0 / 40.0)
 
 
 def test_drive_adder_applies_to_onsite_event_without_trip_charge():

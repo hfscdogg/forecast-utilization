@@ -173,10 +173,11 @@ lost; the email flags it so Dustin can correct the source record.
 and keep it off reports. "Not billable and shouldn't be considered in the
 calculations at all." Added to EVENT_TYPES_EXCLUDED.
 
-### Still open
-- **In-House Electrical** — Dustin did not address this one. Only Event_Type
-  value still uncategorized. Currently treated as "unknown" (flagged, not
-  counted). Needs a one-line answer: billable or non-billable?
+### In-House Electrical — RESOLVED 2026-05-19
+
+Dustin: "In House Electrical works the same way as service payment required.
+It is billable time." Added to EVENT_TYPES_BILLABLE and EVENT_TYPES_ONSITE.
+All 22 used Event_Type values are now categorized.
 
 ## 2026-05-19 — Sheet-derived corrections
 
@@ -185,18 +186,25 @@ Read the live "Billable Hours Reporting (Utilization)" Google Sheet directly
 
 ### Forecast utilization formula — spec was wrong
 
-The spec (Section 5) said `forecast_utilization = hours_scheduled / 40`. Every
-row of Dustin's sheet instead computes it as:
+The spec (Section 5) said `forecast_utilization = hours_scheduled / 40`. The
+sheet instead divides billable scheduled hours by a denominator. Dustin
+confirmed 2026-05-19 the exact denominator:
 
-    forecast_utilization = billable_hours_scheduled / hours_scheduled
+    forecast_utilization = billable_hours_scheduled / forecast_hours
 
-Verified against ~15 rows across multiple tabs, e.g. the most recent tab:
-David 17.5 / 20 = 87.50%, Andre 24 / 26.5 = 90.57%, Grant 22.5 / 27.5 =
-81.82%, Bill 30 / 32 = 93.75%, Jim 20 / 26.5 = 75.47%. Older tabs match too
-(Ben 36 / 45 = 80.00%, Mark 41 / 45 = 91.11%, even Todd 32 / 24 = 133.33%).
+where `forecast_hours` is the within-40 portion of scheduled time
+(hours_scheduled minus the OT overflow). For a tech under 40 hours,
+forecast_hours equals hours_scheduled, so the under-40 sheet rows still check
+out: David 17.5 / 20 = 87.50%, Grant 22.5 / 27.5 = 81.82%, Bill 30 / 32 =
+93.75%, Jim 20 / 26.5 = 75.47%.
 
-The sheet is authoritative — it IS Dustin's manual output. forecast_math.py
-now uses billable / scheduled. **Flagged to Henry for a confirm with Dustin.**
+OPEN (non-blocking): no over-40 row in the new sheet format was captured
+before Drive access dropped, so the exact definition of Forecast Hours when a
+tech exceeds 40 is an assumption. Current code: forecast_hours =
+min(hours_scheduled, 40). An alternative (forecast_hours = 40 + OT * 1.5,
+mirroring Actual Hours Paid) is possible but less likely for a utilization
+metric. The reference validation week has every tech under 40, so this does
+not block Phase 1. Confirm with Dustin if a parallel-run week drifts.
 
 Consequence: forecast utilization and actual utilization are BOTH billable-
 fraction metrics, so they are directly comparable. The earlier worry about

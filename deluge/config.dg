@@ -40,6 +40,8 @@ EVENT_TYPES_BILLABLE = list(
     "Finish-Out ($$$)",
     "Discovery - Payment Required ($$$)",
     "Service - Payment Required ($$$)",
+    "In-House Electrical",          /* Dustin 2026-05-19: works like Service -
+                                       Payment Required, billable time */
     "Retrofit ($$$)"                /* Dustin: should be Finish-Out or Service instead,
                                        but Brian M used it this week. Billable when it
                                        appears — the email flags it so Dustin can fix
@@ -59,8 +61,6 @@ EVENT_TYPES_NON_BILLABLE = list(
     "Meeting -Non Billable",
     "Project Management",
     "Undersold - Not Billable"
-    /* TODO Dustin: "In-House Electrical" — billable or non-billable? Only
-       Event_Type value still unconfirmed. */
 );
 
 EVENT_TYPE_TRAINING        = "Training";            /* counts as worked, flag if drives OT */
@@ -89,6 +89,7 @@ EVENT_TYPES_ONSITE = list(
     "Finish-Out ($$$)",
     "Discovery - Payment Required ($$$)",
     "Service - Payment Required ($$$)",
+    "In-House Electrical",
     "Retrofit ($$$)",
     "Service - Warranty / Punchout",
     "Install - Warranty / Punchout",

@@ -7,10 +7,11 @@ taxonomy lives in event_types.py (Deluge equivalent: deluge/config.dg).
 Reference: docs/spec_forecast.md Section 5, docs/field_mapping.md,
 docs/decisions.md (Dustin 2026-05-18, sheet-derived corrections 2026-05-19).
 
-NOTE on the utilization formula: the spec said hours_scheduled / 40, but
-every row of Dustin's live spreadsheet computes it as billable_hours_scheduled
-/ hours_scheduled. The sheet is authoritative — it IS Dustin's manual output.
-See docs/decisions.md "2026-05-19 — sheet-derived corrections".
+NOTE on the utilization formula: the spec said hours_scheduled / 40. The real
+formula (confirmed by Dustin 2026-05-19) is billable_hours_scheduled divided
+by Forecast Hours, where Forecast Hours is the within-40 portion of scheduled
+time (hours_scheduled minus the OT overflow). For a tech under 40 hours
+Forecast Hours equals hours_scheduled. See docs/decisions.md.
 """
 
 from event_types import (
@@ -62,11 +63,13 @@ def forecast_for_technician(technician, events):
     )
 
     forecast_ot = max(0.0, hours_scheduled - WEEKLY_OT_THRESHOLD_HRS)
-    forecast_hours = hours_scheduled
+    # "Forecast Hours" on the sheet — the within-40 portion (Hours Scheduled
+    # minus the OT overflow). Equals hours_scheduled when the tech is under 40.
+    forecast_hours = hours_scheduled - forecast_ot
 
-    # Sheet formula: billable scheduled / total scheduled.
-    if hours_scheduled > 0:
-        forecast_utilization = billable_hours / hours_scheduled
+    # Sheet formula (Dustin 2026-05-19): billable scheduled / Forecast Hours.
+    if forecast_hours > 0:
+        forecast_utilization = billable_hours / forecast_hours
     else:
         forecast_utilization = 0
 
