@@ -1,0 +1,65 @@
+// pull_week.dg — pulls one week of Events for forecast validation.
+//
+// Window: 2026-05-16 .. 2026-05-25 (wide; the "5/17-5/23" forecast tab is
+// binned precisely in Python afterwards). Paginates COQL 200 at a time.
+// Also dumps the active user list so Owner ids can be mapped to names.
+//
+// Before running: replace REFRESH_TOKEN / CLIENT_ID / CLIENT_SECRET.
+// One-off — delete this function from Creator after the run.
+
+void tmp_pull_week()
+{
+    token_resp = invokeurl
+    [
+        url: "https://accounts.zoho.com/oauth/v2/token"
+        type: POST
+        parameters: {"grant_type": "refresh_token", "client_id": "CLIENT_ID", "client_secret": "CLIENT_SECRET", "refresh_token": "REFRESH_TOKEN"}
+    ];
+    access_token = token_resp.get("access_token");
+    auth_header = {"Authorization": "Zoho-oauthtoken " + access_token, "Content-Type": "application/json"};
+
+    offset = 0;
+    page = 1;
+    keep_going = true;
+    while(keep_going && page <= 10)
+    {
+        query = "SELECT id, Owner, Helper1, Event_Type, Event_Status, Trip_Charge, Duration_Man_Hrs, Duration_Hrs, Start_DateTime, End_DateTime FROM Events WHERE Start_DateTime between '2026-05-16T00:00:00-04:00' and '2026-05-25T23:59:59-04:00' LIMIT " + offset + ", 200";
+        body = {"select_query": query};
+        resp = invokeurl
+        [
+            url: "https://www.zohoapis.com/crm/v6/coql"
+            type: POST
+            headers: auth_header
+            parameters: body.toString()
+        ];
+        info "=== EVENTS PAGE " + page + " ===";
+        info resp.toString();
+        more = false;
+        rinfo = resp.get("info");
+        if(rinfo != null)
+        {
+            more = rinfo.get("more_records");
+        }
+        if(more == true)
+        {
+            offset = offset + 200;
+            page = page + 1;
+        }
+        else
+        {
+            keep_going = false;
+        }
+    }
+
+    users_resp = invokeurl
+    [
+        url: "https://www.zohoapis.com/crm/v6/users?type=ActiveUsers"
+        type: GET
+        headers: auth_header
+    ];
+    info "=== ACTIVE USERS (id | full_name) ===";
+    for each u in users_resp.get("users")
+    {
+        info u.get("id") + " | " + u.get("full_name");
+    }
+}

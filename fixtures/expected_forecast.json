@@ -1,14 +1,40 @@
 {
-  "_source": "Billable Hours Reporting (Utilization) Google Sheet, most recent tab labelled '10/15-10/21'",
-  "_note": "Manual forecast numbers, read 2026-05-19. Year of the tab not yet confirmed by Henry. Josh and Patrick have blank forecast cells (0/0) so they are excluded from validation. forecast_utilization in the sheet equals billable_hours_scheduled / hours_scheduled.",
-  "week_label": "10/15-10/21",
+  "_source": "Billable Hours Reporting (Utilization) Google Sheet, tab '5/17-5/23'. Most recent accurate forecast per Henry 2026-05-21. Pasted by Henry from the live tab.",
+  "_notes": [
+    "forecast_utilization = billable_hours_scheduled / forecast_hours, confirmed: Patrick 10/9 = 111.11%, Jim 29/27.5 = 105.45%, Andre 28/31 = 90.32%.",
+    "All techs under 40 hours so forecast_hours == hours_scheduled, forecast_ot == 0.",
+    "Jordan excluded from validation: 0/0 forecast cells (#DIV/0).",
+    "PUZZLE: Patrick (billable 10 > scheduled 9) and Jim (billable 29 > scheduled 27.5) have billable exceeding total scheduled. So 'Hours Scheduled' is NOT the sum of event durations. To be resolved by pulling the week's CRM events.",
+    "Sheet uses first names; CRM full-name mapping in _name_map (from the Helper1 picklist dump).",
+    "COMPANY total Forecast Utilization is the MEAN of the per-tech utilization percentages (excluding #DIV/0 rows), NOT total_billable / total_scheduled. Sheet row 11 shows 71.63% = (76.92+19.61+111.11+90.32+88.89+9.09+105.45)/7. The naive total_billable/total_scheduled would give 83/126 = 65.87%.",
+    "The Billable Hours Scheduled and Hours Scheduled columns are labelled 'Coordinator to fill in green boxes' — hand-entered today. That manual entry is what this automation replaces."
+  ],
+  "company_totals": {
+    "billable_hours_scheduled": 83,
+    "hours_scheduled": 126,
+    "forecast_ot": 0.0,
+    "forecast_hours": 126,
+    "forecast_utilization": 0.7163,
+    "_formula": "forecast_utilization is the mean of the 7 per-tech utilizations, not 83/126"
+  },
+  "week_label": "5/17-5/23",
+  "_name_map": {
+    "Josh B": "Joshua Brown",
+    "Jason": "Jason Good",
+    "Patrick": "Patrick Jones",
+    "Andre": "Andre Smith",
+    "Jordan": "Jordan Toppin",
+    "Jeffrey": "Jeffrey Walburn",
+    "Thomas": "Thomas Payne",
+    "Jim": "Jim Zimmerman"
+  },
   "technicians": {
-    "David": {"billable_hours_scheduled": 17.5, "hours_scheduled": 20, "forecast_utilization": 0.875},
-    "Andre": {"billable_hours_scheduled": 24, "hours_scheduled": 26.5, "forecast_utilization": 0.9057},
-    "Anthony": {"billable_hours_scheduled": 16, "hours_scheduled": 17.5, "forecast_utilization": 0.9143},
-    "Grant": {"billable_hours_scheduled": 22.5, "hours_scheduled": 27.5, "forecast_utilization": 0.8182},
-    "Bill": {"billable_hours_scheduled": 30, "hours_scheduled": 32, "forecast_utilization": 0.9375},
-    "Stephen": {"billable_hours_scheduled": 16, "hours_scheduled": 17.5, "forecast_utilization": 0.9143},
-    "Jim": {"billable_hours_scheduled": 20, "hours_scheduled": 26.5, "forecast_utilization": 0.7547}
+    "Josh B":  {"billable_hours_scheduled": 5,  "hours_scheduled": 6.5,  "forecast_ot": 0.0, "forecast_hours": 6.5,  "forecast_utilization": 0.7692},
+    "Jason":   {"billable_hours_scheduled": 5,  "hours_scheduled": 25.5, "forecast_ot": 0.0, "forecast_hours": 25.5, "forecast_utilization": 0.1961},
+    "Patrick": {"billable_hours_scheduled": 10, "hours_scheduled": 9,    "forecast_ot": 0.0, "forecast_hours": 9,    "forecast_utilization": 1.1111},
+    "Andre":   {"billable_hours_scheduled": 28, "hours_scheduled": 31,   "forecast_ot": 0.0, "forecast_hours": 31,   "forecast_utilization": 0.9032},
+    "Jeffrey": {"billable_hours_scheduled": 4,  "hours_scheduled": 4.5,  "forecast_ot": 0.0, "forecast_hours": 4.5,  "forecast_utilization": 0.8889},
+    "Thomas":  {"billable_hours_scheduled": 2,  "hours_scheduled": 22,   "forecast_ot": 0.0, "forecast_hours": 22,   "forecast_utilization": 0.0909},
+    "Jim":     {"billable_hours_scheduled": 29, "hours_scheduled": 27.5, "forecast_ot": 0.0, "forecast_hours": 27.5, "forecast_utilization": 1.0545}
   }
 }
