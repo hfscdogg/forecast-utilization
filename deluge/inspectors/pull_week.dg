@@ -1,7 +1,7 @@
 // pull_week.dg — pulls one week of Events for forecast validation.
 //
 // Window: 2026-05-16 .. 2026-05-25 (wide; the "5/17-5/23" forecast tab is
-// binned precisely in Python afterwards). Paginates COQL 200 at a time.
+// binned precisely in Python afterwards). Fetches 3 COQL pages of 200.
 // Also dumps the active user list so Owner ids can be mapped to names.
 //
 // Before running: replace REFRESH_TOKEN / CLIENT_ID / CLIENT_SECRET.
@@ -18,12 +18,13 @@ void tmp_pull_week()
     access_token = token_resp.get("access_token");
     auth_header = {"Authorization": "Zoho-oauthtoken " + access_token, "Content-Type": "application/json"};
 
-    offset = 0;
-    page = 1;
-    keep_going = true;
-    while(keep_going && page <= 10)
+    offsets = List();
+    offsets.add(0);
+    offsets.add(200);
+    offsets.add(400);
+    for each off in offsets
     {
-        query = "SELECT id, Owner, Helper1, Event_Type, Event_Status, Trip_Charge, Duration_Man_Hrs, Duration_Hrs, Start_DateTime, End_DateTime FROM Events WHERE Start_DateTime between '2026-05-16T00:00:00-04:00' and '2026-05-25T23:59:59-04:00' LIMIT " + offset + ", 200";
+        query = "SELECT id, Owner, Helper1, Event_Type, Event_Status, Trip_Charge, Duration_Man_Hrs, Duration_Hrs, Start_DateTime, End_DateTime FROM Events WHERE Start_DateTime between '2026-05-16T00:00:00-04:00' and '2026-05-25T23:59:59-04:00' LIMIT " + off + ", 200";
         body = {"select_query": query};
         resp = invokeurl
         [
@@ -32,23 +33,8 @@ void tmp_pull_week()
             headers: auth_header
             parameters: body.toString()
         ];
-        info "=== EVENTS PAGE " + page + " ===";
-        info resp.toString();
-        more = false;
-        rinfo = resp.get("info");
-        if(rinfo != null)
-        {
-            more = rinfo.get("more_records");
-        }
-        if(more == true)
-        {
-            offset = offset + 200;
-            page = page + 1;
-        }
-        else
-        {
-            keep_going = false;
-        }
+        info "=== EVENTS OFFSET " + off + " ===";
+        info resp;
     }
 
     users_resp = invokeurl
