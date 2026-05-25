@@ -140,8 +140,7 @@ Map generate_forecast(String week_start, String week_end)
                 hrs = 0.0;
                 if(overlap_end > overlap_start)
                 {
-                    minutes = dateDiff(overlap_end, overlap_start, "minutes");
-                    hrs = minutes / 60.0;
+                    hrs = (overlap_end.getEpochTime() - overlap_start.getEpochTime()) / 3600000.0;
                 }
 
                 et = evt.get("Event_Type");
