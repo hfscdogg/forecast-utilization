@@ -1,17 +1,3 @@
-// generate_forecast.dg — Phase 2 Deluge port of forecast_math.py.
-//
-// Standalone Function in Creator. Returns a Map with the per-tech list and
-// the company rollup for the forecast week defined by week_start..week_end
-// (ISO 8601 datetime strings with offset, e.g. "2026-05-25T00:00:00-04:00").
-//
-// Requires a Creator Connection named `zoho_crm_conn` (Custom Service type)
-// with these scopes:
-//     ZohoCRM.modules.events.READ
-//     ZohoCRM.users.READ
-//     ZohoCRM.coql.READ
-//
-// Keep the event-type lists below in sync with event_types.py and config.dg.
-
 Map generate_forecast(String week_start, String week_end)
 {
     EVENT_TYPES_BILLABLE = {

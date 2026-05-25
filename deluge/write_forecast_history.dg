@@ -1,11 +1,3 @@
-// write_forecast_history.dg — Phase 2.
-//
-// Standalone Function in Creator. Writes one record per tech to the
-// Utilization_Forecast_History form. All records from one run share Run_ID.
-//
-// Prereq: the Utilization_Forecast_History form exists (see
-// docs/forecast_history_form_schema.md for the field list).
-
 void write_forecast_history(Map result, String run_id)
 {
     techs = result.get("techs");
