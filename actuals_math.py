@@ -33,7 +33,10 @@ def actuals_for_technician(technician, events, time_card_total):
     hours_billed = 0.0
     non_billable_hours = 0.0
     for e in tech_events:
-        hrs = e.get("Duration_Man_Hrs") or 0
+        # Duration_Hrs is wall-clock per tech. Duration_Man_Hrs is the TOTAL
+        # across all techs on the event (= wall × tech_count); using it
+        # per-tech would double-count paired jobs.
+        hrs = e.get("Duration_Hrs") or 0
         cat = event_category(e)
         if cat == "billable":
             hours_billed += hrs

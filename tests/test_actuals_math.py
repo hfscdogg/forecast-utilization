@@ -27,7 +27,8 @@ def make_event(
     return {
         "Owner": owner,
         "Helper1": helper1,
-        "Duration_Man_Hrs": duration_hrs,
+        "Duration_Hrs": duration_hrs,
+        "Duration_Man_Hrs": duration_hrs,  # equal for solo events in tests
         "Event_Type": event_type,
         "Event_Status": event_status,
     }

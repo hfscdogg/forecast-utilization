@@ -41,7 +41,10 @@ def forecast_for_technician(technician, events):
     unknown_types = set()
 
     for e in tech_events:
-        hrs = e.get("Duration_Man_Hrs") or 0
+        # Duration_Hrs is wall-clock per tech. Duration_Man_Hrs is the TOTAL
+        # across all techs on the event (= wall × tech_count), so summing it
+        # per-tech double-counts paired jobs.
+        hrs = e.get("Duration_Hrs") or 0
         cat = event_category(e)
         if cat == "billable":
             billable_hours += hrs

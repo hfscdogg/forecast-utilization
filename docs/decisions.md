@@ -221,11 +221,56 @@ The spec's "cap hours_scheduled at 40" instruction was also wrong.
 
 ### Reference week for validation
 
-Saved fixtures/expected_forecast.json from the most recent tab (labelled
-"10/15-10/21", year unconfirmed). 7 techs have usable forecast numbers
-(David, Andre, Anthony, Grant, Bill, Stephen, Jim). Josh and Patrick have
-blank forecast cells. TODO Henry: confirm the year so the matching CRM
-events can be pulled for a tech-by-tech diff.
+The 10/15-10/21 tab was a stale older tab; the actual most recent forecast
+is the 5/17-5/23 tab. fixtures/expected_forecast.json rebuilt from that
+2026-05-21 paste, with 7 techs having usable forecast numbers (Josh B,
+Jason, Patrick, Andre, Jeffrey, Thomas, Jim). Jordan excluded (0/0).
+
+### Validation finding — Duration_Man_Hrs is TOTAL, not per-tech
+
+The 2026-05-13 reading of Stacy's "Duration (Man Hrs) is a computed CRM
+field that pre-splits hours per technician on multi-tech jobs" was
+INCORRECT. Real-data evidence (2026-05-21 inspector pull):
+
+- Event 322935002 Rough-In, Josh + Jason paired: Duration_Hrs=4.73,
+  Duration_Man_Hrs=9.47 (= 4.73 × 2).
+- Event 324464540 Finish-Out, Andre + Jeffrey paired: Duration_Hrs=9.63,
+  Duration_Man_Hrs=19.27 (= 9.63 × 2).
+- Event 319473201 Finish-Out, Patrick solo: Duration_Hrs=7.25,
+  Duration_Man_Hrs=7.25 (= 7.25 × 1).
+
+So `Duration_Man_Hrs = Duration_Hrs × tech_count`. The PER-TECH
+contribution is `Duration_Hrs` (wall-clock); `Duration_Man_Hrs` is the
+company-wide man-hours rollup. forecast_math.py and actuals_math.py now
+sum `Duration_Hrs` per tech.
+
+### Validation finding — "Hours Scheduled" is hand-entered
+
+The Google Sheet shows "Coordinator to fill in green boxes" under both
+the Billable Hours Scheduled and Hours Scheduled columns. Both are
+hand-entered by Dustin / a coordinator each Thursday, not derived from
+a formula. That explains the Patrick row (billable 10 > scheduled 9):
+the manual process allows internal inconsistency. The automation will
+be more rigorous (Hours Scheduled will always include Billable Hours
+Scheduled + non-billable + training + adder).
+
+### Validation finding — multi-day off-time markers
+
+Some events are typed as Meeting / Training / Scheduled Off but span
+24-120+ hours (e.g., a 24h "Meeting -Non Billable" from Sun 8pm to Mon
+8pm). These are calendar blocks for unavailability that span beyond the
+forecast week. The automation should pro-rate event duration to the
+within-week slice rather than counting full Duration_Hrs. Open for the
+next iteration.
+
+### Validation result summary
+
+With Duration_Hrs as the per-tech aggregator, utilization percentages
+land within 3-30 points of Dustin's manual forecast for the 5/17-5/23
+week. Closest: Josh B (Δ 2 pts), Jim (Δ 3 pts), Jeffrey (Δ 9 pts). The
+remaining gap is the time-snapshot mismatch (Dustin forecast 5/14,
+this pull was 5/21) and the multi-day-event issue above. The
+methodology is sound; final tuning happens in parallel run.
 
 ### Technician identification — resolved by inference
 
