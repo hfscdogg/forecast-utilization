@@ -193,6 +193,29 @@ def test_non_billable_tracked_separately_from_billable():
     assert result["hours_scheduled"] == pytest.approx(25.0)
 
 
+def test_prorate_event_to_window_slice():
+    """A 24h event spanning Sun 8pm to Mon 8pm contributes only 4 hours to a
+    Mon-Sun forecast week (the slice from Sun 8pm to Sun midnight)."""
+    from datetime import datetime
+    events = [
+        {
+            "Owner": "Jim",
+            "Helper1": "No Helper",
+            "Event_Type": "Meeting -Non Billable",
+            "Trip_Charge": None,
+            "Duration_Hrs": 24,
+            "Start_DateTime": "2026-05-24T20:00:00-04:00",
+            "End_DateTime": "2026-05-25T19:59:59-04:00",
+        }
+    ]
+    window_start = datetime.fromisoformat("2026-05-18T00:00:00-04:00")
+    window_end = datetime.fromisoformat("2026-05-24T23:59:59-04:00")
+    result = forecast_for_technician("Jim", events, window_start, window_end)
+    # 8pm to 23:59:59 on Sunday = ~4 hours of overlap
+    assert result["non_billable_hours"] == pytest.approx(4.0, abs=0.05)
+    assert result["hours_scheduled"] == pytest.approx(4.0, abs=0.05)
+
+
 def test_unknown_event_type_flagged_not_silently_dropped():
     """Types Dustin confirmed unused (e.g. Remote Assistance) should surface
     if they appear — a data-entry mistake worth flagging."""

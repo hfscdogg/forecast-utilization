@@ -1,0 +1,54 @@
+// scheduled_forecast.dg — Phase 3 entrypoint.
+//
+// Standalone Function in Creator, triggered by a Creator schedule every
+// Thursday at 16:00 America/New_York. Orchestrates:
+//   1. Compute the upcoming Mon-Sun forecast week.
+//   2. Call generate_forecast.
+//   3. Call write_forecast_history (one record per tech, all sharing Run_ID).
+//   4. Call send_forecast_email.
+//   5. Failure-alert email on any uncaught exception.
+//
+// Prereqs:
+//   - generate_forecast, write_forecast_history, send_forecast_email
+//     exist as Standalone Functions in this app.
+//   - Creator Connection `zoho_crm_conn` (Custom Service) is wired.
+//   - Utilization_Forecast_History form exists.
+
+void scheduled_forecast()
+{
+    FAILURE_ALERT_TO = "henry@getlivewire.com";
+    FAILURE_ALERT_FROM = "henry@getlivewire.com";
+
+    try
+    {
+        // The forecast runs Thursday at 4pm ET for the upcoming Mon-Sun.
+        // From Thursday: Monday = today + 4 days. Sunday = today + 10 days.
+        // TODO: handle DST. May 2026 is EDT (-04:00). November to March is EST (-05:00).
+        today = zoho.currenttime.toDate();
+        days_to_monday = 4;
+        week_start_date = today.addDay(days_to_monday);
+        week_end_date = week_start_date.addDay(6);
+        week_start_iso = week_start_date.toString("yyyy-MM-dd") + "T00:00:00-04:00";
+        week_end_iso = week_end_date.toString("yyyy-MM-dd") + "T23:59:59-04:00";
+
+        run_id = zoho.encryption.urlEncode(zoho.currenttime.toString("yyyyMMddHHmmss") + "-" + randomNumber(1000, 9999));
+
+        result = thisapp.generate_forecast(week_start_iso, week_end_iso);
+        thisapp.write_forecast_history(result, run_id);
+        thisapp.send_forecast_email(result);
+
+        info "Forecast run " + run_id + " complete: " +
+            result.get("rollup").get("tech_count") + " techs, " +
+            result.get("events_count") + " events.";
+    }
+    catch (e)
+    {
+        sendmail
+        [
+            from: FAILURE_ALERT_FROM
+            to: FAILURE_ALERT_TO
+            subject: "Utilization Forecast automation FAILED"
+            message: "The scheduled forecast run errored. Trace:\n\n" + e.toString()
+        ];
+    }
+}

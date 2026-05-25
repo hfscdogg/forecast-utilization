@@ -1,0 +1,290 @@
+// generate_forecast.dg — Phase 2 Deluge port of forecast_math.py.
+//
+// Standalone Function in Creator. Returns a Map with the per-tech list and
+// the company rollup for the forecast week defined by week_start..week_end
+// (ISO 8601 datetime strings with offset, e.g. "2026-05-25T00:00:00-04:00").
+//
+// Requires a Creator Connection named `zoho_crm_conn` (Custom Service type)
+// with these scopes:
+//     ZohoCRM.modules.events.READ
+//     ZohoCRM.users.READ
+//     ZohoCRM.coql.READ
+//
+// Keep the event-type lists below in sync with event_types.py and config.dg.
+
+Map generate_forecast(String week_start, String week_end)
+{
+    EVENT_TYPES_BILLABLE = {
+        "Trim-Out ($$$)", "Rough-In ($$$)", "Finish-Out ($$$)",
+        "Discovery - Payment Required ($$$)", "Service - Payment Required ($$$)",
+        "In-House Electrical", "Retrofit ($$$)"
+    };
+    EVENT_TYPES_NON_BILLABLE = {
+        "Service - Warranty / Punchout", "Install - Warranty / Punchout",
+        "Package Overage - Non Billable", "Meeting -Non Billable",
+        "Project Management", "Undersold - Not Billable"
+    };
+    EVENT_TYPE_TRAINING = "Training";
+    EVENT_TYPES_EXCLUDED = {
+        "Scheduled Off", "Place Holder", "Service Location", "-None-"
+    };
+    EVENT_TYPES_ONSITE = {
+        "Trim-Out ($$$)", "Rough-In ($$$)", "Finish-Out ($$$)",
+        "Discovery - Payment Required ($$$)", "Service - Payment Required ($$$)",
+        "In-House Electrical", "Retrofit ($$$)",
+        "Service - Warranty / Punchout", "Install - Warranty / Punchout",
+        "Package Overage - Non Billable", "Undersold - Not Billable"
+    };
+    TRIP_CHARGE_NONE_VALUES = {null, "", "-None-", "0"};
+    WEEKLY_OT_THRESHOLD_HRS = 40;
+    DRIVE_TIME_ADDER_HRS = 0.5;
+    COMPANY_UTILIZATION_TARGET = 0.625;
+
+    // ============================================================
+    // 1. Pull events overlapping the window via COQL, paginated.
+    //    Overlap rule: event.Start <= window_end AND event.End >= window_start.
+    // ============================================================
+    all_events = List();
+    offsets = {0, 200, 400};
+    for each off in offsets
+    {
+        q = "SELECT id, Owner, Helper1, Event_Type, Event_Status, Trip_Charge, Duration_Hrs, Duration_Man_Hrs, Start_DateTime, End_DateTime FROM Events WHERE Start_DateTime <= '" + week_end + "' AND End_DateTime >= '" + week_start + "' LIMIT " + off + ", 200";
+        body = {"select_query": q};
+        resp = invokeurl
+        [
+            url: "https://www.zohoapis.com/crm/v6/coql"
+            type: POST
+            connection: "zoho_crm_conn"
+            parameters: body.toString()
+            headers: {"Content-Type": "application/json"}
+        ];
+        data = resp.get("data");
+        if(data != null)
+        {
+            for each evt in data
+            {
+                all_events.add(evt);
+            }
+        }
+    }
+
+    // ============================================================
+    // 2. Pull active users; build id -> full_name map.
+    // ============================================================
+    users_resp = invokeurl
+    [
+        url: "https://www.zohoapis.com/crm/v6/users?type=ActiveUsers"
+        type: GET
+        connection: "zoho_crm_conn"
+    ];
+    users_by_id = Map();
+    for each u in users_resp.get("users")
+    {
+        users_by_id.put(u.get("id").toString(), u.get("full_name"));
+    }
+
+    // ============================================================
+    // 3. Build the tech roster by inference: distinct names appearing as
+    //    Owner or Helper1 on counted (field-work) events. Office staff
+    //    do not own field events, so this naturally excludes them.
+    // ============================================================
+    tech_set = List();
+    for each evt in all_events
+    {
+        et = evt.get("Event_Type");
+        is_counted = EVENT_TYPES_BILLABLE.contains(et) || EVENT_TYPES_NON_BILLABLE.contains(et) || et == EVENT_TYPE_TRAINING;
+        if(is_counted)
+        {
+            owner_id = evt.get("Owner").get("id").toString();
+            owner_name = users_by_id.get(owner_id);
+            if(owner_name != null && !tech_set.contains(owner_name))
+            {
+                tech_set.add(owner_name);
+            }
+            helper = evt.get("Helper1");
+            if(helper != null && helper != "No Helper" && helper != "-None-" && !tech_set.contains(helper))
+            {
+                tech_set.add(helper);
+            }
+        }
+    }
+
+    // ============================================================
+    // 4. Pre-parse window dates for pro-rating.
+    // ============================================================
+    window_start_dt = week_start.toDate();
+    window_end_dt = week_end.toDate();
+
+    // ============================================================
+    // 5. Per-tech aggregation.
+    // ============================================================
+    techs = List();
+    for each tech_name in tech_set
+    {
+        billable_hrs = 0.0;
+        non_billable_hrs = 0.0;
+        training_hrs = 0.0;
+        adder_count = 0;
+        unknown_types = List();
+        source_events = 0;
+
+        for each evt in all_events
+        {
+            owner_id = evt.get("Owner").get("id").toString();
+            owner_name = users_by_id.get(owner_id);
+            helper = evt.get("Helper1");
+            is_assigned = (owner_name == tech_name) || (helper == tech_name);
+            if(is_assigned)
+            {
+                source_events = source_events + 1;
+
+                // Pro-rate event hours to within-window slice.
+                evt_start = evt.get("Start_DateTime").toDate();
+                evt_end = evt.get("End_DateTime").toDate();
+                overlap_start = evt_start;
+                if(window_start_dt > evt_start)
+                {
+                    overlap_start = window_start_dt;
+                }
+                overlap_end = evt_end;
+                if(window_end_dt < evt_end)
+                {
+                    overlap_end = window_end_dt;
+                }
+                hrs = 0.0;
+                if(overlap_end > overlap_start)
+                {
+                    minutes = dateDiff(overlap_end, overlap_start, "minutes");
+                    hrs = minutes / 60.0;
+                }
+
+                et = evt.get("Event_Type");
+                tc = evt.get("Trip_Charge");
+                no_trip = TRIP_CHARGE_NONE_VALUES.contains(tc);
+
+                if(EVENT_TYPES_BILLABLE.contains(et))
+                {
+                    billable_hrs = billable_hrs + hrs;
+                    if(no_trip && EVENT_TYPES_ONSITE.contains(et))
+                    {
+                        adder_count = adder_count + 1;
+                    }
+                }
+                else if(et == EVENT_TYPE_TRAINING)
+                {
+                    training_hrs = training_hrs + hrs;
+                }
+                else if(EVENT_TYPES_NON_BILLABLE.contains(et))
+                {
+                    non_billable_hrs = non_billable_hrs + hrs;
+                    if(no_trip && EVENT_TYPES_ONSITE.contains(et))
+                    {
+                        adder_count = adder_count + 1;
+                    }
+                }
+                else if(!EVENT_TYPES_EXCLUDED.contains(et))
+                {
+                    if(!unknown_types.contains(et))
+                    {
+                        unknown_types.add(et);
+                    }
+                }
+            }
+        }
+
+        drive_adder = DRIVE_TIME_ADDER_HRS * adder_count;
+        hours_scheduled = billable_hrs + non_billable_hrs + training_hrs + drive_adder;
+        forecast_ot = 0.0;
+        if(hours_scheduled > WEEKLY_OT_THRESHOLD_HRS)
+        {
+            forecast_ot = hours_scheduled - WEEKLY_OT_THRESHOLD_HRS;
+        }
+        forecast_hours = hours_scheduled - forecast_ot;
+        forecast_util = 0.0;
+        if(forecast_hours > 0)
+        {
+            forecast_util = billable_hrs / forecast_hours;
+        }
+        training_drove_ot = false;
+        if(forecast_ot > 0 && training_hrs > 0)
+        {
+            training_drove_ot = true;
+        }
+
+        tech_result = Map();
+        tech_result.put("technician", tech_name);
+        tech_result.put("billable_hours_scheduled", billable_hrs);
+        tech_result.put("non_billable_hours", non_billable_hrs);
+        tech_result.put("training_hours", training_hrs);
+        tech_result.put("drive_time_adder", drive_adder);
+        tech_result.put("hours_scheduled", hours_scheduled);
+        tech_result.put("forecast_ot", forecast_ot);
+        tech_result.put("forecast_hours", forecast_hours);
+        tech_result.put("forecast_utilization", forecast_util);
+        tech_result.put("training_drove_ot", training_drove_ot);
+        tech_result.put("unknown_event_types", unknown_types);
+        tech_result.put("source_events_count", source_events);
+        techs.add(tech_result);
+    }
+
+    // ============================================================
+    // 6. Company rollup. Company utilization is the MEAN of per-tech
+    //    utilizations, NOT total_billable / total_scheduled (sheet
+    //    convention, verified 5/17-5/23 tab row 11 = 71.63%).
+    // ============================================================
+    total_billable = 0.0;
+    total_scheduled = 0.0;
+    total_ot = 0.0;
+    total_forecast_hours = 0.0;
+    total_non_billable = 0.0;
+    util_sum = 0.0;
+    util_count = 0;
+    techs_above_target = List();
+    for each r in techs
+    {
+        total_billable = total_billable + r.get("billable_hours_scheduled");
+        total_scheduled = total_scheduled + r.get("hours_scheduled");
+        total_ot = total_ot + r.get("forecast_ot");
+        total_forecast_hours = total_forecast_hours + r.get("forecast_hours");
+        total_non_billable = total_non_billable + r.get("non_billable_hours") + r.get("training_hours");
+        if(r.get("forecast_hours") > 0)
+        {
+            util_sum = util_sum + r.get("forecast_utilization");
+            util_count = util_count + 1;
+        }
+        if(r.get("forecast_utilization") >= COMPANY_UTILIZATION_TARGET)
+        {
+            techs_above_target.add(r.get("technician"));
+        }
+    }
+    company_util = 0.0;
+    if(util_count > 0)
+    {
+        company_util = util_sum / util_count;
+    }
+    tech_count = techs.size();
+    avg_billable_per_tech = 0.0;
+    if(tech_count > 0)
+    {
+        avg_billable_per_tech = total_billable / tech_count;
+    }
+
+    rollup = Map();
+    rollup.put("tech_count", tech_count);
+    rollup.put("total_billable", total_billable);
+    rollup.put("total_scheduled", total_scheduled);
+    rollup.put("total_ot", total_ot);
+    rollup.put("total_forecast_hours", total_forecast_hours);
+    rollup.put("total_non_billable", total_non_billable);
+    rollup.put("company_utilization", company_util);
+    rollup.put("avg_billable_per_tech", avg_billable_per_tech);
+    rollup.put("techs_above_target", techs_above_target);
+
+    result = Map();
+    result.put("techs", techs);
+    result.put("rollup", rollup);
+    result.put("week_start", week_start);
+    result.put("week_end", week_end);
+    result.put("events_count", all_events.size());
+    return result;
+}

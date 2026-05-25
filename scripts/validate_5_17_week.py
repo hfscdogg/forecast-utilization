@@ -19,6 +19,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
+from email_template import render_forecast_email  # noqa: E402
 from forecast_math import forecast_for_technician  # noqa: E402
 
 
@@ -58,9 +59,9 @@ def fmt_row(name, r, exp):
     )
 
 
-def run(events, expected, label):
+def run(events, expected, label, window_start, window_end):
     print(f"\n{'=' * 78}")
-    print(f"BIN: {label}  ({len(events)} events in window)")
+    print(f"BIN: {label}  ({len(events)} events in window, with pro-rating)")
     print(f"{'=' * 78}")
     print(
         f"{'Tech':<10} "
@@ -70,9 +71,9 @@ def run(events, expected, label):
     print("-" * 78)
     for sheet_name, exp in expected["technicians"].items():
         if exp["hours_scheduled"] == 0:
-            continue  # Jordan, #DIV/0 row
+            continue
         full_name = expected["_name_map"][sheet_name]
-        r = forecast_for_technician(full_name, events)
+        r = forecast_for_technician(full_name, events, window_start, window_end)
         print(fmt_row(sheet_name, r, exp))
 
 
@@ -90,8 +91,26 @@ def main():
          "2026-05-17T00:00:00-04:00", "2026-05-23T23:59:59-04:00"),
     ]
     for label, s, e in bins:
+        ws = datetime.fromisoformat(s)
+        we = datetime.fromisoformat(e)
         events = filter_week(all_events, s, e)
-        run(events, expected, label)
+        run(events, expected, label, ws, we)
+
+    # Render a sample email from the Mon-Sun bin for visual inspection.
+    ws = datetime.fromisoformat("2026-05-18T00:00:00-04:00")
+    we = datetime.fromisoformat("2026-05-24T23:59:59-04:00")
+    events = filter_week(all_events, "2026-05-18T00:00:00-04:00", "2026-05-24T23:59:59-04:00")
+    per_tech = []
+    for sheet_name, exp in expected["technicians"].items():
+        if exp["hours_scheduled"] == 0:
+            continue
+        full_name = expected["_name_map"][sheet_name]
+        per_tech.append(forecast_for_technician(full_name, events, ws, we))
+    html = render_forecast_email(per_tech, ws, we)
+    out_path = ROOT / "fixtures" / "sample_email.html"
+    out_path.write_text(html)
+    print(f"\nSample email rendered to: {out_path}")
+    print(f"Open in a browser to preview, or send to yourself for an email-client check.")
 
 
 if __name__ == "__main__":

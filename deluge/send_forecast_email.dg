@@ -1,0 +1,184 @@
+// send_forecast_email.dg — Phase 2.
+//
+// Standalone Function in Creator. Takes the result Map from generate_forecast
+// and emails the HTML body to the configured distribution list.
+//
+// Brand: minimal neutral styling. Swap colors and font stack once the brand
+// guide is loaded.
+//
+// Conventions (per Henry):
+//   no em dashes, no Oxford commas, HTML <strong> for emphasis (renders
+//   reliably across email clients).
+//
+// Keep in sync with email_template.py. Formatting is inlined (.round(2))
+// because Creator Standalone Functions are one-function-per-file; no
+// private helpers in the same file.
+
+void send_forecast_email(Map result)
+{
+    BRAND_PRIMARY_COLOR = "#222222";
+    BRAND_TABLE_BORDER = "#dddddd";
+    BRAND_TABLE_HEADER_BG = "#f4f4f4";
+    BRAND_FONT_STACK = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif";
+    COMPANY_UTILIZATION_TARGET = 0.625;
+    TARGET_PCT_DISPLAY = "62.50%";
+
+    // Henry-only during parallel run. Widen at cutover.
+    EMAIL_TO = "henry@getlivewire.com";
+    EMAIL_SENDER = "henry@getlivewire.com";
+
+    techs = result.get("techs");
+    rollup = result.get("rollup");
+    week_start_str = result.get("week_start");
+    week_end_str = result.get("week_end");
+
+    ws = week_start_str.toDate();
+    we = week_end_str.toDate();
+    week_label = ws.toString("EEE MMM d") + " to " + we.toString("EEE MMM d");
+
+    // Manual descending sort by forecast_utilization (no built-in sortByDesc
+    // for lists of Maps that I trust across Deluge versions).
+    sorted_techs = List();
+    for each r in techs
+    {
+        inserted = false;
+        new_sorted = List();
+        for each existing in sorted_techs
+        {
+            if(!inserted && r.get("forecast_utilization") > existing.get("forecast_utilization"))
+            {
+                new_sorted.add(r);
+                inserted = true;
+            }
+            new_sorted.add(existing);
+        }
+        if(!inserted)
+        {
+            new_sorted.add(r);
+        }
+        sorted_techs = new_sorted;
+    }
+
+    // Per-tech rows.
+    rows_html = "";
+    for each r in sorted_techs
+    {
+        notes_parts = List();
+        if(r.get("training_hours") > 0)
+        {
+            notes_parts.add(r.get("training_hours").round(2) + " training hours");
+        }
+        if(r.get("non_billable_hours") > 0)
+        {
+            notes_parts.add(r.get("non_billable_hours").round(2) + " non-billable hours");
+        }
+        if(r.get("drive_time_adder") > 0)
+        {
+            notes_parts.add(r.get("drive_time_adder").round(2) + " drive-time adder");
+        }
+        if(r.get("training_drove_ot"))
+        {
+            notes_parts.add("training drove OT");
+        }
+        if(r.get("unknown_event_types").size() > 0)
+        {
+            notes_parts.add("unknown event types: " + r.get("unknown_event_types").toString(", "));
+        }
+        notes_html = "";
+        for each p in notes_parts
+        {
+            if(notes_html != "")
+            {
+                notes_html = notes_html + "; ";
+            }
+            notes_html = notes_html + p;
+        }
+
+        util_pct = (r.get("forecast_utilization") * 100).round(2) + "%";
+        rows_html = rows_html +
+            "<tr>" +
+            "<td>" + r.get("technician") + "</td>" +
+            "<td style='text-align:right'>" + r.get("billable_hours_scheduled").round(2) + "</td>" +
+            "<td style='text-align:right'>" + r.get("hours_scheduled").round(2) + "</td>" +
+            "<td style='text-align:right'>" + r.get("forecast_ot").round(2) + "</td>" +
+            "<td style='text-align:right'>" + r.get("forecast_hours").round(2) + "</td>" +
+            "<td style='text-align:right'><strong>" + util_pct + "</strong></td>" +
+            "<td style='font-size:11px;color:#666'>" + notes_html + "</td>" +
+            "</tr>";
+    }
+
+    // Congrats line (no Oxford comma).
+    above_target = rollup.get("techs_above_target");
+    congrats_line = "";
+    if(above_target.size() == 0)
+    {
+        congrats_line = "<p>No technician landed above the " + TARGET_PCT_DISPLAY + " target this week.</p>";
+    }
+    else
+    {
+        joined = "";
+        n = above_target.size();
+        i = 0;
+        for each name in above_target
+        {
+            if(i == 0)
+            {
+                joined = name;
+            }
+            else if(i == n - 1)
+            {
+                joined = joined + " and " + name;
+            }
+            else
+            {
+                joined = joined + ", " + name;
+            }
+            i = i + 1;
+        }
+        congrats_line = "<p>Congrats to <strong>" + joined + "</strong> for being above our " + TARGET_PCT_DISPLAY + " utilization target.</p>";
+    }
+
+    company_util_pct = (rollup.get("company_utilization") * 100).round(2) + "%";
+
+    html = "<!DOCTYPE html>" +
+        "<html><head><meta charset='utf-8'>" +
+        "<title>Utilization Forecast for " + week_label + "</title>" +
+        "<style>" +
+        "body { font-family: " + BRAND_FONT_STACK + "; color: " + BRAND_PRIMARY_COLOR + "; max-width: 880px; margin: 24px auto; padding: 0 16px; }" +
+        "h2 { margin-top: 0; font-size: 18px; }" +
+        "p { line-height: 1.5; font-size: 14px; }" +
+        "table { border-collapse: collapse; width: 100%; margin-top: 16px; font-size: 13px; }" +
+        "th, td { border: 1px solid " + BRAND_TABLE_BORDER + "; padding: 8px 10px; }" +
+        "th { background: " + BRAND_TABLE_HEADER_BG + "; text-align: left; font-weight: 600; }" +
+        "tfoot td { font-weight: 600; background: " + BRAND_TABLE_HEADER_BG + "; }" +
+        "</style></head><body>" +
+        "<h2>Utilization Forecast for " + week_label + "</h2>" +
+        "<p>Forecasting <strong>" + rollup.get("total_billable").round(2) + "</strong> billable hours across <strong>" + rollup.get("tech_count") + "</strong> technicians, averaging <strong>" + rollup.get("avg_billable_per_tech").round(2) + "</strong> billable hours per tech for a company forecast utilization of <strong>" + company_util_pct + "</strong>.</p>" +
+        congrats_line +
+        "<table><thead><tr>" +
+        "<th>Technician</th>" +
+        "<th style='text-align:right'>Billable Hrs Sched</th>" +
+        "<th style='text-align:right'>Hours Scheduled</th>" +
+        "<th style='text-align:right'>Forecast OT</th>" +
+        "<th style='text-align:right'>Forecast Hours</th>" +
+        "<th style='text-align:right'>Forecast Utilization</th>" +
+        "<th>Notes</th>" +
+        "</tr></thead><tbody>" + rows_html + "</tbody>" +
+        "<tfoot><tr>" +
+        "<td>Total</td>" +
+        "<td style='text-align:right'>" + rollup.get("total_billable").round(2) + "</td>" +
+        "<td style='text-align:right'>" + rollup.get("total_scheduled").round(2) + "</td>" +
+        "<td style='text-align:right'>" + rollup.get("total_ot").round(2) + "</td>" +
+        "<td style='text-align:right'>" + rollup.get("total_forecast_hours").round(2) + "</td>" +
+        "<td style='text-align:right'>" + company_util_pct + "</td>" +
+        "<td></td>" +
+        "</tr></tfoot></table></body></html>";
+
+    sendmail
+    [
+        from: EMAIL_SENDER
+        to: EMAIL_TO
+        subject: "Utilization Forecast for " + week_label
+        message: html
+    ];
+}

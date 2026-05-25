@@ -14,6 +14,8 @@ time (hours_scheduled minus the OT overflow). For a tech under 40 hours
 Forecast Hours equals hours_scheduled. See docs/decisions.md.
 """
 
+from datetime import datetime
+
 from event_types import (
     event_category,
     is_assigned_to,
@@ -24,7 +26,29 @@ WEEKLY_OT_THRESHOLD_HRS = 40
 DRIVE_TIME_ADDER_HRS = 0.5
 
 
-def forecast_for_technician(technician, events):
+def _parse_dt(s):
+    if s is None:
+        return None
+    return datetime.fromisoformat(s)
+
+
+def event_hours_in_window(event, window_start, window_end):
+    """Pro-rate the event's wall-clock to the slice that falls inside
+    [window_start, window_end]. Used to handle multi-day off-time markers
+    (e.g., a 24h "Meeting -Non Billable" spanning Sun-Mon)."""
+    start = _parse_dt(event.get("Start_DateTime"))
+    end = _parse_dt(event.get("End_DateTime"))
+    full = event.get("Duration_Hrs") or 0
+    if start is None or end is None:
+        return full
+    overlap_start = max(start, window_start)
+    overlap_end = min(end, window_end)
+    if overlap_end <= overlap_start:
+        return 0
+    return (overlap_end - overlap_start).total_seconds() / 3600.0
+
+
+def forecast_for_technician(technician, events, window_start=None, window_end=None):
     """Apply the forecast math for a single tech.
 
     No status filter: cancelled events carry a 1-minute duration by Livewire
@@ -32,6 +56,10 @@ def forecast_for_technician(technician, events):
 
     hours_scheduled is uncapped (matches the sheet's "Hours Scheduled" column).
     The 40-hour threshold only feeds forecast_ot.
+
+    If window_start and window_end are provided, each event's hours are
+    pro-rated to the slice that falls within the window. Otherwise the full
+    Duration_Hrs is used (synthetic tests use this path).
     """
     tech_events = [e for e in events if is_assigned_to(e, technician)]
 
@@ -44,7 +72,10 @@ def forecast_for_technician(technician, events):
         # Duration_Hrs is wall-clock per tech. Duration_Man_Hrs is the TOTAL
         # across all techs on the event (= wall × tech_count), so summing it
         # per-tech double-counts paired jobs.
-        hrs = e.get("Duration_Hrs") or 0
+        if window_start is not None and window_end is not None:
+            hrs = event_hours_in_window(e, window_start, window_end)
+        else:
+            hrs = e.get("Duration_Hrs") or 0
         cat = event_category(e)
         if cat == "billable":
             billable_hours += hrs
