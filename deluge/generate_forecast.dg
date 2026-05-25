@@ -124,23 +124,14 @@ Map generate_forecast(String week_start, String week_end)
             {
                 source_events = source_events + 1;
 
-                // Pro-rate event hours to within-window slice.
-                evt_start = evt.get("Start_DateTime").toDate();
-                evt_end = evt.get("End_DateTime").toDate();
-                overlap_start = evt_start;
-                if(window_start_dt > evt_start)
+                // Use Duration_Hrs directly (authoritative per-tech wall-clock
+                // from CRM). Pro-rating across the window boundary is deferred
+                // because Deluge datetime subtraction is inconsistent across
+                // versions; multi-day off-time markers may over-count.
+                hrs = evt.get("Duration_Hrs");
+                if(hrs == null)
                 {
-                    overlap_start = window_start_dt;
-                }
-                overlap_end = evt_end;
-                if(window_end_dt < evt_end)
-                {
-                    overlap_end = window_end_dt;
-                }
-                hrs = 0.0;
-                if(overlap_end > overlap_start)
-                {
-                    hrs = (overlap_end - overlap_start) * 24;
+                    hrs = 0.0;
                 }
 
                 et = evt.get("Event_Type");
