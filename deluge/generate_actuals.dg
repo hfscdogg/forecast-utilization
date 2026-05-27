@@ -1,0 +1,250 @@
+Map generate_actuals(String week_start, String week_end, Map time_cards)
+{
+    token_resp = invokeurl
+    [
+        url: "https://accounts.zoho.com/oauth/v2/token"
+        type: POST
+        parameters: {"grant_type": "refresh_token", "client_id": "REDACTED_CLIENT_ID", "client_secret": "REDACTED_CLIENT_SECRET", "refresh_token": "REDACTED_REFRESH_TOKEN"}
+    ];
+    access_token = token_resp.get("access_token");
+    auth_header = {"Authorization": "Zoho-oauthtoken " + access_token, "Content-Type": "application/json"};
+    auth_header_get = {"Authorization": "Zoho-oauthtoken " + access_token};
+
+    EVENT_TYPES_BILLABLE = {
+        "Trim-Out ($$$)", "Rough-In ($$$)", "Finish-Out ($$$)",
+        "Discovery - Payment Required ($$$)", "Service - Payment Required ($$$)",
+        "In-House Electrical", "Retrofit ($$$)"
+    };
+    EVENT_TYPES_NON_BILLABLE = {
+        "Service - Warranty / Punchout", "Install - Warranty / Punchout",
+        "Package Overage - Non Billable", "Meeting -Non Billable",
+        "Project Management", "Undersold - Not Billable"
+    };
+    EVENT_TYPE_TRAINING = "Training";
+    EVENT_TYPES_EXCLUDED = {
+        "Scheduled Off", "Place Holder", "Service Location", "-None-"
+    };
+    WEEKLY_CAP_HRS = 40;
+    OT_PAY_MULTIPLIER = 1.5;
+    COMPANY_UTILIZATION_TARGET = 0.625;
+
+    all_events = List();
+    offsets = {0, 200, 400};
+    for each off in offsets
+    {
+        q = "SELECT id, Owner, Helper1, Event_Type, Event_Status, Trip_Charge, Duration_Hrs, Duration_Man_Hrs, Start_DateTime, End_DateTime FROM Events WHERE Start_DateTime <= '" + week_end + "' AND End_DateTime >= '" + week_start + "' LIMIT " + off + ", 200";
+        body = {"select_query": q};
+        resp = invokeurl
+        [
+            url: "https://www.zohoapis.com/crm/v6/coql"
+            type: POST
+            parameters: body.toString()
+            headers: auth_header
+        ];
+        data = resp.get("data");
+        if(data != null)
+        {
+            for each evt in data
+            {
+                all_events.add(evt);
+            }
+        }
+    }
+
+    users_resp = invokeurl
+    [
+        url: "https://www.zohoapis.com/crm/v6/users?type=ActiveUsers"
+        type: GET
+        headers: auth_header_get
+    ];
+    users_by_id = Map();
+    for each u in users_resp.get("users")
+    {
+        users_by_id.put(u.get("id").toString(), u.get("full_name"));
+    }
+
+    // Roster: distinct names appearing as Owner or Helper1 on counted events.
+    tech_set = List();
+    for each evt in all_events
+    {
+        et = evt.get("Event_Type");
+        is_counted = EVENT_TYPES_BILLABLE.contains(et) || EVENT_TYPES_NON_BILLABLE.contains(et) || et == EVENT_TYPE_TRAINING;
+        if(is_counted)
+        {
+            owner_id = evt.get("Owner").get("id").toString();
+            owner_name = users_by_id.get(owner_id);
+            if(owner_name != null && !tech_set.contains(owner_name))
+            {
+                tech_set.add(owner_name);
+            }
+            helper = evt.get("Helper1");
+            if(helper != null && helper != "No Helper" && helper != "-None-" && !tech_set.contains(helper))
+            {
+                tech_set.add(helper);
+            }
+        }
+    }
+
+    // Detect iSolved-pending mode: time_cards map empty or null.
+    isolved_pending = (time_cards == null || time_cards.size() == 0);
+
+    techs = List();
+    for each tech_name in tech_set
+    {
+        hours_billed = 0.0;
+        non_billable_hrs = 0.0;
+        source_events = 0;
+
+        for each evt in all_events
+        {
+            owner_id = evt.get("Owner").get("id").toString();
+            owner_name = users_by_id.get(owner_id);
+            helper = evt.get("Helper1");
+            is_assigned = (owner_name == tech_name) || (helper == tech_name);
+            if(is_assigned)
+            {
+                source_events = source_events + 1;
+                hrs = evt.get("Duration_Hrs");
+                if(hrs == null)
+                {
+                    hrs = 0.0;
+                }
+                et = evt.get("Event_Type");
+                if(EVENT_TYPES_BILLABLE.contains(et))
+                {
+                    hours_billed = hours_billed + hrs;
+                }
+                else if(EVENT_TYPES_NON_BILLABLE.contains(et))
+                {
+                    non_billable_hrs = non_billable_hrs + hrs;
+                }
+                // Training is excluded from actuals hours-billed / non-billable;
+                // it's a forecast-side concept that affects scheduled hours.
+                // Excluded types contribute nothing.
+            }
+        }
+
+        tech_result = Map();
+        tech_result.put("technician", tech_name);
+        tech_result.put("hours_billed", hours_billed);
+        tech_result.put("non_billable_hours", non_billable_hrs);
+        tech_result.put("source_events_count", source_events);
+
+        if(isolved_pending)
+        {
+            tech_result.put("hours_worked", null);
+            tech_result.put("ot", null);
+            tech_result.put("actual_hours_paid", null);
+            tech_result.put("actual_utilization", null);
+            tech_result.put("worked_utilization", null);
+        }
+        else
+        {
+            tc_total = time_cards.get(tech_name);
+            if(tc_total == null)
+            {
+                tc_total = 0.0;
+            }
+            if(tc_total > WEEKLY_CAP_HRS)
+            {
+                hours_worked = WEEKLY_CAP_HRS;
+                ot = tc_total - WEEKLY_CAP_HRS;
+            }
+            else
+            {
+                hours_worked = tc_total;
+                ot = 0;
+            }
+            actual_hours_paid = hours_worked + (ot * OT_PAY_MULTIPLIER);
+            actual_util = 0.0;
+            if(actual_hours_paid > 0)
+            {
+                actual_util = hours_billed / actual_hours_paid;
+            }
+            worked_util = hours_worked / WEEKLY_CAP_HRS;
+
+            tech_result.put("hours_worked", hours_worked);
+            tech_result.put("ot", ot);
+            tech_result.put("actual_hours_paid", actual_hours_paid);
+            tech_result.put("actual_utilization", actual_util);
+            tech_result.put("worked_utilization", worked_util);
+        }
+        techs.add(tech_result);
+    }
+
+    // Company rollup.
+    total_billable = 0.0;
+    total_non_billable = 0.0;
+    total_hours_worked = 0.0;
+    total_ot = 0.0;
+    total_actual_hours_paid = 0.0;
+    util_sum = 0.0;
+    util_count = 0;
+    techs_above_target = List();
+
+    for each r in techs
+    {
+        total_billable = total_billable + r.get("hours_billed");
+        total_non_billable = total_non_billable + r.get("non_billable_hours");
+        if(!isolved_pending)
+        {
+            total_hours_worked = total_hours_worked + r.get("hours_worked");
+            total_ot = total_ot + r.get("ot");
+            total_actual_hours_paid = total_actual_hours_paid + r.get("actual_hours_paid");
+            util_sum = util_sum + r.get("actual_utilization");
+            util_count = util_count + 1;
+            if(r.get("actual_utilization") >= COMPANY_UTILIZATION_TARGET)
+            {
+                techs_above_target.add(r.get("technician"));
+            }
+        }
+    }
+
+    tech_count = techs.size();
+    avg_billable_per_tech = 0.0;
+    if(tech_count > 0)
+    {
+        avg_billable_per_tech = total_billable / tech_count;
+    }
+    total_hours = total_billable + total_non_billable;
+    delta = total_billable - total_non_billable;
+
+    rollup = Map();
+    rollup.put("tech_count", tech_count);
+    rollup.put("total_billable", total_billable);
+    rollup.put("total_non_billable", total_non_billable);
+    rollup.put("total_hours", total_hours);
+    rollup.put("delta", delta);
+    rollup.put("avg_billable_per_tech", avg_billable_per_tech);
+    rollup.put("isolved_pending", isolved_pending);
+
+    if(isolved_pending)
+    {
+        rollup.put("total_hours_worked", null);
+        rollup.put("total_ot", null);
+        rollup.put("total_actual_hours_paid", null);
+        rollup.put("company_utilization", null);
+        rollup.put("techs_above_target", null);
+    }
+    else
+    {
+        company_util = 0.0;
+        if(util_count > 0)
+        {
+            company_util = util_sum / util_count;
+        }
+        rollup.put("total_hours_worked", total_hours_worked);
+        rollup.put("total_ot", total_ot);
+        rollup.put("total_actual_hours_paid", total_actual_hours_paid);
+        rollup.put("company_utilization", company_util);
+        rollup.put("techs_above_target", techs_above_target);
+    }
+
+    result = Map();
+    result.put("techs", techs);
+    result.put("rollup", rollup);
+    result.put("week_start", week_start);
+    result.put("week_end", week_end);
+    result.put("events_count", all_events.size());
+    return result;
+}

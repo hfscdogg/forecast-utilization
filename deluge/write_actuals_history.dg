@@ -1,0 +1,62 @@
+void write_actuals_history(Map result, String run_id)
+{
+    techs = result.get("techs");
+    rollup = result.get("rollup");
+    week_start_str = result.get("week_start");
+    week_end_str = result.get("week_end");
+    generated_at = zoho.currenttime;
+    isolved_pending = rollup.get("isolved_pending");
+
+    week_start_date = week_start_str.toDate();
+    week_end_date = week_end_str.toDate();
+
+    for each r in techs
+    {
+        notes_parts = List();
+        if(r.get("non_billable_hours") > 0)
+        {
+            notes_parts.add(r.get("non_billable_hours") + " non-billable hours");
+        }
+        ot_val = r.get("ot");
+        if(ot_val != null && ot_val > 0)
+        {
+            notes_parts.add(ot_val + " OT");
+        }
+        if(isolved_pending)
+        {
+            notes_parts.add("iSolved integration pending");
+        }
+        notes_text = "";
+        for each p in notes_parts
+        {
+            if(notes_text != "")
+            {
+                notes_text = notes_text + "; ";
+            }
+            notes_text = notes_text + p;
+        }
+
+        // Native Deluge insert-into (same reason as forecast history:
+        // zoho.creator.createRecord on this tenant requires the 6-arg
+        // signature; insert-into runs in the calling function's auth
+        // context with no connection required).
+        insert into Utilization_Actuals_History
+        [
+            Run_ID = run_id
+            Actuals_Generated_At = generated_at
+            Lag_Week_Start = week_start_date
+            Lag_Week_End = week_end_date
+            Technician = r.get("technician")
+            Hours_Billed = r.get("hours_billed")
+            Non_Billable_Hours = r.get("non_billable_hours")
+            Hours_Worked = r.get("hours_worked")
+            OT = r.get("ot")
+            Actual_Hours_Paid = r.get("actual_hours_paid")
+            Actual_Utilization = r.get("actual_utilization")
+            Worked_Utilization = r.get("worked_utilization")
+            ISolved_Pending = isolved_pending
+            Notes = notes_text
+            Source_Events_Count = r.get("source_events_count")
+        ];
+    }
+}

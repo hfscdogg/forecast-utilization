@@ -1,0 +1,45 @@
+void scheduled_actuals()
+{
+    FAILURE_ALERT_TO = "henry@getlivewire.com";
+    FAILURE_ALERT_FROM = "henry@getlivewire.com";
+
+    try
+    {
+        // The lagging report runs Monday at 4pm ET for the Mon-Sun that
+        // ended 8 days ago (a 2-week lag, per the SOP — gives PMs and
+        // accounting time to settle hours).
+        // From today (Monday): lag_week_start = today - 14, lag_week_end = today - 8.
+        // TODO: handle DST. May 2026 is EDT (-04:00). November to March is EST (-05:00).
+        today = zoho.currenttime.toDate();
+        week_start_date = today.subDay(14);
+        week_end_date = today.subDay(8);
+        week_start_iso = week_start_date.toString("yyyy-MM-dd") + "T00:00:00-04:00";
+        week_end_iso = week_end_date.toString("yyyy-MM-dd") + "T23:59:59-04:00";
+
+        run_id = zoho.currenttime.toString("yyyyMMddHHmmss") + "-" + randomNumber(1000, 9999);
+
+        // time_cards: empty Map until iSolved integration lands.
+        // When iSolved comes online, populate this map with tech_name ->
+        // hours_worked (e.g., from a fetch_isolved_timecards function).
+        time_cards = Map();
+
+        result = thisapp.generate_actuals(week_start_iso, week_end_iso, time_cards);
+        thisapp.write_actuals_history(result, run_id);
+        thisapp.send_actuals_email(result);
+
+        info "Actuals run " + run_id + " complete: " +
+            result.get("rollup").get("tech_count") + " techs, " +
+            result.get("events_count") + " events, iSolved pending=" +
+            result.get("rollup").get("isolved_pending") + ".";
+    }
+    catch (e)
+    {
+        sendmail
+        [
+            from: FAILURE_ALERT_FROM
+            to: FAILURE_ALERT_TO
+            subject: "Utilization Actuals automation FAILED"
+            message: "The scheduled actuals run errored. Trace:\n\n" + e.toString()
+        ];
+    }
+}

@@ -105,11 +105,32 @@ def test_paired_tech_counted_via_helper1():
     assert result["hours_billed"] == pytest.approx(4.0)
 
 
-def test_company_rollup_aggregates_correctly():
+def test_isolved_pending_returns_none_for_timecard_fields():
+    """When time_card_total is None (iSolved access not yet wired), the
+    timecard-derived fields all come back None but Hours Billed and
+    Non-Billable Hours still populate from CRM."""
+    events = [
+        make_event("Sam", 30.0, event_type="Finish-Out ($$$)"),
+        make_event("Sam", 6.0, event_type="Project Management"),
+    ]
+    result = actuals_for_technician("Sam", events, time_card_total=None)
+    assert result["hours_billed"] == pytest.approx(30.0)
+    assert result["non_billable_hours"] == pytest.approx(6.0)
+    assert result["hours_worked"] is None
+    assert result["ot"] is None
+    assert result["actual_hours_paid"] is None
+    assert result["actual_utilization"] is None
+    assert result["worked_utilization"] is None
+
+
+def test_company_rollup_aggregates_correctly_when_timecards_present():
     per_tech = [
-        {"technician": "A", "hours_billed": 30, "non_billable_hours": 5, "actual_utilization": 0.7},
-        {"technician": "B", "hours_billed": 20, "non_billable_hours": 10, "actual_utilization": 0.5},
-        {"technician": "C", "hours_billed": 35, "non_billable_hours": 0, "actual_utilization": 0.8},
+        {"technician": "A", "hours_billed": 30, "non_billable_hours": 5,
+         "hours_worked": 38, "ot": 0, "actual_hours_paid": 38, "actual_utilization": 30 / 38},
+        {"technician": "B", "hours_billed": 20, "non_billable_hours": 10,
+         "hours_worked": 40, "ot": 5, "actual_hours_paid": 47.5, "actual_utilization": 20 / 47.5},
+        {"technician": "C", "hours_billed": 35, "non_billable_hours": 0,
+         "hours_worked": 40, "ot": 0, "actual_hours_paid": 40, "actual_utilization": 0.875},
     ]
     rollup = company_rollup(per_tech)
     assert rollup["total_billable"] == 85
@@ -117,5 +138,29 @@ def test_company_rollup_aggregates_correctly():
     assert rollup["total_hours"] == 100
     assert rollup["delta"] == 70
     assert rollup["avg_billable_per_tech"] == pytest.approx(85 / 3)
-    assert rollup["company_utilization"] == pytest.approx(0.85)
-    assert set(rollup["techs_above_target"]) == {"A", "C"}  # at or above 62.5%
+    assert rollup["isolved_pending"] is False
+    # Mean of per-tech utilizations
+    expected_util = ((30 / 38) + (20 / 47.5) + 0.875) / 3
+    assert rollup["company_utilization"] == pytest.approx(expected_util)
+    # A and C are above 0.625; B is not
+    assert set(rollup["techs_above_target"]) == {"A", "C"}
+
+
+def test_company_rollup_marks_pending_when_any_tech_has_no_timecard():
+    per_tech = [
+        {"technician": "A", "hours_billed": 30, "non_billable_hours": 5,
+         "hours_worked": None, "ot": None, "actual_hours_paid": None, "actual_utilization": None},
+        {"technician": "B", "hours_billed": 20, "non_billable_hours": 10,
+         "hours_worked": None, "ot": None, "actual_hours_paid": None, "actual_utilization": None},
+    ]
+    rollup = company_rollup(per_tech)
+    assert rollup["isolved_pending"] is True
+    # CRM-side totals still populate
+    assert rollup["total_billable"] == 50
+    assert rollup["total_non_billable"] == 15
+    # Timecard-derived totals are None
+    assert rollup["total_hours_worked"] is None
+    assert rollup["total_ot"] is None
+    assert rollup["total_actual_hours_paid"] is None
+    assert rollup["company_utilization"] is None
+    assert rollup["techs_above_target"] is None

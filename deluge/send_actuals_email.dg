@@ -1,0 +1,226 @@
+void send_actuals_email(Map result)
+{
+    BRAND_PRIMARY_COLOR = "#222222";
+    BRAND_TABLE_BORDER = "#dddddd";
+    BRAND_TABLE_HEADER_BG = "#f4f4f4";
+    BRAND_PENDING_BG = "#fff8e1";
+    BRAND_FONT_STACK = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif";
+    TARGET_PCT_DISPLAY = "62.50%";
+    PLACEHOLDER = "&mdash;";
+
+    EMAIL_TO = "henry@getlivewire.com";
+    EMAIL_SENDER = "henry@getlivewire.com";
+
+    techs = result.get("techs");
+    rollup = result.get("rollup");
+    week_start_str = result.get("week_start");
+    week_end_str = result.get("week_end");
+    isolved_pending = rollup.get("isolved_pending");
+
+    ws = week_start_str.toDate();
+    we = week_end_str.toDate();
+    week_label = ws.toString("EEE MMM d") + " to " + we.toString("EEE MMM d");
+
+    // Sort desc by actual_utilization when present, else by hours_billed.
+    sorted_techs = List();
+    for each r in techs
+    {
+        inserted = false;
+        new_sorted = List();
+        r_key = r.get("actual_utilization");
+        if(r_key == null)
+        {
+            r_key = r.get("hours_billed");
+        }
+        for each existing in sorted_techs
+        {
+            e_key = existing.get("actual_utilization");
+            if(e_key == null)
+            {
+                e_key = existing.get("hours_billed");
+            }
+            if(!inserted && r_key > e_key)
+            {
+                new_sorted.add(r);
+                inserted = true;
+            }
+            new_sorted.add(existing);
+        }
+        if(!inserted)
+        {
+            new_sorted.add(r);
+        }
+        sorted_techs = new_sorted;
+    }
+
+    rows_html = "";
+    for each r in sorted_techs
+    {
+        hb = r.get("hours_billed");
+        hw = r.get("hours_worked");
+        ot = r.get("ot");
+        ahp = r.get("actual_hours_paid");
+        au = r.get("actual_utilization");
+        nbh = r.get("non_billable_hours");
+
+        hb_disp = hb.round(2);
+        nbh_disp = nbh.round(2);
+        hw_disp = PLACEHOLDER;
+        if(hw != null)
+        {
+            hw_disp = hw.round(2);
+        }
+        ot_disp = PLACEHOLDER;
+        if(ot != null)
+        {
+            ot_disp = ot.round(2);
+        }
+        ahp_disp = PLACEHOLDER;
+        if(ahp != null)
+        {
+            ahp_disp = ahp.round(2);
+        }
+        au_disp = PLACEHOLDER;
+        if(au != null)
+        {
+            au_disp = (au * 100).round(2) + "%";
+        }
+
+        notes_parts = List();
+        if(nbh > 0)
+        {
+            notes_parts.add(nbh.round(2) + " non-billable hours");
+        }
+        if(ot != null && ot > 0)
+        {
+            notes_parts.add(ot.round(2) + " OT");
+        }
+        notes_html = "";
+        for each p in notes_parts
+        {
+            if(notes_html != "")
+            {
+                notes_html = notes_html + "; ";
+            }
+            notes_html = notes_html + p;
+        }
+
+        rows_html = rows_html +
+            "<tr>" +
+            "<td>" + r.get("technician") + "</td>" +
+            "<td style='text-align:right'>" + hb_disp + "</td>" +
+            "<td style='text-align:right'>" + hw_disp + "</td>" +
+            "<td style='text-align:right'>" + ot_disp + "</td>" +
+            "<td style='text-align:right'>" + ahp_disp + "</td>" +
+            "<td style='text-align:right'><strong>" + au_disp + "</strong></td>" +
+            "<td style='text-align:right'>" + nbh_disp + "</td>" +
+            "<td style='font-size:11px;color:#666'>" + notes_html + "</td>" +
+            "</tr>";
+    }
+
+    // Banner and lead-in vary by mode.
+    banner = "";
+    if(isolved_pending)
+    {
+        banner = "<p style='background:" + BRAND_PENDING_BG + ";padding:10px 14px;border-left:3px solid #d4a017;font-size:13px;'><strong>iSolved integration pending:</strong> Hours Worked, OT, Actual Hours Paid and Actual Utilization will populate once the iSolved tenant API access is wired. Until then those columns show " + PLACEHOLDER + ". Hours Billed and Non-Billable Hours come straight from CRM and are correct as of this run.</p>";
+    }
+
+    lead_in = "";
+    congrats_line = "";
+    if(isolved_pending)
+    {
+        lead_in = "<p>Last week we billed <strong>" + rollup.get("total_billable").round(2) + "</strong> hours across <strong>" + rollup.get("tech_count") + "</strong> technicians, averaging <strong>" + rollup.get("avg_billable_per_tech").round(2) + "</strong> billable hours per tech. Non-billable hours totalled <strong>" + rollup.get("total_non_billable").round(2) + "</strong>.</p>";
+    }
+    else
+    {
+        company_util_pct = (rollup.get("company_utilization") * 100).round(2) + "%";
+        lead_in = "<p>Last week we billed <strong>" + rollup.get("total_billable").round(2) + "</strong> hours across <strong>" + rollup.get("tech_count") + "</strong> technicians, averaging <strong>" + rollup.get("avg_billable_per_tech").round(2) + "</strong> billable hours per tech for a company utilization of <strong>" + company_util_pct + "</strong>.</p>";
+
+        above_target = rollup.get("techs_above_target");
+        if(above_target.size() == 0)
+        {
+            congrats_line = "<p>No technician landed above the " + TARGET_PCT_DISPLAY + " target last week.</p>";
+        }
+        else
+        {
+            joined = "";
+            n = above_target.size();
+            i = 0;
+            for each name in above_target
+            {
+                if(i == 0)
+                {
+                    joined = name;
+                }
+                else if(i == n - 1)
+                {
+                    joined = joined + " and " + name;
+                }
+                else
+                {
+                    joined = joined + ", " + name;
+                }
+                i = i + 1;
+            }
+            congrats_line = "<p>Congrats to <strong>" + joined + "</strong> for being above our " + TARGET_PCT_DISPLAY + " utilization target.</p>";
+        }
+    }
+
+    // Footer totals.
+    total_hw_disp = PLACEHOLDER;
+    total_ot_disp = PLACEHOLDER;
+    total_ahp_disp = PLACEHOLDER;
+    total_util_disp = PLACEHOLDER;
+    if(!isolved_pending)
+    {
+        total_hw_disp = rollup.get("total_hours_worked").round(2);
+        total_ot_disp = rollup.get("total_ot").round(2);
+        total_ahp_disp = rollup.get("total_actual_hours_paid").round(2);
+        total_util_disp = (rollup.get("company_utilization") * 100).round(2) + "%";
+    }
+
+    html = "<!DOCTYPE html>" +
+        "<html><head><meta charset='utf-8'>" +
+        "<title>Utilization Actuals for " + week_label + "</title>" +
+        "<style>" +
+        "body { font-family: " + BRAND_FONT_STACK + "; color: " + BRAND_PRIMARY_COLOR + "; max-width: 880px; margin: 24px auto; padding: 0 16px; }" +
+        "h2 { margin-top: 0; font-size: 18px; }" +
+        "p { line-height: 1.5; font-size: 14px; }" +
+        "table { border-collapse: collapse; width: 100%; margin-top: 16px; font-size: 13px; }" +
+        "th, td { border: 1px solid " + BRAND_TABLE_BORDER + "; padding: 8px 10px; }" +
+        "th { background: " + BRAND_TABLE_HEADER_BG + "; text-align: left; font-weight: 600; }" +
+        "tfoot td { font-weight: 600; background: " + BRAND_TABLE_HEADER_BG + "; }" +
+        "</style></head><body>" +
+        "<h2>Utilization Actuals for " + week_label + "</h2>" +
+        banner +
+        lead_in +
+        congrats_line +
+        "<table><thead><tr>" +
+        "<th>Technician</th>" +
+        "<th style='text-align:right'>Hours Billed</th>" +
+        "<th style='text-align:right'>Hours Worked</th>" +
+        "<th style='text-align:right'>OT</th>" +
+        "<th style='text-align:right'>Actual Hours Paid</th>" +
+        "<th style='text-align:right'>Actual Utilization</th>" +
+        "<th style='text-align:right'>Non-Billable Hours</th>" +
+        "<th>Notes</th>" +
+        "</tr></thead><tbody>" + rows_html + "</tbody>" +
+        "<tfoot><tr>" +
+        "<td>Total</td>" +
+        "<td style='text-align:right'>" + rollup.get("total_billable").round(2) + "</td>" +
+        "<td style='text-align:right'>" + total_hw_disp + "</td>" +
+        "<td style='text-align:right'>" + total_ot_disp + "</td>" +
+        "<td style='text-align:right'>" + total_ahp_disp + "</td>" +
+        "<td style='text-align:right'>" + total_util_disp + "</td>" +
+        "<td style='text-align:right'>" + rollup.get("total_non_billable").round(2) + "</td>" +
+        "<td></td>" +
+        "</tr></tfoot></table></body></html>";
+
+    sendmail
+    [
+        from: EMAIL_SENDER
+        to: EMAIL_TO
+        subject: "Utilization Actuals for " + week_label
+        message: html
+    ];
+}
