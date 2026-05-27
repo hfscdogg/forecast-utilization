@@ -279,6 +279,51 @@ technician roster derives from the data: distinct Owner and Helper1 values on
 events of real field-work types in the forecast week. No new CRM field, no
 ask to Stacy. config.dg TECHNICIAN_FILTER_STRATEGY updated.
 
+## 2026-05-26 — Phase 3 ship
+
+Four Creator Standalone Functions live and verified end-to-end:
+`generate_forecast`, `send_forecast_email`, `write_forecast_history`,
+`scheduled_forecast`. Schedule "Weekly Utilization Forecast" wired in
+Creator's scheduler, first run Thursday 2026-05-28 at 16:00 in IANA zone
+`America/New_York`, recurring weekly, status Enabled. Schedule action is
+a one-line Deluge that calls `thisapp.scheduled_forecast()`.
+
+### `zoho.creator.createRecord` 6-arg incompatibility
+
+Livewire's Creator tenant requires the 6-argument signature for
+`zoho.creator.createRecord` (scope + connection in addition to the
+owner/app/form/record args); the 4-arg form errors with
+`mandatory params '6'`. Rewrote `write_forecast_history.dg` to use the
+native Deluge `insert into Utilization_Forecast_History [ ... ]` syntax,
+which runs in the calling function's own auth context and needs no
+connection. Functionally equivalent, no scope coupling, fewer moving parts.
+
+### Form field link name collision fix
+
+`Training Drove OT` initially got link name `Training_Drove_OT1` (trailing
+`1`) because Creator hit a collision with another field at form-creation
+time. Renamed to `Training_Drove_OT` in the form designer and updated the
+matching `insert into` field in `write_forecast_history.dg`. Repo doc
+(`forecast_history_form_schema.md`) already used the clean name; no edit
+needed.
+
+### First successful manual run
+
+Tuesday 2026-05-26 at 17:48:06 local. `Run_ID = 20260526174806-3066`. 7
+techs scanned, 15 events consumed, 7 history records inserted (all 17
+fields populated), one HTML email landed at `henry@getlivewire.com`. Used
+inline OAuth in `generate_forecast.dg` (Self Client refresh token in
+source), the deliberate stopgap.
+
+### IANA timezone vs hardcoded offset — not the same thing
+
+Creator's Schedule itself uses IANA `America/New_York`, which handles
+EDT/EST automatically. The scheduler fires at 4pm local year-round
+regardless of DST. Separate issue: `scheduled_forecast.dg` builds the
+forecast-week ISO strings by string-concatenating `"-04:00"` directly
+into the timestamps. That literal is correct in EDT (Mar-Nov) and wrong
+in EST (Nov-Mar). Still a TODO; left in place this round.
+
 ## Open verification items (not blocking, surface during build)
 
 1. **30-min adder scope** — spec Section 5.2 is ambiguous whether it applies to all non-trip events or only non-billable. Ask Dustin during parallel-run reconciliation.

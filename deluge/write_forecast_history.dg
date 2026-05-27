@@ -48,31 +48,29 @@ void write_forecast_history(Map result, String run_id)
             notes_text = notes_text + p;
         }
 
-        record = Map();
-        record.put("Run_ID", run_id);
-        record.put("Forecast_Generated_At", generated_at);
-        record.put("Forecast_Week_Start", week_start_date);
-        record.put("Forecast_Week_End", week_end_date);
-        record.put("Technician", r.get("technician"));
-        record.put("Billable_Hours_Scheduled", r.get("billable_hours_scheduled"));
-        record.put("Hours_Scheduled", r.get("hours_scheduled"));
-        record.put("Non_Billable_Hours", r.get("non_billable_hours"));
-        record.put("Training_Hours", r.get("training_hours"));
-        record.put("Drive_Time_Adder", r.get("drive_time_adder"));
-        record.put("Forecast_OT", r.get("forecast_ot"));
-        record.put("Forecast_Hours", r.get("forecast_hours"));
-        record.put("Forecast_Utilization", r.get("forecast_utilization"));
-        record.put("Training_Drove_OT", r.get("training_drove_ot"));
-        record.put("Notes", notes_text);
-        record.put("Unknown_Event_Types", unknown_csv);
-        record.put("Source_Events_Count", r.get("source_events_count"));
-
-        insert_resp = zoho.creator.createRecord(
-            "hfsclifford",
-            "forecast-utilization",
-            "Utilization_Forecast_History",
-            record
-        );
-        info insert_resp;
+        // Native Deluge insert-into. zoho.creator.createRecord on this
+        // tenant requires the 6-arg signature (scope + connection); the
+        // 4-arg form errors with "mandatory params '6'". insert-into runs
+        // in the function's own auth context, no connection needed.
+        insert into Utilization_Forecast_History
+        [
+            Run_ID = run_id
+            Forecast_Generated_At = generated_at
+            Forecast_Week_Start = week_start_date
+            Forecast_Week_End = week_end_date
+            Technician = r.get("technician")
+            Billable_Hours_Scheduled = r.get("billable_hours_scheduled")
+            Hours_Scheduled = r.get("hours_scheduled")
+            Non_Billable_Hours = r.get("non_billable_hours")
+            Training_Hours = r.get("training_hours")
+            Drive_Time_Adder = r.get("drive_time_adder")
+            Forecast_OT = r.get("forecast_ot")
+            Forecast_Hours = r.get("forecast_hours")
+            Forecast_Utilization = r.get("forecast_utilization")
+            Training_Drove_OT = r.get("training_drove_ot")
+            Notes = notes_text
+            Unknown_Event_Types = unknown_csv
+            Source_Events_Count = r.get("source_events_count")
+        ];
     }
 }
