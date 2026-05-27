@@ -324,6 +324,34 @@ forecast-week ISO strings by string-concatenating `"-04:00"` directly
 into the timestamps. That literal is correct in EDT (Mar-Nov) and wrong
 in EST (Nov-Mar). Still a TODO; left in place this round.
 
+## 2026-05-27 — Secret leak remediation
+
+GitGuardian flagged the repo for two Zoho secret types (OAuth2 Keys and
+Zoho API Key). Root cause: the inline-OAuth stopgap from Phase 3 left the
+Self Client refresh token, client ID, and client secret hardcoded inside
+the production Deluge functions and committed across many commits.
+
+Two-part fix:
+
+1. **Code refactor.** Both `generate_forecast.dg` and `generate_actuals.dg`
+   now read OAuth credentials from Creator App Variables (Settings →
+   Developer Tools → Variables) via `thisapp.Variables.ZOHO_CLIENT_ID`,
+   `thisapp.Variables.ZOHO_CLIENT_SECRET`, `thisapp.Variables.ZOHO_REFRESH_TOKEN`.
+   No secret in source. Henry must create those three Variables in Creator
+   with the rotated values before pasting the updated functions.
+2. **History scrub.** `git filter-repo --replace-text` rewrote every
+   commit to redact the leaked strings, followed by force-push. Old commit
+   SHAs no longer exist on the remote.
+
+**Rotation is non-optional.** Even with the code refactor and history
+scrub, anyone who pulled the repo (or saw any of the GitGuardian-style
+public scanners) has the values. Old Self Client credentials must be
+revoked at `api-console.zoho.com` and replaced with fresh values, which
+then go into the Creator Variables.
+
+Going forward: never inline OAuth in committed code. App Variables for
+the stopgap, Custom Service Connection long-term.
+
 ## Open verification items (not blocking, surface during build)
 
 1. **30-min adder scope** — spec Section 5.2 is ambiguous whether it applies to all non-trip events or only non-billable. Ask Dustin during parallel-run reconciliation.

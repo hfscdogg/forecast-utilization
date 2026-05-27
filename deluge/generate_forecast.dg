@@ -27,6 +27,23 @@ Map generate_forecast(String week_start, String week_end)
     COMPANY_UTILIZATION_TARGET = 0.625;
 
     // ============================================================
+    // 0. OAuth: exchange refresh token for access token.
+    //    Creds read from Creator App Variables (Settings > Developer Tools >
+    //    Variables). Required vars: ZOHO_CLIENT_ID, ZOHO_CLIENT_SECRET,
+    //    ZOHO_REFRESH_TOKEN. Never inline secrets here — GitGuardian will
+    //    catch them. See docs/decisions.md "Secret leak remediation".
+    // ============================================================
+    token_resp = invokeurl
+    [
+        url: "https://accounts.zoho.com/oauth/v2/token"
+        type: POST
+        parameters: {"grant_type": "refresh_token", "client_id": thisapp.Variables.ZOHO_CLIENT_ID, "client_secret": thisapp.Variables.ZOHO_CLIENT_SECRET, "refresh_token": thisapp.Variables.ZOHO_REFRESH_TOKEN}
+    ];
+    access_token = token_resp.get("access_token");
+    auth_header = {"Authorization": "Zoho-oauthtoken " + access_token, "Content-Type": "application/json"};
+    auth_header_get = {"Authorization": "Zoho-oauthtoken " + access_token};
+
+    // ============================================================
     // 1. Pull events overlapping the window via COQL, paginated.
     //    Overlap rule: event.Start <= window_end AND event.End >= window_start.
     // ============================================================
@@ -40,9 +57,8 @@ Map generate_forecast(String week_start, String week_end)
         [
             url: "https://www.zohoapis.com/crm/v6/coql"
             type: POST
-            connection: "zoho_crm_conn"
             parameters: body.toString()
-            headers: {"Content-Type": "application/json"}
+            headers: auth_header
         ];
         data = resp.get("data");
         if(data != null)
@@ -61,7 +77,7 @@ Map generate_forecast(String week_start, String week_end)
     [
         url: "https://www.zohoapis.com/crm/v6/users?type=ActiveUsers"
         type: GET
-        connection: "zoho_crm_conn"
+        headers: auth_header_get
     ];
     users_by_id = Map();
     for each u in users_resp.get("users")

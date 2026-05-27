@@ -4,7 +4,7 @@ Map generate_actuals(String week_start, String week_end, Map time_cards)
     [
         url: "https://accounts.zoho.com/oauth/v2/token"
         type: POST
-        parameters: {"grant_type": "refresh_token", "client_id": "REDACTED_CLIENT_ID", "client_secret": "REDACTED_CLIENT_SECRET", "refresh_token": "REDACTED_REFRESH_TOKEN"}
+        parameters: {"grant_type": "refresh_token", "client_id": thisapp.Variables.ZOHO_CLIENT_ID, "client_secret": thisapp.Variables.ZOHO_CLIENT_SECRET, "refresh_token": thisapp.Variables.ZOHO_REFRESH_TOKEN}
     ];
     access_token = token_resp.get("access_token");
     auth_header = {"Authorization": "Zoho-oauthtoken " + access_token, "Content-Type": "application/json"};
