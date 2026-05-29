@@ -8,6 +8,18 @@ void send_actuals_email(Map result)
     TARGET_PCT_DISPLAY = "62.50%";
     PLACEHOLDER = "&mdash;";
 
+    // Livewire Design System v3.0 tokens for the Raving Fan snapshot block.
+    // See docs/Livewire_Design_System.md sections 1.2, 2.3, 2.6.
+    RF_SURFACE = "#1A1A1A";
+    RF_DEEP = "#0D0D0D";
+    RF_TEXT_PRIMARY = "#FFFFFF";
+    RF_TEXT_SECONDARY = "#85857A";
+    RF_COPPER = "#F7941D";
+    RF_SERIF_STACK = "'Fraunces', Georgia, 'Times New Roman', serif";
+    RF_SANS_STACK = "'Montserrat', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif";
+    RAVING_FAN_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRsQaH6Q29LCTAkbX_t8_yB3cTXLcXt9EUU9OEn8xE8vzla4j8ijx7Wb1exPNAuDUw79_EBil_N2Gfc/pub?output=csv";
+    RAVING_FAN_URL = "https://hfscdogg.github.io/raving-fan/";
+
     EMAIL_TO = "henry@getlivewire.com";
     EMAIL_SENDER = "henry@getlivewire.com";
 
@@ -118,6 +130,96 @@ void send_actuals_email(Map result)
             "</tr>";
     }
 
+    // ============================================================
+    // Raving Fan snapshot block. Fetches the latest week with a valid
+    // Fan Score from the published Google Sheet CSV, renders a
+    // Livewire-design-system-compliant block. Silent fail if the
+    // fetch errors or no valid row is found.
+    // ============================================================
+    raving_fan_block = "";
+    try
+    {
+        rf_resp = invokeurl
+        [
+            url: RAVING_FAN_CSV_URL
+            type: GET
+        ];
+        rf_text = rf_resp + "";
+        if(rf_text != null && rf_text != "")
+        {
+            rf_lines = rf_text.toList("\n");
+            rf_target = null;
+            for each line in rf_lines
+            {
+                cells = line.toList(",");
+                if(cells.size() >= 7)
+                {
+                    week_end_cell = cells.get(1).trim();
+                    fan_score_cell = cells.get(6).trim();
+                    if(week_end_cell.contains("/") && fan_score_cell.matches("^\\d+$"))
+                    {
+                        rf_target = cells;
+                    }
+                }
+            }
+            if(rf_target != null)
+            {
+                rf_week_end = rf_target.get(1).trim();
+                rf_reviews = rf_target.get(2).trim();
+                rf_mentions = rf_target.get(3).trim();
+                rf_referrals = rf_target.get(4).trim();
+                rf_repeat = rf_target.get(5).trim();
+                rf_fan_score = rf_target.get(6).trim();
+
+                metric_label_style = "margin:0 0 6px;font-family:" + RF_SANS_STACK + ";font-size:10.5px;letter-spacing:0.24em;text-transform:uppercase;font-weight:600;color:" + RF_TEXT_SECONDARY + ";";
+                metric_value_style = "margin:0;font-family:" + RF_SERIF_STACK + ";font-size:32px;line-height:1;font-weight:400;color:" + RF_TEXT_PRIMARY + ";letter-spacing:-0.02em;";
+                fan_label_style = "margin:0 0 6px;font-family:" + RF_SANS_STACK + ";font-size:10.5px;letter-spacing:0.24em;text-transform:uppercase;font-weight:600;color:" + RF_COPPER + ";";
+                fan_value_style = "margin:0;font-family:" + RF_SERIF_STACK + ";font-size:40px;line-height:1;font-weight:400;color:" + RF_COPPER + ";letter-spacing:-0.02em;";
+
+                raving_fan_block =
+                    "<table role='presentation' cellpadding='0' cellspacing='0' border='0' width='600' align='center' style='max-width:600px;width:100%;background:" + RF_SURFACE + ";margin:0 auto;'>" +
+                    "<tr><td style='padding:40px 32px;'>" +
+                    "<p style='margin:0 0 12px;font-family:" + RF_SANS_STACK + ";font-size:10.5px;letter-spacing:0.24em;text-transform:uppercase;font-weight:600;color:" + RF_COPPER + ";'>Raving Fan Snapshot</p>" +
+                    "<h3 style='margin:0 0 28px;font-family:" + RF_SERIF_STACK + ";font-size:28px;line-height:1.05;letter-spacing:-0.02em;font-weight:400;color:" + RF_TEXT_PRIMARY + ";'>Week ending " + rf_week_end + "</h3>" +
+                    "<table role='presentation' cellpadding='0' cellspacing='0' border='0' width='100%' style='border-collapse:collapse;'>" +
+                    "<tr>" +
+                    "<td style='padding:8px 4px;text-align:center;vertical-align:top;'>" +
+                    "<p style='" + metric_label_style + "'>Reviews</p>" +
+                    "<p style='" + metric_value_style + "'>" + rf_reviews + "</p>" +
+                    "</td>" +
+                    "<td style='padding:8px 4px;text-align:center;vertical-align:top;'>" +
+                    "<p style='" + metric_label_style + "'>Mentions</p>" +
+                    "<p style='" + metric_value_style + "'>" + rf_mentions + "</p>" +
+                    "</td>" +
+                    "<td style='padding:8px 4px;text-align:center;vertical-align:top;'>" +
+                    "<p style='" + metric_label_style + "'>Referrals</p>" +
+                    "<p style='" + metric_value_style + "'>" + rf_referrals + "</p>" +
+                    "</td>" +
+                    "<td style='padding:8px 4px;text-align:center;vertical-align:top;'>" +
+                    "<p style='" + metric_label_style + "'>Repeat</p>" +
+                    "<p style='" + metric_value_style + "'>" + rf_repeat + "</p>" +
+                    "</td>" +
+                    "<td style='padding:8px 4px;text-align:center;vertical-align:top;'>" +
+                    "<p style='" + fan_label_style + "'>Fan Score</p>" +
+                    "<p style='" + fan_value_style + "'>" + rf_fan_score + "</p>" +
+                    "</td>" +
+                    "</tr>" +
+                    "</table>" +
+                    "<table role='presentation' cellpadding='0' cellspacing='0' border='0' align='center' style='margin:32px auto 0;'>" +
+                    "<tr><td style='background:" + RF_COPPER + ";border:2px solid " + RF_COPPER + ";border-radius:30px;'>" +
+                    "<a href='" + RAVING_FAN_URL + "' style='display:block;padding:14px 32px;color:" + RF_TEXT_PRIMARY + " !important;text-decoration:none !important;font-family:" + RF_SANS_STACK + ";font-size:14px;font-weight:600;letter-spacing:0.02em;'>Open the Scorecard</a>" +
+                    "</td></tr>" +
+                    "</table>" +
+                    "<p style='margin:12px 0 0;font-family:" + RF_SANS_STACK + ";font-size:11px;text-align:center;color:" + RF_TEXT_SECONDARY + ";'>Updated weekly by the Raving Fan team.</p>" +
+                    "</td></tr></table>";
+            }
+        }
+    }
+    catch (rf_err)
+    {
+        raving_fan_block = "";
+    }
+
     // Banner and lead-in vary by mode.
     banner = "";
     if(isolved_pending)
@@ -186,16 +288,17 @@ void send_actuals_email(Map result)
         "body { font-family: " + BRAND_FONT_STACK + "; color: " + BRAND_PRIMARY_COLOR + "; max-width: 880px; margin: 24px auto; padding: 0 16px; }" +
         "h2 { margin-top: 0; font-size: 18px; }" +
         "p { line-height: 1.5; font-size: 14px; }" +
-        "table { border-collapse: collapse; width: 100%; margin-top: 16px; font-size: 13px; }" +
-        "th, td { border: 1px solid " + BRAND_TABLE_BORDER + "; padding: 8px 10px; }" +
-        "th { background: " + BRAND_TABLE_HEADER_BG + "; text-align: left; font-weight: 600; }" +
-        "tfoot td { font-weight: 600; background: " + BRAND_TABLE_HEADER_BG + "; }" +
+        "table.actuals { border-collapse: collapse; width: 100%; margin-top: 16px; font-size: 13px; }" +
+        "table.actuals th, table.actuals td { border: 1px solid " + BRAND_TABLE_BORDER + "; padding: 8px 10px; }" +
+        "table.actuals th { background: " + BRAND_TABLE_HEADER_BG + "; text-align: left; font-weight: 600; }" +
+        "table.actuals tfoot td { font-weight: 600; background: " + BRAND_TABLE_HEADER_BG + "; }" +
         "</style></head><body>" +
         "<h2>Utilization Actuals for " + week_label + "</h2>" +
+        raving_fan_block +
         banner +
         lead_in +
         congrats_line +
-        "<table><thead><tr>" +
+        "<table class='actuals'><thead><tr>" +
         "<th>Technician</th>" +
         "<th style='text-align:right'>Hours Billed</th>" +
         "<th style='text-align:right'>Hours Worked</th>" +
