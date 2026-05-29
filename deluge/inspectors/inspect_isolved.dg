@@ -1,0 +1,238 @@
+Map inspect_isolved(String week_start, String week_end)
+{
+    base_url = thisapp.Variables.ISOLVED_BASE_URL;
+    if(base_url.endsWith("/"))
+    {
+        base_url = base_url.removeLastOccurence("/");
+    }
+    creds_raw = thisapp.Variables.ISOLVED_CLIENT_ID + ":" + thisapp.Variables.ISOLVED_CLIENT_SECRET;
+    basic_token = zoho.encryption.base64encode(creds_raw);
+
+    token_resp = invokeurl
+    [
+        url: base_url + "/api/token"
+        type: POST
+        parameters: "grant_type=client_credentials"
+        headers: {"Authorization": "Basic " + basic_token, "Content-Type": "application/x-www-form-urlencoded"}
+    ];
+    isolved_token = token_resp.get("access_token");
+    isolved_auth = {"Authorization": "Bearer " + isolved_token};
+
+    client_path_id = thisapp.Variables.ISOLVED_CLIENT_PATH_ID;
+
+    legals_resp = invokeurl
+    [
+        url: base_url + "/api/clients/" + client_path_id + "/legals?includeDetails=true"
+        type: GET
+        headers: isolved_auth
+    ];
+    legals_data = legals_resp.get("data");
+    if(legals_data == null)
+    {
+        legals_data = legals_resp.get("results");
+    }
+    if(legals_data == null)
+    {
+        legals_data = legals_resp;
+    }
+
+    legals_summary = List();
+    employees_by_legal = Map();
+    timecard_counts_by_legal = Map();
+    paycodes_seen = Map();
+    raw_timecard_sample = List();
+
+    for each legal in legals_data
+    {
+        legal_id = legal.get("legalId");
+        if(legal_id == null)
+        {
+            legal_id = legal.get("id");
+        }
+        legal_name = legal.get("legalName");
+        if(legal_name == null)
+        {
+            legal_name = legal.get("name");
+        }
+
+        legal_brief = Map();
+        legal_brief.put("legal_id", legal_id);
+        legal_brief.put("legal_name", legal_name);
+        legals_summary.add(legal_brief);
+
+        emp_resp = invokeurl
+        [
+            url: base_url + "/api/clients/" + client_path_id + "/legals/" + legal_id + "/employees"
+            type: GET
+            headers: isolved_auth
+        ];
+        emp_data = emp_resp.get("data");
+        if(emp_data == null)
+        {
+            emp_data = emp_resp.get("results");
+        }
+        if(emp_data == null)
+        {
+            emp_data = emp_resp;
+        }
+
+        emp_list = List();
+        if(emp_data != null)
+        {
+            for each emp in emp_data
+            {
+                brief = Map();
+                brief.put("employeeNumber", emp.get("employeeNumber"));
+                brief.put("employeeId", emp.get("employeeId"));
+                brief.put("firstName", emp.get("firstName"));
+                brief.put("lastName", emp.get("lastName"));
+                brief.put("status", emp.get("employmentStatus"));
+                emp_list.add(brief);
+            }
+        }
+        employees_by_legal.put(legal_id, emp_list);
+
+        tc_resp = invokeurl
+        [
+            url: base_url + "/api/clients/" + client_path_id + "/legals/" + legal_id + "/timecardData?startDate=" + week_start + "&endDate=" + week_end
+            type: GET
+            headers: isolved_auth
+        ];
+        tc_data = tc_resp.get("data");
+        if(tc_data == null)
+        {
+            tc_data = tc_resp.get("results");
+        }
+        if(tc_data == null)
+        {
+            tc_data = tc_resp;
+        }
+
+        tc_count = 0;
+        if(tc_data != null)
+        {
+            for each rec in tc_data
+            {
+                tc_count = tc_count + 1;
+                pay_code = rec.get("payCode");
+                if(pay_code == null)
+                {
+                    pay_code = rec.get("earningCode");
+                }
+                if(pay_code == null)
+                {
+                    pay_code = "UNKNOWN";
+                }
+                hrs = rec.get("hours");
+                if(hrs == null)
+                {
+                    hrs = rec.get("totalHours");
+                }
+                if(hrs == null)
+                {
+                    hrs = 0.0;
+                }
+                prev = paycodes_seen.get(pay_code);
+                if(prev == null)
+                {
+                    prev = 0.0;
+                }
+                paycodes_seen.put(pay_code, prev + hrs);
+                if(raw_timecard_sample.size() < 10)
+                {
+                    raw_timecard_sample.add(rec);
+                }
+            }
+        }
+        timecard_counts_by_legal.put(legal_id, tc_count);
+    }
+
+    zoho_token_resp = invokeurl
+    [
+        url: "https://accounts.zoho.com/oauth/v2/token"
+        type: POST
+        parameters: {"grant_type": "refresh_token", "client_id": thisapp.Variables.ZOHO_CLIENT_ID, "client_secret": thisapp.Variables.ZOHO_CLIENT_SECRET, "refresh_token": thisapp.Variables.ZOHO_REFRESH_TOKEN}
+    ];
+    zoho_token = zoho_token_resp.get("access_token");
+    zoho_auth_post = {"Authorization": "Zoho-oauthtoken " + zoho_token, "Content-Type": "application/json"};
+    zoho_auth_get = {"Authorization": "Zoho-oauthtoken " + zoho_token};
+
+    EVENT_TYPES_BILLABLE = {
+        "Trim-Out ($$$)", "Rough-In ($$$)", "Finish-Out ($$$)",
+        "Discovery - Payment Required ($$$)", "Service - Payment Required ($$$)",
+        "In-House Electrical", "Retrofit ($$$)"
+    };
+    EVENT_TYPES_NON_BILLABLE = {
+        "Service - Warranty / Punchout", "Install - Warranty / Punchout",
+        "Package Overage - Non Billable", "Meeting -Non Billable",
+        "Project Management", "Undersold - Not Billable"
+    };
+    EVENT_TYPE_TRAINING = "Training";
+
+    all_events = List();
+    offsets = {0, 200, 400};
+    for each off in offsets
+    {
+        q = "SELECT id, Owner, Helper1, Event_Type, Start_DateTime, End_DateTime FROM Events WHERE Start_DateTime <= '" + week_end + "' AND End_DateTime >= '" + week_start + "' LIMIT " + off + ", 200";
+        body = {"select_query": q};
+        ev_resp = invokeurl
+        [
+            url: "https://www.zohoapis.com/crm/v6/coql"
+            type: POST
+            parameters: body.toString()
+            headers: zoho_auth_post
+        ];
+        ev_data = ev_resp.get("data");
+        if(ev_data != null)
+        {
+            for each evt in ev_data
+            {
+                all_events.add(evt);
+            }
+        }
+    }
+
+    users_resp = invokeurl
+    [
+        url: "https://www.zohoapis.com/crm/v6/users?type=ActiveUsers"
+        type: GET
+        headers: zoho_auth_get
+    ];
+    users_by_id = Map();
+    for each u in users_resp.get("users")
+    {
+        users_by_id.put(u.get("id").toString(), u.get("full_name"));
+    }
+
+    zoho_techs_in_week = List();
+    for each evt in all_events
+    {
+        et = evt.get("Event_Type");
+        counted = EVENT_TYPES_BILLABLE.contains(et) || EVENT_TYPES_NON_BILLABLE.contains(et) || et == EVENT_TYPE_TRAINING;
+        if(counted)
+        {
+            owner_id = evt.get("Owner").get("id").toString();
+            owner_name = users_by_id.get(owner_id);
+            if(owner_name != null && !zoho_techs_in_week.contains(owner_name))
+            {
+                zoho_techs_in_week.add(owner_name);
+            }
+            helper = evt.get("Helper1");
+            if(helper != null && helper != "No Helper" && helper != "-None-" && !zoho_techs_in_week.contains(helper))
+            {
+                zoho_techs_in_week.add(helper);
+            }
+        }
+    }
+
+    result = Map();
+    result.put("week_start", week_start);
+    result.put("week_end", week_end);
+    result.put("isolved_legals", legals_summary);
+    result.put("isolved_employees_by_legal", employees_by_legal);
+    result.put("isolved_timecard_record_counts", timecard_counts_by_legal);
+    result.put("isolved_pay_codes_seen", paycodes_seen);
+    result.put("isolved_raw_timecard_sample", raw_timecard_sample);
+    result.put("zoho_active_techs_in_week", zoho_techs_in_week);
+    return result;
+}
