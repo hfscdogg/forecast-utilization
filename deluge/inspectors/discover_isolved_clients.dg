@@ -53,5 +53,13 @@ Map discover_isolved_clients()
     result.put("clients", summary);
     result.put("count", summary.size());
     result.put("raw_response", clients_resp);
+    result.put("response_keys", clients_resp.keys());
+    result.put("token_response_keys", token_resp.keys());
+    result.put("token_is_null", isolved_token == null);
+    result.put("token_error", token_resp.get("error"));
+    result.put("token_error_description", token_resp.get("error_description"));
+    result.put("token_message", token_resp.get("message"));
+    result.put("token_expires_in", token_resp.get("expires_in"));
+    result.put("token_type", token_resp.get("token_type"));
     return result;
 }
