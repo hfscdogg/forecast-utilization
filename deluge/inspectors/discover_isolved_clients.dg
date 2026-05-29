@@ -1,0 +1,56 @@
+Map discover_isolved_clients()
+{
+    base_url = thisapp.Variables.ISOLVED_BASE_URL;
+    if(base_url.endsWith("/"))
+    {
+        base_url = base_url.removeLastOccurence("/");
+    }
+    creds_raw = thisapp.Variables.ISOLVED_CLIENT_ID + ":" + thisapp.Variables.ISOLVED_CLIENT_SECRET;
+    basic_token = zoho.encryption.base64encode(creds_raw);
+
+    token_resp = invokeurl
+    [
+        url: base_url + "/api/token"
+        type: POST
+        parameters: "grant_type=client_credentials"
+        headers: {"Authorization": "Basic " + basic_token, "Content-Type": "application/x-www-form-urlencoded"}
+    ];
+    isolved_token = token_resp.get("access_token");
+    isolved_auth = {"Authorization": "Bearer " + isolved_token};
+
+    clients_resp = invokeurl
+    [
+        url: base_url + "/api/clients"
+        type: GET
+        headers: isolved_auth
+    ];
+    clients_data = clients_resp.get("data");
+    if(clients_data == null)
+    {
+        clients_data = clients_resp.get("results");
+    }
+    if(clients_data == null)
+    {
+        clients_data = clients_resp;
+    }
+
+    summary = List();
+    if(clients_data != null)
+    {
+        for each c in clients_data
+        {
+            brief = Map();
+            brief.put("clientId", c.get("clientId"));
+            brief.put("id", c.get("id"));
+            brief.put("clientCode", c.get("clientCode"));
+            brief.put("clientName", c.get("clientName"));
+            brief.put("name", c.get("name"));
+            summary.add(brief);
+        }
+    }
+
+    result = Map();
+    result.put("clients", summary);
+    result.put("count", summary.size());
+    return result;
+}
