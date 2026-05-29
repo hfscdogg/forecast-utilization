@@ -52,5 +52,6 @@ Map discover_isolved_clients()
     result = Map();
     result.put("clients", summary);
     result.put("count", summary.size());
+    result.put("raw_response", clients_resp);
     return result;
 }
