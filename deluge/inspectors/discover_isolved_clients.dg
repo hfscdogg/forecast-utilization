@@ -49,6 +49,27 @@ Map discover_isolved_clients()
         }
     }
 
+    cid_safe = thisapp.Variables.ISOLVED_CLIENT_ID;
+    if(cid_safe == null)
+    {
+        cid_safe = "";
+    }
+    cs_safe = thisapp.Variables.ISOLVED_CLIENT_SECRET;
+    if(cs_safe == null)
+    {
+        cs_safe = "";
+    }
+    cid_len = 0;
+    if(cid_safe != "")
+    {
+        cid_len = cid_safe.length();
+    }
+    cs_len = 0;
+    if(cs_safe != "")
+    {
+        cs_len = cs_safe.length();
+    }
+
     result = Map();
     result.put("clients", summary);
     result.put("count", summary.size());
@@ -63,7 +84,9 @@ Map discover_isolved_clients()
     result.put("token_type", token_resp.get("token_type"));
     result.put("debug_token_url", base_url + "/api/token");
     result.put("debug_basic_auth_value", basic_token);
-    result.put("debug_client_id_length", thisapp.Variables.ISOLVED_CLIENT_ID.length());
-    result.put("debug_client_secret_length", thisapp.Variables.ISOLVED_CLIENT_SECRET.length());
+    result.put("debug_client_id_length", cid_len);
+    result.put("debug_client_secret_length", cs_len);
+    result.put("debug_client_id_is_empty", cid_safe == "");
+    result.put("debug_client_secret_is_empty", cs_safe == "");
     return result;
 }
