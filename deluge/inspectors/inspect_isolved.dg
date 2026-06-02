@@ -60,7 +60,7 @@ Map inspect_isolved(String week_start, String week_end)
 
         legals_resp = invokeurl
         [
-            url: base_url + "/api/clients/" + client_id + "/legals?includeDetails=true"
+            url: base_url + "/api/clients/" + client_id.toString() + "/legals?includeDetails=true"
             type: GET
             headers: isolved_auth
         ];
@@ -96,7 +96,7 @@ Map inspect_isolved(String week_start, String week_end)
 
             emp_resp = invokeurl
             [
-                url: base_url + "/api/clients/" + client_id + "/legals/" + legal_id + "/employees"
+                url: base_url + "/api/clients/" + client_id.toString() + "/legals/" + legal_id.toString() + "/employees"
                 type: GET
                 headers: isolved_auth
             ];
@@ -129,7 +129,7 @@ Map inspect_isolved(String week_start, String week_end)
 
             tc_resp = invokeurl
             [
-                url: base_url + "/api/clients/" + client_id + "/legals/" + legal_id + "/timecardData?startDate=" + week_start + "&endDate=" + week_end
+                url: base_url + "/api/clients/" + client_id.toString() + "/legals/" + legal_id.toString() + "/timecardData?startDate=" + week_start + "&endDate=" + week_end
                 type: GET
                 headers: isolved_auth
             ];
