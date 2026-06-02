@@ -61,5 +61,9 @@ Map discover_isolved_clients()
     result.put("token_message", token_resp.get("message"));
     result.put("token_expires_in", token_resp.get("expires_in"));
     result.put("token_type", token_resp.get("token_type"));
+    result.put("debug_token_url", base_url + "/api/token");
+    result.put("debug_basic_auth_value", basic_token);
+    result.put("debug_client_id_length", thisapp.Variables.ISOLVED_CLIENT_ID.length());
+    result.put("debug_client_secret_length", thisapp.Variables.ISOLVED_CLIENT_SECRET.length());
     return result;
 }
