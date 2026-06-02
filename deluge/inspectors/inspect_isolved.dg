@@ -49,6 +49,7 @@ Map inspect_isolved(String week_start, String week_end)
         {
             client_id = client.get("clientId");
         }
+        client_id_str = "" + client_id;
         client_code = client.get("clientCode");
         client_name = client.get("clientName");
 
@@ -58,9 +59,10 @@ Map inspect_isolved(String week_start, String week_end)
         client_brief.put("client_name", client_name);
         clients_summary.add(client_brief);
 
+        legals_url = base_url + "/api/clients/" + client_id_str + "/legals?includeDetails=true";
         legals_resp = invokeurl
         [
-            url: base_url + "/api/clients/" + client_id.toString() + "/legals?includeDetails=true"
+            url: legals_url
             type: GET
             headers: isolved_auth
         ];
@@ -81,6 +83,7 @@ Map inspect_isolved(String week_start, String week_end)
             {
                 legal_id = legal.get("legalId");
             }
+            legal_id_str = "" + legal_id;
             legal_name = legal.get("legalName");
             if(legal_name == null)
             {
@@ -94,9 +97,10 @@ Map inspect_isolved(String week_start, String week_end)
             legal_brief.put("legal_name", legal_name);
             legals_summary.add(legal_brief);
 
+            emp_url = base_url + "/api/clients/" + client_id_str + "/legals/" + legal_id_str + "/employees";
             emp_resp = invokeurl
             [
-                url: base_url + "/api/clients/" + client_id.toString() + "/legals/" + legal_id.toString() + "/employees"
+                url: emp_url
                 type: GET
                 headers: isolved_auth
             ];
@@ -127,9 +131,10 @@ Map inspect_isolved(String week_start, String week_end)
             }
             employees_by_legal.put(legal_id, emp_list);
 
+            tc_url = base_url + "/api/clients/" + client_id_str + "/legals/" + legal_id_str + "/timecardData?startDate=" + week_start + "&endDate=" + week_end;
             tc_resp = invokeurl
             [
-                url: base_url + "/api/clients/" + client_id.toString() + "/legals/" + legal_id.toString() + "/timecardData?startDate=" + week_start + "&endDate=" + week_end
+                url: tc_url
                 type: GET
                 headers: isolved_auth
             ];
