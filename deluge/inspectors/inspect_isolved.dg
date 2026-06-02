@@ -27,10 +27,6 @@ Map inspect_isolved(String week_start, String week_end)
     clients_data = clients_resp.get("results");
     if(clients_data == null)
     {
-        clients_data = clients_resp.get("data");
-    }
-    if(clients_data == null)
-    {
         clients_data = List();
     }
 
@@ -38,155 +34,144 @@ Map inspect_isolved(String week_start, String week_end)
     legals_summary = List();
     employees_by_legal = Map();
     timecard_counts_by_legal = Map();
+    timecard_status_by_legal = Map();
     paycodes_seen = Map();
     raw_timecard_sample = List();
     raw_employee_sample = List();
 
     for each client in clients_data
     {
-        client_id_raw = client.get("id");
-        if(client_id_raw == null)
-        {
-            client_id_raw = client.get("clientId");
-        }
-        client_id_str = "";
-        if(client_id_raw != null)
-        {
-            client_id_str = client_id_raw.toString();
-        }
+        client_id_str = client.get("id").toString();
         client_code = client.get("clientCode");
         client_name = client.get("clientName");
 
         client_brief = Map();
-        client_brief.put("client_id", client_id_raw);
-        client_brief.put("client_id_str", client_id_str);
+        client_brief.put("client_id", client_id_str);
         client_brief.put("client_code", client_code);
         client_brief.put("client_name", client_name);
         clients_summary.add(client_brief);
 
-        legals_url = "" + base_url + "/api/clients/" + client_id_str + "/legals?includeDetails=true";
+        legals_url = base_url + "/api/clients/" + client_id_str + "/legals?includeDetails=true";
         legals_resp = invokeurl
         [
             url: legals_url
             type: GET
             headers: isolved_auth
         ];
-        legals_data = legals_resp.get("results");
-        if(legals_data == null)
+
+        if(legals_resp != null)
         {
-            legals_data = legals_resp.get("data");
-        }
-        if(legals_data == null)
-        {
-            legals_data = List();
-        }
+            for each legal in legals_resp
+            {
+                legal_id_str = legal.get("id").toString();
+                legal_name = legal.get("legalName");
 
-        for each legal in legals_data
-        {
-            legal_id = legal.get("id");
-            if(legal_id == null)
-            {
-                legal_id = legal.get("legalId");
-            }
-            legal_id_str = "" + legal_id;
-            legal_name = legal.get("legalName");
-            if(legal_name == null)
-            {
-                legal_name = legal.get("name");
-            }
+                legal_brief = Map();
+                legal_brief.put("client_id", client_id_str);
+                legal_brief.put("client_code", client_code);
+                legal_brief.put("legal_id", legal_id_str);
+                legal_brief.put("legal_name", legal_name);
+                legals_summary.add(legal_brief);
 
-            legal_brief = Map();
-            legal_brief.put("client_id", client_id);
-            legal_brief.put("client_code", client_code);
-            legal_brief.put("legal_id", legal_id);
-            legal_brief.put("legal_name", legal_name);
-            legals_summary.add(legal_brief);
+                emp_url = base_url + "/api/clients/" + client_id_str + "/legals/" + legal_id_str + "/employees";
+                emp_resp = invokeurl
+                [
+                    url: emp_url
+                    type: GET
+                    headers: isolved_auth
+                ];
+                emp_data = emp_resp.get("results");
+                if(emp_data == null)
+                {
+                    emp_data = List();
+                }
 
-            emp_url = base_url + "/api/clients/" + client_id_str + "/legals/" + legal_id_str + "/employees";
-            emp_resp = invokeurl
-            [
-                url: emp_url
-                type: GET
-                headers: isolved_auth
-            ];
-            emp_data = emp_resp.get("results");
-            if(emp_data == null)
-            {
-                emp_data = emp_resp.get("data");
-            }
-            if(emp_data == null)
-            {
-                emp_data = List();
-            }
+                emp_list = List();
+                for each emp in emp_data
+                {
+                    name_addr = emp.get("nameAddress");
+                    first_name = "";
+                    last_name = "";
+                    if(name_addr != null)
+                    {
+                        first_name = name_addr.get("firstName");
+                        last_name = name_addr.get("lastName");
+                    }
+                    brief = Map();
+                    brief.put("id", emp.get("id"));
+                    brief.put("employeeNumber", emp.get("employeeNumber"));
+                    brief.put("firstName", first_name);
+                    brief.put("lastName", last_name);
+                    brief.put("status", emp.get("employmentStatus"));
+                    emp_list.add(brief);
+                    if(raw_employee_sample.size() < 3)
+                    {
+                        raw_employee_sample.add(emp);
+                    }
+                }
+                employees_by_legal.put(legal_id_str, emp_list);
 
-            emp_list = List();
-            for each emp in emp_data
-            {
-                brief = Map();
-                brief.put("id", emp.get("id"));
-                brief.put("employeeNumber", emp.get("employeeNumber"));
-                brief.put("firstName", emp.get("firstName"));
-                brief.put("lastName", emp.get("lastName"));
-                brief.put("status", emp.get("employmentStatus"));
-                emp_list.add(brief);
-                if(raw_employee_sample.size() < 3)
-                {
-                    raw_employee_sample.add(emp);
-                }
-            }
-            employees_by_legal.put(legal_id, emp_list);
+                tc_url = base_url + "/api/clients/" + client_id_str + "/legals/" + legal_id_str + "/timecardData?startDate=" + week_start + "T00:00:00&endDate=" + week_end + "T23:59:59";
+                tc_resp = invokeurl
+                [
+                    url: tc_url
+                    type: GET
+                    headers: isolved_auth
+                ];
 
-            tc_url = base_url + "/api/clients/" + client_id_str + "/legals/" + legal_id_str + "/timecardData?startDate=" + week_start + "&endDate=" + week_end;
-            tc_resp = invokeurl
-            [
-                url: tc_url
-                type: GET
-                headers: isolved_auth
-            ];
-            tc_data = tc_resp.get("results");
-            if(tc_data == null)
-            {
-                tc_data = tc_resp.get("data");
+                tc_count = 0;
+                tc_status = "ok";
+                if(tc_resp == null)
+                {
+                    tc_status = "null_response";
+                }
+                else if(tc_resp.get("message") != null)
+                {
+                    tc_status = "endpoint_unavailable_" + tc_resp.get("message");
+                }
+                else
+                {
+                    tc_data = tc_resp.get("results");
+                    if(tc_data == null)
+                    {
+                        tc_data = List();
+                    }
+                    for each rec in tc_data
+                    {
+                        tc_count = tc_count + 1;
+                        pay_code = rec.get("payCode");
+                        if(pay_code == null)
+                        {
+                            pay_code = rec.get("earningCode");
+                        }
+                        if(pay_code == null)
+                        {
+                            pay_code = "UNKNOWN";
+                        }
+                        hrs = rec.get("hours");
+                        if(hrs == null)
+                        {
+                            hrs = rec.get("totalHours");
+                        }
+                        if(hrs == null)
+                        {
+                            hrs = 0.0;
+                        }
+                        prev = paycodes_seen.get(pay_code);
+                        if(prev == null)
+                        {
+                            prev = 0.0;
+                        }
+                        paycodes_seen.put(pay_code, prev + hrs);
+                        if(raw_timecard_sample.size() < 10)
+                        {
+                            raw_timecard_sample.add(rec);
+                        }
+                    }
+                }
+                timecard_counts_by_legal.put(legal_id_str, tc_count);
+                timecard_status_by_legal.put(legal_id_str, tc_status);
             }
-            if(tc_data == null)
-            {
-                tc_data = List();
-            }
-
-            tc_count = 0;
-            for each rec in tc_data
-            {
-                tc_count = tc_count + 1;
-                pay_code = rec.get("payCode");
-                if(pay_code == null)
-                {
-                    pay_code = rec.get("earningCode");
-                }
-                if(pay_code == null)
-                {
-                    pay_code = "UNKNOWN";
-                }
-                hrs = rec.get("hours");
-                if(hrs == null)
-                {
-                    hrs = rec.get("totalHours");
-                }
-                if(hrs == null)
-                {
-                    hrs = 0.0;
-                }
-                prev = paycodes_seen.get(pay_code);
-                if(prev == null)
-                {
-                    prev = 0.0;
-                }
-                paycodes_seen.put(pay_code, prev + hrs);
-                if(raw_timecard_sample.size() < 10)
-                {
-                    raw_timecard_sample.add(rec);
-                }
-            }
-            timecard_counts_by_legal.put(legal_id, tc_count);
         }
     }
 
@@ -271,14 +256,15 @@ Map inspect_isolved(String week_start, String week_end)
     result = Map();
     result.put("week_start", week_start);
     result.put("week_end", week_end);
+    result.put("token_is_null", isolved_token == null);
     result.put("isolved_clients", clients_summary);
     result.put("isolved_legals", legals_summary);
     result.put("isolved_employees_by_legal", employees_by_legal);
     result.put("isolved_timecard_record_counts", timecard_counts_by_legal);
+    result.put("isolved_timecard_status_by_legal", timecard_status_by_legal);
     result.put("isolved_pay_codes_seen", paycodes_seen);
     result.put("isolved_raw_timecard_sample", raw_timecard_sample);
     result.put("isolved_raw_employee_sample", raw_employee_sample);
     result.put("zoho_active_techs_in_week", zoho_techs_in_week);
-    result.put("token_is_null", isolved_token == null);
     return result;
 }
