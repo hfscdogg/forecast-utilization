@@ -42,25 +42,6 @@ Map inspect_isolved(String week_start, String week_end)
     raw_timecard_sample = List();
     raw_employee_sample = List();
 
-    if(clients_data.size() > 0)
-    {
-        first_client = clients_data.get(0);
-        first_id_raw = first_client.get("id");
-        diag = Map();
-        diag.put("step", "pre_loop_diagnostic");
-        diag.put("token_is_null", isolved_token == null);
-        diag.put("clients_data_size", clients_data.size());
-        diag.put("first_client", first_client);
-        diag.put("first_client_keys", first_client.keys());
-        diag.put("first_id_raw", first_id_raw);
-        diag.put("first_id_via_concat", "" + first_id_raw);
-        diag.put("first_id_via_tostring", first_id_raw.toString());
-        diag.put("test_url_concat", base_url + "/api/clients/" + first_id_raw + "/legals?includeDetails=true");
-        diag.put("test_url_via_str", base_url + "/api/clients/" + first_id_raw.toString() + "/legals?includeDetails=true");
-        diag.put("isolved_auth", isolved_auth);
-        return diag;
-    }
-
     for each client in clients_data
     {
         client_id_raw = client.get("id");
