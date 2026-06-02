@@ -44,22 +44,38 @@ Map inspect_isolved(String week_start, String week_end)
 
     for each client in clients_data
     {
-        client_id = client.get("id");
-        if(client_id == null)
+        client_id_raw = client.get("id");
+        if(client_id_raw == null)
         {
-            client_id = client.get("clientId");
+            client_id_raw = client.get("clientId");
         }
-        client_id_str = "" + client_id;
+        client_id_str = "";
+        if(client_id_raw != null)
+        {
+            client_id_str = client_id_raw.toString();
+        }
         client_code = client.get("clientCode");
         client_name = client.get("clientName");
 
         client_brief = Map();
-        client_brief.put("client_id", client_id);
+        client_brief.put("client_id", client_id_raw);
+        client_brief.put("client_id_str", client_id_str);
         client_brief.put("client_code", client_code);
         client_brief.put("client_name", client_name);
         clients_summary.add(client_brief);
 
-        legals_url = base_url + "/api/clients/" + client_id_str + "/legals?includeDetails=true";
+        legals_url = "" + base_url + "/api/clients/" + client_id_str + "/legals?includeDetails=true";
+
+        diag = Map();
+        diag.put("step", "before_legals_invokeurl");
+        diag.put("client_raw", client);
+        diag.put("client_id_raw", client_id_raw);
+        diag.put("client_id_str", client_id_str);
+        diag.put("legals_url", legals_url);
+        diag.put("isolved_auth_keys", isolved_auth.keys());
+        diag.put("clients_summary_so_far", clients_summary);
+        return diag;
+
         legals_resp = invokeurl
         [
             url: legals_url
