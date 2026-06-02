@@ -1,0 +1,48 @@
+Map diag_isolved()
+{
+    base_url = thisapp.Variables.ISOLVED_BASE_URL;
+    if(base_url.endsWith("/"))
+    {
+        base_url = base_url.removeLastOccurence("/");
+    }
+    creds_raw = thisapp.Variables.ISOLVED_CLIENT_ID + ":" + thisapp.Variables.ISOLVED_CLIENT_SECRET;
+    basic_token = zoho.encryption.base64encode(creds_raw);
+
+    token_resp = invokeurl
+    [
+        url: base_url + "/api/token"
+        type: POST
+        parameters: "grant_type=client_credentials"
+        headers: {"Authorization": "Basic " + basic_token, "Content-Type": "application/x-www-form-urlencoded"}
+    ];
+    isolved_token = token_resp.get("access_token");
+    isolved_auth = {"Authorization": "Bearer " + isolved_token};
+
+    clients_resp = invokeurl
+    [
+        url: base_url + "/api/clients"
+        type: GET
+        headers: isolved_auth
+    ];
+    clients_data = clients_resp.get("results");
+
+    first_client = clients_data.get(0);
+    first_id_raw = first_client.get("id");
+    first_id_via_concat = "" + first_id_raw;
+    first_id_via_tostring = first_id_raw.toString();
+    test_url_concat = base_url + "/api/clients/" + first_id_raw + "/legals?includeDetails=true";
+    test_url_via_str = base_url + "/api/clients/" + first_id_via_tostring + "/legals?includeDetails=true";
+
+    diag = Map();
+    diag.put("token_is_null", isolved_token == null);
+    diag.put("clients_data_size", clients_data.size());
+    diag.put("first_client", first_client);
+    diag.put("first_client_keys", first_client.keys());
+    diag.put("first_id_raw", first_id_raw);
+    diag.put("first_id_via_concat", first_id_via_concat);
+    diag.put("first_id_via_tostring", first_id_via_tostring);
+    diag.put("test_url_concat", test_url_concat);
+    diag.put("test_url_via_str", test_url_via_str);
+    diag.put("isolved_auth", isolved_auth);
+    return diag;
+}
