@@ -25,6 +25,15 @@ Map generate_forecast(String week_start, String week_end)
     WEEKLY_OT_THRESHOLD_HRS = 40;
     DRIVE_TIME_ADDER_HRS = 0.5;
     COMPANY_UTILIZATION_TARGET = 0.625;
+    // Non-field roles to keep out of the utilization roster entirely.
+    // These people occasionally own non-billable events (meetings,
+    // project management) which would otherwise pull them into the
+    // report at 0% and drag the company average down. This is a
+    // role-based exclusion, NOT a zero-billable exclusion: a real field
+    // tech with no billable work in a given week still counts, because
+    // that low utilization is exactly what the metric should surface.
+    // Add names here as roles change (match the Zoho user full_name).
+    EXCLUDED_NON_TECH_NAMES = {"Dustin Roskam", "Josh McDonough"};
 
     // ============================================================
     // 0. OAuth: exchange refresh token for access token.
@@ -89,6 +98,8 @@ Map generate_forecast(String week_start, String week_end)
     // 3. Build the tech roster by inference: distinct names appearing as
     //    Owner or Helper1 on counted (field-work) events. Office staff
     //    do not own field events, so this naturally excludes them.
+    //    Named non-field roles (see EXCLUDED_NON_TECH_NAMES) are filtered
+    //    out explicitly since they can own non-billable events.
     // ============================================================
     tech_set = List();
     for each evt in all_events
@@ -99,12 +110,12 @@ Map generate_forecast(String week_start, String week_end)
         {
             owner_id = evt.get("Owner").get("id").toString();
             owner_name = users_by_id.get(owner_id);
-            if(owner_name != null && !tech_set.contains(owner_name))
+            if(owner_name != null && !EXCLUDED_NON_TECH_NAMES.contains(owner_name) && !tech_set.contains(owner_name))
             {
                 tech_set.add(owner_name);
             }
             helper = evt.get("Helper1");
-            if(helper != null && helper != "No Helper" && helper != "-None-" && !tech_set.contains(helper))
+            if(helper != null && helper != "No Helper" && helper != "-None-" && !EXCLUDED_NON_TECH_NAMES.contains(helper) && !tech_set.contains(helper))
             {
                 tech_set.add(helper);
             }
