@@ -27,6 +27,10 @@ Map generate_actuals(String week_start, String week_end, Map time_cards)
     WEEKLY_CAP_HRS = 40;
     OT_PAY_MULTIPLIER = 1.5;
     COMPANY_UTILIZATION_TARGET = 0.625;
+    // Non-field roles kept out of the roster entirely. Role-based, not
+    // zero-billable: a real tech with no billable work still counts.
+    // Keep this list in sync with generate_forecast.dg.
+    EXCLUDED_NON_TECH_NAMES = {"Dustin Roskam", "Josh McDonough"};
 
     all_events = List();
     offsets = {0, 200, 400};
@@ -64,6 +68,7 @@ Map generate_actuals(String week_start, String week_end, Map time_cards)
     }
 
     // Roster: distinct names appearing as Owner or Helper1 on counted events.
+    // Named non-field roles are filtered out (see EXCLUDED_NON_TECH_NAMES).
     tech_set = List();
     for each evt in all_events
     {
@@ -73,12 +78,12 @@ Map generate_actuals(String week_start, String week_end, Map time_cards)
         {
             owner_id = evt.get("Owner").get("id").toString();
             owner_name = users_by_id.get(owner_id);
-            if(owner_name != null && !tech_set.contains(owner_name))
+            if(owner_name != null && !EXCLUDED_NON_TECH_NAMES.contains(owner_name) && !tech_set.contains(owner_name))
             {
                 tech_set.add(owner_name);
             }
             helper = evt.get("Helper1");
-            if(helper != null && helper != "No Helper" && helper != "-None-" && !tech_set.contains(helper))
+            if(helper != null && helper != "No Helper" && helper != "-None-" && !EXCLUDED_NON_TECH_NAMES.contains(helper) && !tech_set.contains(helper))
             {
                 tech_set.add(helper);
             }

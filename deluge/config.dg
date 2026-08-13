@@ -145,6 +145,20 @@ FIELD_USER_PROFILE         = "profile";             /* nested: profile.name */
  * A tech who is totally idle a given week has nothing to forecast anyway. */
 TECHNICIAN_FILTER_STRATEGY = "derive_from_event_ownership";
 
+/* Role-based roster exclusions — added 2026-08-13 per Henry + Dustin's
+ * 8/17-8/23 forecast review. Project/service managers occasionally own a
+ * non-billable event (a meeting, project management) which pulls them into
+ * the derived roster at 0% and drags the company average down. This is a
+ * ROLE exclusion, not a zero-billable exclusion: a real field tech with no
+ * billable work in a week still counts, because that low utilization is the
+ * whole point of the metric. Filter these full_name values out of the
+ * roster in generate_forecast.dg and generate_actuals.dg. Add names as
+ * roles change. Verified: Dustin's 8/17-8/23 company figure (84.77% with
+ * Elijah, 83.94% without) reconciles exactly once these two are excluded. */
+EXCLUDED_NON_TECH_NAMES = list();
+EXCLUDED_NON_TECH_NAMES.add("Dustin Roskam");   /* Service Manager */
+EXCLUDED_NON_TECH_NAMES.add("Josh McDonough");  /* Project Manager */
+
 /* iSolved linkage — to be added once McKenzie/Dustin confirm tenant access */
 FIELD_USER_ISOLVED_ID      = "iSolved_Employee_ID"; /* Phase 4b: custom field on Users, one-time backfill */
 
