@@ -5,11 +5,15 @@ void scheduled_forecast()
 
     try
     {
-        // The forecast runs Thursday at 4pm ET for the upcoming Mon-Sun.
-        // From Thursday: Monday = today + 4 days. Sunday = today + 10 days.
+        // The forecast runs Friday at 4pm ET for the upcoming Mon-Sun.
+        // Moved from Thursday per Dustin 2026-08-13: "Friday afternoon
+        // 3-4pm for best results. Most of the data is going to be
+        // dependent Josh/PM scheduling." The Creator schedule day and
+        // days_to_monday must move together: from Friday, Monday =
+        // today + 3 days.
         // TODO: handle DST. May 2026 is EDT (-04:00). November to March is EST (-05:00).
         today = zoho.currenttime.toDate();
-        days_to_monday = 4;
+        days_to_monday = 3;
         week_start_date = today.addDay(days_to_monday);
         week_end_date = week_start_date.addDay(6);
         week_start_iso = week_start_date.toString("yyyy-MM-dd") + "T00:00:00-04:00";
