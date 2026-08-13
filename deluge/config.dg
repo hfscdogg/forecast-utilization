@@ -163,10 +163,15 @@ EXCLUDED_NON_TECH_NAMES.add("Josh McDonough");  /* Project Manager */
 FIELD_USER_ISOLVED_ID      = "iSolved_Employee_ID"; /* Phase 4b: custom field on Users, one-time backfill */
 
 /* ============================================================
- * FORECAST — Thursday 4 PM ET
+ * FORECAST — Friday 4 PM ET
+ * Moved from Thursday per Dustin 2026-08-13: "Friday afternoon 3-4pm
+ * for best results. Most of the data is going to be dependent Josh/PM
+ * scheduling. I'll let him know that he should expect that deadline."
+ * If this day changes again, scheduled_forecast.dg days_to_monday must
+ * change with it (Friday = 3, Thursday = 4).
  * ============================================================ */
 
-FORECAST_SCHEDULE_DAY      = "Thursday";
+FORECAST_SCHEDULE_DAY      = "Friday";
 FORECAST_SCHEDULE_TIME     = "16:00";               /* America/New_York */
 FORECAST_TIMEZONE          = "America/New_York";
 
