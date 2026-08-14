@@ -9,12 +9,16 @@ void scheduled_actuals()
         // ended 8 days ago (a 2-week lag, per the SOP — gives PMs and
         // accounting time to settle hours).
         // From today (Monday): lag_week_start = today - 14, lag_week_end = today - 8.
-        // TODO: handle DST. May 2026 is EDT (-04:00). November to March is EST (-05:00).
+        // The UTC offset is computed per boundary date via eastern_offset
+        // so a lag week straddling a DST transition (e.g. Mon Oct 26 to
+        // Sun Nov 1) gets the right offset on each edge.
         today = zoho.currenttime.toDate();
         week_start_date = today.subDay(14);
         week_end_date = today.subDay(8);
-        week_start_iso = week_start_date.toString("yyyy-MM-dd") + "T00:00:00-04:00";
-        week_end_iso = week_end_date.toString("yyyy-MM-dd") + "T23:59:59-04:00";
+        week_start_str = week_start_date.toString("yyyy-MM-dd");
+        week_end_str = week_end_date.toString("yyyy-MM-dd");
+        week_start_iso = week_start_str + "T00:00:00" + thisapp.eastern_offset(week_start_str);
+        week_end_iso = week_end_str + "T23:59:59" + thisapp.eastern_offset(week_end_str);
 
         run_id = zoho.currenttime.toString("yyyyMMddHHmmss") + "-" + randomNumber(1000, 9999);
 

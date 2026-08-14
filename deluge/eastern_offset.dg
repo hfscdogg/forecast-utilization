@@ -1,0 +1,61 @@
+String eastern_offset(String iso_date)
+{
+    // Returns the America/New_York UTC offset ("-04:00" EDT or "-05:00"
+    // EST) in effect on the given calendar date (yyyy-MM-dd).
+    //
+    // US rule: EDT from the second Sunday of March through the first
+    // Sunday of November, EST otherwise. The 2 AM switchover hour is
+    // deliberately ignored: this function stamps whole-day window
+    // boundaries (00:00:00 / 23:59:59) for the CRM COQL pull, and on a
+    // transition Sunday the correct offset for those boundary times is
+    // the post-2AM one, which is what the day-level rule yields.
+    //
+    // Called per boundary date, not per run, so a reporting week that
+    // straddles the transition (e.g. Mon Oct 26 to Sun Nov 1) gets
+    // -04:00 on its start and -05:00 on its end — each edge exactly at
+    // local midnight.
+    //
+    // getDayOfWeek convention: Zoho Deluge returns 1 for Sunday through
+    // 7 for Saturday.
+    d = iso_date.toDate();
+    month_num = d.toString("MM").toLong();
+    day_num = d.toString("dd").toLong();
+    year_str = d.toString("yyyy");
+
+    offset = "-05:00";
+    if(month_num > 3 && month_num < 11)
+    {
+        offset = "-04:00";
+    }
+    else if(month_num == 3)
+    {
+        march_first = (year_str + "-03-01").toDate();
+        dow = march_first.getDayOfWeek();
+        days_until_sunday = 1 - dow + 7;
+        if(days_until_sunday == 7)
+        {
+            days_until_sunday = 0;
+        }
+        second_sunday = 1 + days_until_sunday + 7;
+        if(day_num >= second_sunday)
+        {
+            offset = "-04:00";
+        }
+    }
+    else if(month_num == 11)
+    {
+        nov_first = (year_str + "-11-01").toDate();
+        dow = nov_first.getDayOfWeek();
+        days_until_sunday = 1 - dow + 7;
+        if(days_until_sunday == 7)
+        {
+            days_until_sunday = 0;
+        }
+        first_sunday = 1 + days_until_sunday;
+        if(day_num < first_sunday)
+        {
+            offset = "-04:00";
+        }
+    }
+    return offset;
+}
