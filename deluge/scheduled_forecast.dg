@@ -11,13 +11,17 @@ void scheduled_forecast()
         // dependent Josh/PM scheduling." The Creator schedule day and
         // days_to_monday must move together: from Friday, Monday =
         // today + 3 days.
-        // TODO: handle DST. May 2026 is EDT (-04:00). November to March is EST (-05:00).
+        // The UTC offset is computed per boundary date via eastern_offset
+        // so a week straddling a DST transition gets the right offset on
+        // each edge.
         today = zoho.currenttime.toDate();
         days_to_monday = 3;
         week_start_date = today.addDay(days_to_monday);
         week_end_date = week_start_date.addDay(6);
-        week_start_iso = week_start_date.toString("yyyy-MM-dd") + "T00:00:00-04:00";
-        week_end_iso = week_end_date.toString("yyyy-MM-dd") + "T23:59:59-04:00";
+        week_start_str = week_start_date.toString("yyyy-MM-dd");
+        week_end_str = week_end_date.toString("yyyy-MM-dd");
+        week_start_iso = week_start_str + "T00:00:00" + thisapp.eastern_offset(week_start_str);
+        week_end_iso = week_end_str + "T23:59:59" + thisapp.eastern_offset(week_end_str);
 
         run_id = zoho.encryption.urlEncode(zoho.currenttime.toString("yyyyMMddHHmmss") + "-" + randomNumber(1000, 9999));
 
