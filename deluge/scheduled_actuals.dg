@@ -18,10 +18,12 @@ void scheduled_actuals()
 
         run_id = zoho.currenttime.toString("yyyyMMddHHmmss") + "-" + randomNumber(1000, 9999);
 
-        // time_cards: empty Map until iSolved integration lands.
-        // When iSolved comes online, populate this map with tech_name ->
-        // hours_worked (e.g., from a fetch_isolved_timecards function).
-        time_cards = Map();
+        // Live iSolved pull (Phase 4b, verified 2026-08-14): Map of
+        // Zoho tech full_name -> hours on the clock for the lag week
+        // (Hourly Regular + Overtime pay items; PTO and salary excluded).
+        // If iSolved errors, the try/catch below alerts Henry — that is
+        // the designed failure path, no silent fallback to pending mode.
+        time_cards = thisapp.fetch_isolved_timecards(week_start_date.toString("yyyy-MM-dd"), week_end_date.toString("yyyy-MM-dd"));
 
         result = thisapp.generate_actuals(week_start_iso, week_end_iso, time_cards);
         thisapp.write_actuals_history(result, run_id);

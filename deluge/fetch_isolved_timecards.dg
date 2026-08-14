@@ -1,0 +1,97 @@
+Map fetch_isolved_timecards(String week_start, String week_end)
+{
+    // iSolved tenant path ids — provided by Ron Pisarz (Dominion) 2026-08-13,
+    // verified live 2026-08-14. Not secrets: identifiers, not credentials.
+    ISOLVED_CLIENT_PATH_ID = "357";
+    ISOLVED_LEGAL_ID = "417";
+
+    // Pay items that count as time on the clock. Whitelist only — never
+    // blacklist. Observed live 2026-08-14 for the Aug 3-9 week:
+    //   "Hourly Regular" (code 01a) — counts
+    //   "Overtime" (code 2) — counts
+    //   "PTO" (code 209E) — excluded, per SOP (only time on the clock)
+    //   "Salary Hours" (null code) — office staff, excluded; office roles
+    //     never enter the tech roster anyway
+    // Holiday / Sick / Bereavement codes will be excluded automatically
+    // when they first appear because they are not in this whitelist.
+    PAY_ITEMS_WORKED = {"Hourly Regular", "Overtime"};
+
+    // iSolved full-name -> Zoho CRM full_name for techs whose names differ
+    // between the two systems. Names not listed pass through unchanged.
+    NAME_ALIASES = Map();
+    NAME_ALIASES.put("James Zimmerman", "Jim Zimmerman");
+
+    base_url = thisapp.Variables.ISOLVED_BASE_URL;
+    if(base_url.endsWith("/"))
+    {
+        base_url = base_url.removeLastOccurence("/");
+    }
+    creds_raw = thisapp.Variables.ISOLVED_CLIENT_ID + ":" + thisapp.Variables.ISOLVED_CLIENT_SECRET;
+    basic_token = zoho.encryption.base64encode(creds_raw);
+
+    token_resp = invokeurl
+    [
+        url: base_url + "/api/token"
+        type: POST
+        parameters: "grant_type=client_credentials"
+        headers: {"Authorization": "Basic " + basic_token, "Content-Type": "application/x-www-form-urlencoded"}
+    ];
+    isolved_token = token_resp.get("access_token");
+    isolved_auth = {"Authorization": "Bearer " + isolved_token};
+
+    // week_start / week_end arrive as bare dates (yyyy-MM-dd). The
+    // timecardData endpoint requires full datetimes.
+    tc_base = base_url + "/api/clients/" + ISOLVED_CLIENT_PATH_ID + "/legals/" + ISOLVED_LEGAL_ID + "/timecardData?startDate=" + week_start + "T00:00:00&endDate=" + week_end + "T23:59:59";
+
+    time_cards = Map();
+    pages = {0, 1, 2};
+    for each page_num in pages
+    {
+        tc_resp = invokeurl
+        [
+            url: tc_base + "&page=" + page_num
+            type: GET
+            headers: isolved_auth
+        ];
+        tc_data = tc_resp.get("results");
+        if(tc_data != null)
+        {
+            for each emp_rec in tc_data
+            {
+                emp_name = emp_rec.get("employeeFirstName").trim() + " " + emp_rec.get("employeeLastName").trim();
+                zoho_name = NAME_ALIASES.get(emp_name);
+                if(zoho_name == null)
+                {
+                    zoho_name = emp_name;
+                }
+
+                emp_hours = time_cards.get(zoho_name);
+                if(emp_hours == null)
+                {
+                    emp_hours = 0.0;
+                }
+
+                day_records = emp_rec.get("timecardData");
+                if(day_records != null)
+                {
+                    for each day_rec in day_records
+                    {
+                        pay_items = day_rec.get("payItems");
+                        if(pay_items != null)
+                        {
+                            for each pay_item in pay_items
+                            {
+                                if(PAY_ITEMS_WORKED.contains(pay_item.get("payItemName")))
+                                {
+                                    emp_hours = emp_hours + pay_item.get("payItemHours");
+                                }
+                            }
+                        }
+                    }
+                }
+                time_cards.put(zoho_name, emp_hours);
+            }
+        }
+    }
+    return time_cards;
+}
