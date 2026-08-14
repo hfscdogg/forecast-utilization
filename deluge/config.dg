@@ -203,13 +203,32 @@ ACTUALS_HISTORY_FORM       = "Utilization_Actuals_History";
 
 /* ============================================================
  * iSolved API (Phase 4b — Hours Worked source)
+ * Live as of 2026-08-14. Credentials (OAuth client id + secret) live in
+ * Creator App Variables ISOLVED_BASE_URL / ISOLVED_CLIENT_ID /
+ * ISOLVED_CLIENT_SECRET — never in this repo (GitGuardian rule).
  * ============================================================ */
 
-ISOLVED_TENANT_URL         = "TODO_LIVEWIRE_ISOLVED_TENANT";   /* Dustin or McKenzie */
-ISOLVED_CLIENT_KEY         = "TODO_CLIENT_KEY";                /* OAuth client credentials */
-ISOLVED_CLIENT_SECRET      = "TODO_CLIENT_SECRET";
-ISOLVED_TIMECARD_ENDPOINT  = "TODO_TIMECARD_ENDPOINT";
-ISOLVED_EXCLUDE_CATEGORIES = list();                /* fill with iSolved's exact PTO / Holiday / Sick / Absence category names */
+ISOLVED_BASE_URL_VALUE     = "https://dominionpayroll.net/rest";  /* mirror of the Creator variable, for the record */
+ISOLVED_CLIENT_PATH_ID     = "357";                 /* Livewire's client id — Ron Pisarz 2026-08-13, verified live 2026-08-14 */
+ISOLVED_LEGAL_ID           = "417";                 /* Livewire's legal id — same source */
+ISOLVED_TIMECARD_ENDPOINT  = "/api/clients/{clientId}/legals/{legalId}/timecardData?startDate=&endDate=";  /* datetimes required, results envelope, page param */
+
+/* Pay items that count as time on the clock — whitelist only, observed
+ * live 2026-08-14 (Aug 3-9 week). Everything not listed is excluded by
+ * default, which automatically covers Holiday / Sick / Bereavement when
+ * they first appear.
+ *   "Hourly Regular" (code 01a)  counts
+ *   "Overtime"       (code 2)    counts
+ *   "PTO"            (code 209E) excluded per SOP: only time on the clock
+ *   "Salary Hours"   (null code) excluded: office staff, never in roster */
+ISOLVED_PAY_ITEMS_WORKED   = list("Hourly Regular", "Overtime");
+
+/* iSolved full-name -> Zoho full_name aliases. iSolved carries legal
+ * names; Zoho carries the names techs go by. Extend as variants appear
+ * (fetch_isolved_timecards.dg passes unlisted names through unchanged,
+ * and a name that matches no Zoho tech shows up as a tech with null
+ * timecard data in the Monday email — visible, not silent). */
+ISOLVED_NAME_ALIAS_JAMES_ZIMMERMAN = "Jim Zimmerman";
 
 /* ============================================================
  * Email / distribution
