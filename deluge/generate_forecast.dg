@@ -26,11 +26,12 @@ Map generate_forecast(String week_start, String week_end)
     DRIVE_TIME_ADDER_HRS = 0.5;
     // Targets raised by Stacy (relayed by Dustin 2026-08-17, approved by
     // Henry same day): 80% for techs, 67.5% for service techs (was 62.5%
-    // across the board). SERVICE_TECH_NAMES pending the roster from
-    // Dustin — empty list means everyone is held to 80% until it lands.
+    // across the board). Service roster per Henry 2026-08-17: Jim
+    // Zimmerman is currently the only service tech (corroborated by
+    // iSolved department 0400 vs installers' 0300/0302).
     TECH_UTILIZATION_TARGET = 0.80;
     SERVICE_TECH_UTILIZATION_TARGET = 0.675;
-    SERVICE_TECH_NAMES = List();
+    SERVICE_TECH_NAMES = {"Jim Zimmerman"};
     // Non-field roles to keep out of the utilization roster entirely.
     // These people occasionally own non-billable events (meetings,
     // project management) which would otherwise pull them into the

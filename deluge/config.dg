@@ -258,11 +258,13 @@ BRAND_FONT_STACK           = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Rob
 
 /* Utilization targets — raised by Stacy, relayed by Dustin 2026-08-17,
  * approved by Henry same day. Was a flat 62.5%. Techs are now held to
- * 80%; service techs to 67.5%. SERVICE_TECH_NAMES is pending the roster
- * from Dustin — while empty, every tech is held to the 80% bar. */
+ * 80%; service techs to 67.5%. Service roster per Henry 2026-08-17:
+ * Jim Zimmerman is currently the only service tech (corroborated by
+ * iSolved department 0400 vs installers' 0300/0302). */
 TECH_UTILIZATION_TARGET         = 0.80;
 SERVICE_TECH_UTILIZATION_TARGET = 0.675;
-SERVICE_TECH_NAMES              = list();           /* TODO: names from Dustin */
+SERVICE_TECH_NAMES              = list();
+SERVICE_TECH_NAMES.add("Jim Zimmerman");
 
 /* ============================================================
  * Placeholder routing (spec Section 6)

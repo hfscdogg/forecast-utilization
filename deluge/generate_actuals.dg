@@ -28,11 +28,12 @@ Map generate_actuals(String week_start, String week_end, Map time_cards)
     OT_PAY_MULTIPLIER = 1.5;
     // Targets raised by Stacy (relayed by Dustin 2026-08-17, approved by
     // Henry same day): 80% for techs, 67.5% for service techs (was 62.5%
-    // across the board). SERVICE_TECH_NAMES pending the roster from
-    // Dustin — empty list means everyone is held to 80% until it lands.
+    // across the board). Service roster per Henry 2026-08-17: Jim
+    // Zimmerman is currently the only service tech (corroborated by
+    // iSolved department 0400 vs installers' 0300/0302).
     TECH_UTILIZATION_TARGET = 0.80;
     SERVICE_TECH_UTILIZATION_TARGET = 0.675;
-    SERVICE_TECH_NAMES = List();
+    SERVICE_TECH_NAMES = {"Jim Zimmerman"};
     // Non-field roles kept out of the roster entirely. Role-based, not
     // zero-billable: a real tech with no billable work still counts.
     // Elijah Good stays IN despite being a non-billable apprentice —
