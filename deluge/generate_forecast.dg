@@ -24,7 +24,13 @@ Map generate_forecast(String week_start, String week_end)
     TRIP_CHARGE_NONE_VALUES = {null, "", "-None-", "0"};
     WEEKLY_OT_THRESHOLD_HRS = 40;
     DRIVE_TIME_ADDER_HRS = 0.5;
-    COMPANY_UTILIZATION_TARGET = 0.625;
+    // Targets raised by Stacy (relayed by Dustin 2026-08-17, approved by
+    // Henry same day): 80% for techs, 67.5% for service techs (was 62.5%
+    // across the board). SERVICE_TECH_NAMES pending the roster from
+    // Dustin — empty list means everyone is held to 80% until it lands.
+    TECH_UTILIZATION_TARGET = 0.80;
+    SERVICE_TECH_UTILIZATION_TARGET = 0.675;
+    SERVICE_TECH_NAMES = List();
     // Non-field roles to keep out of the utilization roster entirely.
     // These people occasionally own non-billable events (meetings,
     // project management) which would otherwise pull them into the
@@ -33,7 +39,10 @@ Map generate_forecast(String week_start, String week_end)
     // tech with no billable work in a given week still counts, because
     // that low utilization is exactly what the metric should surface.
     // Add names here as roles change (match the Zoho user full_name).
-    EXCLUDED_NON_TECH_NAMES = {"Dustin Roskam", "Josh McDonough"};
+    // Elijah Good stays IN despite being a non-billable apprentice —
+    // Henry 2026-08-17: "Keep Elijah on there and let him burden the
+    // number. If we're shelling out, that should drag the number down."
+    EXCLUDED_NON_TECH_NAMES = {"Dustin Roskam", "Josh McDonough", "David Hicks"};
 
     // ============================================================
     // 0. OAuth: exchange refresh token for access token.
@@ -263,7 +272,12 @@ Map generate_forecast(String week_start, String week_end)
             util_sum = util_sum + r.get("forecast_utilization");
             util_count = util_count + 1;
         }
-        if(r.get("forecast_utilization") >= COMPANY_UTILIZATION_TARGET)
+        tech_target = TECH_UTILIZATION_TARGET;
+        if(SERVICE_TECH_NAMES.contains(r.get("technician")))
+        {
+            tech_target = SERVICE_TECH_UTILIZATION_TARGET;
+        }
+        if(r.get("forecast_utilization") >= tech_target)
         {
             techs_above_target.add(r.get("technician"));
         }
