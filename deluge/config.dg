@@ -158,6 +158,13 @@ TECHNICIAN_FILTER_STRATEGY = "derive_from_event_ownership";
 EXCLUDED_NON_TECH_NAMES = list();
 EXCLUDED_NON_TECH_NAMES.add("Dustin Roskam");   /* Service Manager */
 EXCLUDED_NON_TECH_NAMES.add("Josh McDonough");  /* Project Manager */
+EXCLUDED_NON_TECH_NAMES.add("David Hicks");     /* Ops — fixes timecards; entered roster via a 1-minute cancelled event. Dustin 2026-08-17, Henry approved */
+
+/* Elijah Good is deliberately NOT excluded. He is a non-billable
+ * apprentice, and Dustin asked to remove him, but Henry ruled 2026-08-17:
+ * "Keep Elijah on there and let him burden the number. If we're shelling
+ * out, that should drag the number down." Paid hourly field labor counts
+ * against utilization even when it cannot be billed. */
 
 /* iSolved linkage — to be added once McKenzie/Dustin confirm tenant access */
 FIELD_USER_ISOLVED_ID      = "iSolved_Employee_ID"; /* Phase 4b: custom field on Users, one-time backfill */
@@ -249,7 +256,15 @@ BRAND_FONT_STACK           = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Rob
  * Company-wide metrics (Dustin's spreadsheet 2026-05-15)
  * ============================================================ */
 
-COMPANY_UTILIZATION_TARGET = 0.625;                 /* "62.5% utilization goal" — congrats list threshold */
+/* Utilization targets — raised by Stacy, relayed by Dustin 2026-08-17,
+ * approved by Henry same day. Was a flat 62.5%. Techs are now held to
+ * 80%; service techs to 67.5%. Service roster per Henry 2026-08-17:
+ * Jim Zimmerman is currently the only service tech (corroborated by
+ * iSolved department 0400 vs installers' 0300/0302). */
+TECH_UTILIZATION_TARGET         = 0.80;
+SERVICE_TECH_UTILIZATION_TARGET = 0.675;
+SERVICE_TECH_NAMES              = list();
+SERVICE_TECH_NAMES.add("Jim Zimmerman");
 
 /* ============================================================
  * Placeholder routing (spec Section 6)

@@ -4,8 +4,11 @@ void send_forecast_email(Map result)
     BRAND_TABLE_BORDER = "#dddddd";
     BRAND_TABLE_HEADER_BG = "#f4f4f4";
     BRAND_FONT_STACK = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif";
-    COMPANY_UTILIZATION_TARGET = 0.625;
-    TARGET_PCT_DISPLAY = "62.50%";
+    // Raised from 62.50% per Stacy via Dustin 2026-08-17, Henry approved.
+    // Service techs carry a 67.50% target once SERVICE_TECH_NAMES is
+    // populated in generate_forecast.dg; until then everyone is at 80%.
+    COMPANY_UTILIZATION_TARGET = 0.80;
+    TARGET_PCT_DISPLAY = "80.00%";
 
     // Henry-only during parallel run. Widen at cutover.
     EMAIL_TO = "henry@getlivewire.com";
