@@ -32,6 +32,16 @@ Map generate_forecast(String week_start, String week_end)
     TECH_UTILIZATION_TARGET = 0.80;
     SERVICE_TECH_UTILIZATION_TARGET = 0.675;
     SERVICE_TECH_NAMES = {"Jim Zimmerman"};
+    // New techs are non-billable for their first 3 months (Stacy
+    // 2026-08-18: "A new technician is considered non-billable for the
+    // first 3 months... 3 months from the time of hire"). Techs listed
+    // here stay visible in the report but are left out of the company
+    // average and the congrats list until the report week ENDS on or
+    // after their billable_from date (hire + 3 months). Graduation is
+    // automatic — no code change needed on day 91. Add new hires here
+    // with hire date + 3 months.
+    RAMP_UP_BILLABLE_FROM = Map();
+    RAMP_UP_BILLABLE_FROM.put("Elijah Good", "2026-10-01");
     // Non-field roles to keep out of the utilization roster entirely.
     // These people occasionally own non-billable events (meetings,
     // project management) which would otherwise pull them into the
@@ -245,6 +255,14 @@ Map generate_forecast(String week_start, String week_end)
         tech_result.put("training_drove_ot", training_drove_ot);
         tech_result.put("unknown_event_types", unknown_types);
         tech_result.put("source_events_count", source_events);
+        ramp_up = false;
+        billable_from = RAMP_UP_BILLABLE_FROM.get(tech_name);
+        if(billable_from != null && week_end.toDate() < billable_from.toDate())
+        {
+            ramp_up = true;
+        }
+        tech_result.put("ramp_up", ramp_up);
+        tech_result.put("billable_from", billable_from);
         techs.add(tech_result);
     }
 
@@ -268,19 +286,24 @@ Map generate_forecast(String week_start, String week_end)
         total_ot = total_ot + r.get("forecast_ot");
         total_forecast_hours = total_forecast_hours + r.get("forecast_hours");
         total_non_billable = total_non_billable + r.get("non_billable_hours") + r.get("training_hours");
-        if(r.get("forecast_hours") > 0)
+        // Ramp-up techs stay in the table and the hour totals but are
+        // left out of the company mean and the congrats list.
+        if(r.get("ramp_up") != true)
         {
-            util_sum = util_sum + r.get("forecast_utilization");
-            util_count = util_count + 1;
-        }
-        tech_target = TECH_UTILIZATION_TARGET;
-        if(SERVICE_TECH_NAMES.contains(r.get("technician")))
-        {
-            tech_target = SERVICE_TECH_UTILIZATION_TARGET;
-        }
-        if(r.get("forecast_utilization") >= tech_target)
-        {
-            techs_above_target.add(r.get("technician"));
+            if(r.get("forecast_hours") > 0)
+            {
+                util_sum = util_sum + r.get("forecast_utilization");
+                util_count = util_count + 1;
+            }
+            tech_target = TECH_UTILIZATION_TARGET;
+            if(SERVICE_TECH_NAMES.contains(r.get("technician")))
+            {
+                tech_target = SERVICE_TECH_UTILIZATION_TARGET;
+            }
+            if(r.get("forecast_utilization") >= tech_target)
+            {
+                techs_above_target.add(r.get("technician"));
+            }
         }
     }
     company_util = 0.0;
