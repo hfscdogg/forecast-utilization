@@ -51,6 +51,10 @@ void send_forecast_email(Map result)
     for each r in sorted_techs
     {
         notes_parts = List();
+        if(r.get("ramp_up") == true)
+        {
+            notes_parts.add("ramp-up, counts from " + r.get("billable_from"));
+        }
         if(r.get("training_hours") > 0)
         {
             notes_parts.add(r.get("training_hours").round(2) + " training hours");

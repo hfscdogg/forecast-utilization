@@ -102,6 +102,10 @@ void send_actuals_email(Map result)
         }
 
         notes_parts = List();
+        if(r.get("ramp_up") == true)
+        {
+            notes_parts.add("ramp-up, counts from " + r.get("billable_from"));
+        }
         if(nbh > 0)
         {
             notes_parts.add(nbh.round(2) + " non-billable hours");

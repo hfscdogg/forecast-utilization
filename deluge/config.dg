@@ -160,11 +160,19 @@ EXCLUDED_NON_TECH_NAMES.add("Dustin Roskam");   /* Service Manager */
 EXCLUDED_NON_TECH_NAMES.add("Josh McDonough");  /* Project Manager */
 EXCLUDED_NON_TECH_NAMES.add("David Hicks");     /* Ops — fixes timecards; entered roster via a 1-minute cancelled event. Dustin 2026-08-17, Henry approved */
 
-/* Elijah Good is deliberately NOT excluded. He is a non-billable
- * apprentice, and Dustin asked to remove him, but Henry ruled 2026-08-17:
- * "Keep Elijah on there and let him burden the number. If we're shelling
- * out, that should drag the number down." Paid hourly field labor counts
- * against utilization even when it cannot be billed. */
+/* Ramp-up rule — Stacy 2026-08-18: "A new technician is considered
+ * non-billable for the first 3 months... 3 months from the time of
+ * hire." Supersedes Henry's 2026-08-17 keep-Elijah-in ruling with a
+ * time-boxed version of the same principle: a ramp-up tech stays
+ * visible in the table and the hour totals (the paid cost is real and
+ * shown) but is left out of the company average and the congrats list
+ * until the report week ends on or after billable_from (hire + 3
+ * months). Graduation is automatic. Maintained as a name -> date map
+ * in generate_forecast.dg and generate_actuals.dg; add each new hire
+ * at hire date + 3 months. A new hire missing from the map counts
+ * fully and visibly drags the number — the conservative failure mode. */
+RAMP_UP_BILLABLE_FROM = map();
+RAMP_UP_BILLABLE_FROM.put("Elijah Good", "2026-10-01");  /* hired 2026-07-01 */
 
 /* iSolved linkage — to be added once McKenzie/Dustin confirm tenant access */
 FIELD_USER_ISOLVED_ID      = "iSolved_Employee_ID"; /* Phase 4b: custom field on Users, one-time backfill */
