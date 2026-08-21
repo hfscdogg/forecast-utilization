@@ -274,6 +274,19 @@ SERVICE_TECH_UTILIZATION_TARGET = 0.675;
 SERVICE_TECH_NAMES              = list();
 SERVICE_TECH_NAMES.add("Jim Zimmerman");
 
+/* Macro billable-hours goal — Stacy 2026-08-21: "we are driving toward
+ * 230 billable hours per week." Henry chose 230 over the interim 175
+ * Stacy floated (she expects it unattainable until Josh B is backfilled
+ * plus one more hire — the red status is deliberate honesty, not a bug).
+ * The FORECAST email's per-tech congrats line was removed the same day
+ * (Henry: "no point congratulating people on work they haven't done")
+ * and replaced with a red/yellow/green pacing line against this goal.
+ * The ACTUALS email keeps its congrats line — that work is done.
+ * Green at 100% of goal, yellow at 75%, red below. */
+MACRO_BILLABLE_GOAL_HRS         = 230;
+MACRO_GOAL_GREEN_AT             = 1.0;
+MACRO_GOAL_YELLOW_AT            = 0.75;
+
 /* ============================================================
  * Placeholder routing (spec Section 6)
  * ============================================================ */
