@@ -4,11 +4,20 @@ void send_forecast_email(Map result)
     BRAND_TABLE_BORDER = "#dddddd";
     BRAND_TABLE_HEADER_BG = "#f4f4f4";
     BRAND_FONT_STACK = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif";
-    // Raised from 62.50% per Stacy via Dustin 2026-08-17, Henry approved.
-    // Service techs carry a 67.50% target once SERVICE_TECH_NAMES is
-    // populated in generate_forecast.dg; until then everyone is at 80%.
-    COMPANY_UTILIZATION_TARGET = 0.80;
-    TARGET_PCT_DISPLAY = "80.00%";
+    // Macro billable-hours goal — Stacy 2026-08-21: "we are driving
+    // toward 230 billable hours per week." Henry chose 230 over the
+    // interim 175 she floated. The per-tech congrats line was removed
+    // the same day (Henry: no point congratulating people on work they
+    // haven't done) in favor of this red/yellow/green pacing line
+    // against the macro goal. Green at 100% of goal, yellow at 75%,
+    // red below.
+    MACRO_BILLABLE_GOAL_HRS = 230.0;
+    MACRO_GOAL_DISPLAY = "230";
+    MACRO_GREEN_AT = 1.0;
+    MACRO_YELLOW_AT = 0.75;
+    STATUS_GREEN_COLOR = "#1E8449";
+    STATUS_YELLOW_COLOR = "#B7950B";
+    STATUS_RED_COLOR = "#C0392B";
 
     // Henry-only during parallel run. Widen at cutover.
     EMAIL_TO = "henry@getlivewire.com";
@@ -98,36 +107,27 @@ void send_forecast_email(Map result)
             "</tr>";
     }
 
-    // Congrats line (no Oxford comma).
-    above_target = rollup.get("techs_above_target");
-    congrats_line = "";
-    if(above_target.size() == 0)
+    // Red/yellow/green pacing against the weekly macro billable goal.
+    // Colored dot (&#9679;) plus a colored bold status word so the
+    // signal survives email clients that strip inline styles.
+    goal_ratio = 0.0;
+    if(MACRO_BILLABLE_GOAL_HRS > 0)
     {
-        congrats_line = "<p>No technician landed above the " + TARGET_PCT_DISPLAY + " target this week.</p>";
+        goal_ratio = rollup.get("total_billable") / MACRO_BILLABLE_GOAL_HRS;
     }
-    else
+    goal_status_word = "RED";
+    goal_status_color = STATUS_RED_COLOR;
+    if(goal_ratio >= MACRO_GREEN_AT)
     {
-        joined = "";
-        n = above_target.size();
-        i = 0;
-        for each name in above_target
-        {
-            if(i == 0)
-            {
-                joined = name;
-            }
-            else if(i == n - 1)
-            {
-                joined = joined + " and " + name;
-            }
-            else
-            {
-                joined = joined + ", " + name;
-            }
-            i = i + 1;
-        }
-        congrats_line = "<p>Congrats to <strong>" + joined + "</strong> for being above our " + TARGET_PCT_DISPLAY + " utilization target.</p>";
+        goal_status_word = "GREEN";
+        goal_status_color = STATUS_GREEN_COLOR;
     }
+    else if(goal_ratio >= MACRO_YELLOW_AT)
+    {
+        goal_status_word = "YELLOW";
+        goal_status_color = STATUS_YELLOW_COLOR;
+    }
+    goal_line = "<p style='font-size:15px'><span style='color:" + goal_status_color + "'>&#9679;</span> <strong style='color:" + goal_status_color + "'>" + goal_status_word + "</strong>: <strong>" + rollup.get("total_billable").round(2) + "</strong> of <strong>" + MACRO_GOAL_DISPLAY + "</strong> weekly billable hours scheduled (" + (goal_ratio * 100).round(1) + "% of goal).</p>";
 
     company_util_pct = (rollup.get("company_utilization") * 100).round(2) + "%";
 
@@ -145,7 +145,7 @@ void send_forecast_email(Map result)
         "</style></head><body>" +
         "<h2>Utilization Forecast for " + week_label + "</h2>" +
         "<p>Forecasting <strong>" + rollup.get("total_billable").round(2) + "</strong> billable hours across <strong>" + rollup.get("tech_count") + "</strong> technicians, averaging <strong>" + rollup.get("avg_billable_per_tech").round(2) + "</strong> billable hours per tech for a company forecast utilization of <strong>" + company_util_pct + "</strong>.</p>" +
-        congrats_line +
+        goal_line +
         "<table><thead><tr>" +
         "<th>Technician</th>" +
         "<th style='text-align:right'>Billable Hrs Sched</th>" +
