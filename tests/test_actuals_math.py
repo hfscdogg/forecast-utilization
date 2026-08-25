@@ -171,6 +171,21 @@ def test_sop_jim_zimmerman_trip_charge_walkthrough():
     assert result["hours_billed"] == pytest.approx(5.0)
 
 
+def test_trip_charge_on_cancelled_event_not_billed():
+    """Cancelled events (1-minute duration, Incomplete - Job Not Ready) keep
+    their Trip_Charge but must not bill trip hours."""
+    events = [
+        make_event(
+            "Ben",
+            0.0167,
+            event_status="Incomplete - Job Not Ready",
+            trip_charge="2",
+        ),
+    ]
+    result = actuals_for_technician("Ben", events, time_card_total=40.0)
+    assert result["hours_billed"] == pytest.approx(0.0167, abs=0.001)
+
+
 def test_missing_timecard_with_billed_hours_flags_instead_of_zero_percent():
     """Josh Brown week of 8/10: billed hours in CRM but his iSolved time
     wasn't entered when the run fired. That's a data gap, not 0%."""

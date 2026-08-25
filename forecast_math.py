@@ -20,6 +20,7 @@ from event_types import (
     event_category,
     is_assigned_to,
     qualifies_for_drive_adder,
+    trip_charge_hours,
 )
 
 WEEKLY_OT_THRESHOLD_HRS = 40
@@ -78,7 +79,11 @@ def forecast_for_technician(technician, events, window_start=None, window_end=No
             hrs = e.get("Duration_Hrs") or 0
         cat = event_category(e)
         if cat == "billable":
-            billable_hours += hrs
+            # Trip charges labeled on the event are scheduled billable hours
+            # on top of the wall-clock (Dustin 2026-08-07 and 2026-08-13:
+            # the forecast "isn't factoring in trip charges"). Flat, so not
+            # pro-rated to the window.
+            billable_hours += hrs + trip_charge_hours(e)
         elif cat == "non_billable":
             non_billable_hours += hrs
         elif cat == "training":
