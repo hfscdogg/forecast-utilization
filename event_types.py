@@ -60,6 +60,14 @@ EVENT_TYPES_ONSITE = {
 
 TRIP_CHARGE_NONE_VALUES = {None, "", "-None-", "0"}
 
+# SOP: each trip charge is worth 2 billable hours on a solo event and
+# 1 billable hour per tech on a paired event ("trip charge x 2 for solo /
+# x 1 per tech for paired"). Trip_Charge holds the count of charges (1-4).
+TRIP_CHARGE_HOURS_SOLO = 2.0
+TRIP_CHARGE_HOURS_PAIRED_PER_TECH = 1.0
+
+HELPER_NONE_VALUES = {None, "", "No Helper", "-None-"}
+
 
 def event_category(event):
     """Return billable / non_billable / training / excluded / unknown."""
@@ -82,6 +90,27 @@ def is_assigned_to(event, technician):
 
 def has_trip_charge(event):
     return event.get("Trip_Charge") not in TRIP_CHARGE_NONE_VALUES
+
+
+def is_paired(event):
+    return event.get("Helper1") not in HELPER_NONE_VALUES
+
+
+def trip_charge_hours(event):
+    """Per-tech billable hours contributed by the event's trip charge(s).
+
+    Dustin 2026-08-25: trip charges labeled on events must count toward Hours
+    Billed. Trip_Charge is a count (numeric picklist 1-4); a malformed value
+    contributes nothing rather than raising."""
+    if not has_trip_charge(event):
+        return 0.0
+    try:
+        count = float(event.get("Trip_Charge"))
+    except (TypeError, ValueError):
+        return 0.0
+    if is_paired(event):
+        return count * TRIP_CHARGE_HOURS_PAIRED_PER_TECH
+    return count * TRIP_CHARGE_HOURS_SOLO
 
 
 def qualifies_for_drive_adder(event):

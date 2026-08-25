@@ -101,6 +101,41 @@ def test_rows_sort_desc_by_utilization_in_full_mode():
     assert html.index("High") < html.index("Mid") < html.index("Low")
 
 
+def make_tech_missing_timecard(name, billed):
+    """Tech with billed CRM hours but no iSolved time at run time."""
+    return {
+        "technician": name,
+        "hours_billed": billed,
+        "non_billable_hours": 0,
+        "hours_worked": 0,
+        "ot": 0,
+        "actual_hours_paid": 0,
+        "actual_utilization": None,
+        "worked_utilization": 0,
+        "timecard_missing": True,
+    }
+
+
+def test_missing_timecard_renders_banner_note_and_sinks_row():
+    techs = [
+        make_tech_missing_timecard("Josh Brown", 31.47),
+        make_tech_full("Thomas", 35, 40),
+        make_tech_full("Jordan", 9, 10.45),
+    ]
+    rollup = company_rollup(techs)
+    html = render_actuals_email(techs, WS, WE, rollup)
+
+    assert "Timecard missing" in html
+    assert "timecard missing in iSolved at run time" in html
+    # Full mode, not pending mode
+    assert "iSolved integration pending" not in html
+    # Missing row sorts below real percentages despite high billed hours.
+    # Scope to the table body since the banner also names the tech.
+    body = html[html.index("<tbody>"):]
+    assert body.index("Thomas") < body.index("Josh Brown")
+    assert body.index("Jordan") < body.index("Josh Brown")
+
+
 def test_rows_sort_desc_by_hours_billed_in_pending_mode():
     """No utilization to sort by — fall back to hours_billed desc."""
     techs = [

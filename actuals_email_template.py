@@ -58,6 +58,8 @@ def _join_no_oxford(items):
 
 def _auto_notes(r):
     parts = []
+    if r.get("timecard_missing"):
+        parts.append("timecard missing in iSolved at run time")
     if r.get("non_billable_hours", 0) > 0:
         parts.append(f"{_fmt_hrs(r['non_billable_hours'])} non-billable hours")
     if r.get("ot") not in (None, 0):
@@ -79,11 +81,13 @@ def render_actuals_email(per_tech_results, week_start, week_end, rollup):
     isolved_pending = rollup.get("isolved_pending", True)
     week_label = _fmt_week_label(week_start, week_end)
 
-    # Sort: by actual_utilization desc when present, else by hours_billed desc.
+    # Sort: by actual_utilization desc when present, else by hours_billed
+    # desc. Rows with a missing timecard (util None in full mode) sink to
+    # the bottom instead of racing hour counts against percentages.
     def sort_key(r):
         if r["actual_utilization"] is not None:
-            return r["actual_utilization"]
-        return r["hours_billed"]
+            return (1, r["actual_utilization"])
+        return (0, r["hours_billed"])
 
     sorted_results = sorted(per_tech_results, key=sort_key, reverse=True)
 
@@ -123,7 +127,20 @@ def render_actuals_email(per_tech_results, week_start, week_end, rollup):
         )
         congrats_line = ""
     else:
-        banner = ""
+        missing = rollup.get("timecard_missing_techs") or []
+        if missing:
+            banner = (
+                f'<p style="background:{BRAND_PENDING_BG};padding:10px 14px;'
+                f'border-left:3px solid #d4a017;font-size:13px;">'
+                f"<strong>Timecard missing:</strong> "
+                f"{_join_no_oxford(missing)} had billed hours but no iSolved "
+                f"time when this run fired, so their utilization shows "
+                f"{PLACEHOLDER} and they are left out of the company average. "
+                f"Re-run once the time is entered for a corrected number."
+                f"</p>"
+            )
+        else:
+            banner = ""
         lead_in = (
             f"<p>Last week we billed <strong>{_fmt_hrs(rollup['total_billable'])}</strong> "
             f"hours across <strong>{rollup['tech_count']}</strong> technicians, "

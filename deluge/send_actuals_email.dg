@@ -45,14 +45,29 @@ void send_actuals_email(Map result)
         r_key = r.get("actual_utilization");
         if(r_key == null)
         {
-            r_key = r.get("hours_billed");
+            if(isolved_pending)
+            {
+                r_key = r.get("hours_billed");
+            }
+            else
+            {
+                // Missing-timecard rows sink below every real percentage.
+                r_key = -1;
+            }
         }
         for each existing in sorted_techs
         {
             e_key = existing.get("actual_utilization");
             if(e_key == null)
             {
-                e_key = existing.get("hours_billed");
+                if(isolved_pending)
+                {
+                    e_key = existing.get("hours_billed");
+                }
+                else
+                {
+                    e_key = -1;
+                }
             }
             if(!inserted && r_key > e_key)
             {
@@ -102,6 +117,10 @@ void send_actuals_email(Map result)
         }
 
         notes_parts = List();
+        if(r.get("timecard_missing") == true)
+        {
+            notes_parts.add("timecard missing in iSolved at run time");
+        }
         if(r.get("ramp_up") == true)
         {
             notes_parts.add("ramp-up, counts from " + r.get("billable_from"));
@@ -232,6 +251,33 @@ void send_actuals_email(Map result)
     if(isolved_pending)
     {
         banner = "<p style='background:" + BRAND_PENDING_BG + ";padding:10px 14px;border-left:3px solid #d4a017;font-size:13px;'><strong>iSolved integration pending:</strong> Hours Worked, OT, Actual Hours Paid and Actual Utilization will populate once the iSolved tenant API access is wired. Until then those columns show " + PLACEHOLDER + ". Hours Billed and Non-Billable Hours come straight from CRM and are correct as of this run.</p>";
+    }
+    else
+    {
+        missing_techs = rollup.get("timecard_missing_techs");
+        if(missing_techs != null && missing_techs.size() > 0)
+        {
+            missing_joined = "";
+            mn = missing_techs.size();
+            mi = 0;
+            for each mname in missing_techs
+            {
+                if(mi == 0)
+                {
+                    missing_joined = mname;
+                }
+                else if(mi == mn - 1)
+                {
+                    missing_joined = missing_joined + " and " + mname;
+                }
+                else
+                {
+                    missing_joined = missing_joined + ", " + mname;
+                }
+                mi = mi + 1;
+            }
+            banner = "<p style='background:" + BRAND_PENDING_BG + ";padding:10px 14px;border-left:3px solid #d4a017;font-size:13px;'><strong>Timecard missing:</strong> " + missing_joined + " had billed hours but no iSolved time when this run fired, so their utilization shows " + PLACEHOLDER + " and they are left out of the company average. Re-run once the time is entered for a corrected number.</p>";
+        }
     }
 
     lead_in = "";

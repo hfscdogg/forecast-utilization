@@ -26,6 +26,12 @@ Map generate_actuals(String week_start, String week_end, Map time_cards)
     };
     WEEKLY_CAP_HRS = 40;
     OT_PAY_MULTIPLIER = 1.5;
+    // SOP trip-charge rule: each trip charge is worth 2 billable hours on a
+    // solo event and 1 billable hour per tech on a paired event. Trip_Charge
+    // is a count picklist (1-4). Dustin 2026-08-25: trip charges labeled on
+    // events must land in Hours Billed. Keep in sync with event_types.py.
+    TRIP_CHARGE_HOURS_SOLO = 2.0;
+    TRIP_CHARGE_HOURS_PAIRED_PER_TECH = 1.0;
     // Targets raised by Stacy (relayed by Dustin 2026-08-17, approved by
     // Henry same day): 80% for techs, 67.5% for service techs (was 62.5%
     // across the board). Service roster per Henry 2026-08-17: Jim
@@ -134,7 +140,21 @@ Map generate_actuals(String week_start, String week_end, Map time_cards)
                 et = evt.get("Event_Type");
                 if(EVENT_TYPES_BILLABLE.contains(et))
                 {
-                    hours_billed = hours_billed + hrs;
+                    trip_val = evt.get("Trip_Charge");
+                    trip_hrs = 0.0;
+                    if(trip_val != null && trip_val != "" && trip_val != "-None-" && trip_val != "0")
+                    {
+                        trip_count = trip_val.toDecimal();
+                        if(helper != null && helper != "No Helper" && helper != "-None-" && helper != "")
+                        {
+                            trip_hrs = trip_count * TRIP_CHARGE_HOURS_PAIRED_PER_TECH;
+                        }
+                        else
+                        {
+                            trip_hrs = trip_count * TRIP_CHARGE_HOURS_SOLO;
+                        }
+                    }
+                    hours_billed = hours_billed + hrs + trip_hrs;
                 }
                 else if(EVENT_TYPES_NON_BILLABLE.contains(et))
                 {
@@ -160,6 +180,8 @@ Map generate_actuals(String week_start, String week_end, Map time_cards)
         tech_result.put("ramp_up", ramp_up);
         tech_result.put("billable_from", billable_from);
 
+        tech_result.put("timecard_missing", false);
+
         if(isolved_pending)
         {
             tech_result.put("hours_worked", null);
@@ -174,6 +196,14 @@ Map generate_actuals(String week_start, String week_end, Map time_cards)
             if(tc_total == null)
             {
                 tc_total = 0.0;
+            }
+            // Billed CRM hours with a zero timecard means the tech's iSolved
+            // time wasn't entered when the run fired (Josh Brown week of
+            // 8/10, Dustin 2026-08-25) — a data gap, not a 0% performance.
+            // Flag the row; the rollup leaves it out of the company mean.
+            if(tc_total == 0 && hours_billed > 0)
+            {
+                tech_result.put("timecard_missing", true);
             }
             if(tc_total > WEEKLY_CAP_HRS)
             {
@@ -196,7 +226,15 @@ Map generate_actuals(String week_start, String week_end, Map time_cards)
             tech_result.put("hours_worked", hours_worked);
             tech_result.put("ot", ot);
             tech_result.put("actual_hours_paid", actual_hours_paid);
-            tech_result.put("actual_utilization", actual_util);
+            if(tech_result.get("timecard_missing") == true)
+            {
+                // Render as a placeholder, not 0%.
+                tech_result.put("actual_utilization", null);
+            }
+            else
+            {
+                tech_result.put("actual_utilization", actual_util);
+            }
             tech_result.put("worked_utilization", worked_util);
         }
         techs.add(tech_result);
@@ -211,6 +249,7 @@ Map generate_actuals(String week_start, String week_end, Map time_cards)
     util_sum = 0.0;
     util_count = 0;
     techs_above_target = List();
+    timecard_missing_techs = List();
 
     for each r in techs
     {
@@ -221,9 +260,14 @@ Map generate_actuals(String week_start, String week_end, Map time_cards)
             total_hours_worked = total_hours_worked + r.get("hours_worked");
             total_ot = total_ot + r.get("ot");
             total_actual_hours_paid = total_actual_hours_paid + r.get("actual_hours_paid");
-            // Ramp-up techs stay in the table and the hour totals but
-            // are left out of the company mean and the congrats list.
-            if(r.get("ramp_up") != true)
+            if(r.get("timecard_missing") == true)
+            {
+                timecard_missing_techs.add(r.get("technician"));
+            }
+            // Ramp-up techs and missing-timecard techs stay in the table
+            // and the hour totals but are left out of the company mean and
+            // the congrats list.
+            if(r.get("ramp_up") != true && r.get("timecard_missing") != true)
             {
                 util_sum = util_sum + r.get("actual_utilization");
                 util_count = util_count + 1;
@@ -257,6 +301,7 @@ Map generate_actuals(String week_start, String week_end, Map time_cards)
     rollup.put("delta", delta);
     rollup.put("avg_billable_per_tech", avg_billable_per_tech);
     rollup.put("isolved_pending", isolved_pending);
+    rollup.put("timecard_missing_techs", timecard_missing_techs);
 
     if(isolved_pending)
     {
