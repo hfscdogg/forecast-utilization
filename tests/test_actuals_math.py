@@ -23,6 +23,7 @@ def make_event(
     event_type="Finish-Out ($$$)",
     event_status=None,
     helper1="No Helper",
+    trip_charge=None,
 ):
     return {
         "Owner": owner,
@@ -31,6 +32,7 @@ def make_event(
         "Duration_Man_Hrs": duration_hrs,  # equal for solo events in tests
         "Event_Type": event_type,
         "Event_Status": event_status,
+        "Trip_Charge": trip_charge,
     }
 
 
@@ -121,6 +123,87 @@ def test_isolved_pending_returns_none_for_timecard_fields():
     assert result["actual_hours_paid"] is None
     assert result["actual_utilization"] is None
     assert result["worked_utilization"] is None
+
+
+def test_trip_charge_adds_two_hours_per_charge_for_solo_tech():
+    """SOP: trip charge x 2 for solo. Trip_Charge is a count, so a
+    "2" on a solo event adds 4 billed hours on top of wall-clock."""
+    events = [make_event("Andre", 8.0, trip_charge="2")]
+    result = actuals_for_technician("Andre", events, time_card_total=40.0)
+    assert result["hours_billed"] == pytest.approx(8.0 + 4.0)
+
+
+def test_trip_charge_adds_one_hour_per_charge_per_tech_when_paired():
+    """SOP: trip charge x 1 per tech for paired."""
+    events = [make_event("Jason", 4.0, helper1="Josh Brown", trip_charge="1")]
+    for tech in ("Jason", "Josh Brown"):
+        result = actuals_for_technician(tech, events, time_card_total=40.0)
+        assert result["hours_billed"] == pytest.approx(4.0 + 1.0)
+
+
+def test_no_trip_charge_values_add_nothing():
+    for tc in (None, "", "-None-", "0"):
+        events = [make_event("Jim", 6.0, trip_charge=tc)]
+        result = actuals_for_technician("Jim", events, time_card_total=40.0)
+        assert result["hours_billed"] == pytest.approx(6.0)
+
+
+def test_trip_charge_on_non_billable_event_not_billed():
+    """A warranty visit's trip charge doesn't create billed hours; Hours
+    Billed comes from the Billable Report only (SOP)."""
+    events = [
+        make_event("Sam", 3.0, event_type="Service - Warranty / Punchout", trip_charge="1"),
+    ]
+    result = actuals_for_technician("Sam", events, time_card_total=40.0)
+    assert result["hours_billed"] == 0
+    assert result["non_billable_hours"] == pytest.approx(3.0)
+
+
+def test_sop_jim_zimmerman_trip_charge_walkthrough():
+    """SOP example: two solo trip-charge jobs at 2 hrs each plus one paired
+    with Jordan at 1 hr = 5 trip-charge hours for Jim."""
+    events = [
+        make_event("Jim", 0.0, trip_charge="1"),
+        make_event("Jim", 0.0, trip_charge="1"),
+        make_event("Jim", 0.0, helper1="Jordan", trip_charge="1"),
+    ]
+    result = actuals_for_technician("Jim", events, time_card_total=40.0)
+    assert result["hours_billed"] == pytest.approx(5.0)
+
+
+def test_missing_timecard_with_billed_hours_flags_instead_of_zero_percent():
+    """Josh Brown week of 8/10: billed hours in CRM but his iSolved time
+    wasn't entered when the run fired. That's a data gap, not 0%."""
+    events = [make_event("Josh Brown", 31.47)]
+    result = actuals_for_technician("Josh Brown", events, time_card_total=0)
+    assert result["timecard_missing"] is True
+    assert result["actual_utilization"] is None
+    assert result["hours_billed"] == pytest.approx(31.47)
+    assert result["hours_worked"] == 0
+    assert result["actual_hours_paid"] == 0
+
+
+def test_zero_timecard_with_zero_billed_is_not_flagged():
+    result = actuals_for_technician("Ghost", [], time_card_total=0)
+    assert result["timecard_missing"] is False
+    assert result["actual_utilization"] == 0
+
+
+def test_rollup_excludes_missing_timecard_from_company_mean():
+    per_tech = [
+        actuals_for_technician("A", [make_event("A", 30.0)], time_card_total=40.0),
+        actuals_for_technician("B", [make_event("B", 35.0)], time_card_total=40.0),
+        actuals_for_technician("Josh Brown", [make_event("Josh Brown", 31.47)], time_card_total=0),
+    ]
+    rollup = company_rollup(per_tech)
+    # A per-tech missing timecard is not the iSolved-pending state.
+    assert rollup["isolved_pending"] is False
+    assert rollup["timecard_missing_techs"] == ["Josh Brown"]
+    # Mean over A and B only; Josh's data-gap 0% doesn't drag it down.
+    assert rollup["company_utilization"] == pytest.approx((0.75 + 0.875) / 2)
+    # His billed hours still count in the totals.
+    assert rollup["total_billable"] == pytest.approx(30 + 35 + 31.47)
+    assert "Josh Brown" not in rollup["techs_above_target"]
 
 
 def test_company_rollup_aggregates_correctly_when_timecards_present():

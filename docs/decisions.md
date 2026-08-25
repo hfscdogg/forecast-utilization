@@ -352,6 +352,60 @@ then go into the Creator Variables.
 Going forward: never inline OAuth in committed code. App Variables for
 the stopgap, Custom Service Connection long-term.
 
+## 2026-08-25 — Dustin (actuals parallel-run reconciliation, week of 8/10-8/16)
+
+Dustin's review of the 8/24 actuals email ("I think you have this locked down
+pretty well") surfaced two fixes and two accepted deltas.
+
+### Trip charges now counted in actuals Hours Billed
+
+> "Jason and Josh B also had trip charges that you didnt capture. Their trip
+> charges were listed on their events though."
+
+Root cause: `generate_actuals.dg` selected `Trip_Charge` but never used it —
+Hours Billed only summed `Duration_Hrs` (wall-clock). The SOP says Hours
+Billed comes from the Billable Report **including trip charges**. Encoded the
+SOP rule directly: each trip charge is worth 2 billable hours on a solo event
+and 1 billable hour per tech on a paired event ("trip charge x 2 for solo /
+x 1 per tech for paired"); `Trip_Charge` is the count (picklist 1-4). Applies
+to billable-type events only. Constants `TRIP_CHARGE_HOURS_SOLO` and
+`TRIP_CHARGE_HOURS_PAIRED_PER_TECH` in `generate_actuals.dg` and
+`event_types.py` (`trip_charge_hours()`).
+
+Jim's missed trip charge that week was a scheduling data-entry gap (charge
+not labeled on the event) — Dustin owns that process fix, not the automation.
+
+**OPEN:** the forecast side has the same gap. The 2026-05-13 note that
+`Duration_Man_Hrs` "handles trip charge math upstream" was invalidated on
+2026-05-19 (`Duration_Man_Hrs = Duration_Hrs x tech_count`, no trip math),
+and Dustin's 8/7 and 8/13 forecast reviews both flagged missing trip
+charges. Port `trip_charge_hours()` into `forecast_math.py` /
+`generate_forecast.dg` as a follow-up; forecast fixtures and the drive-adder
+interplay (trip charge removes the 0.5 hr adder) need re-validation together.
+
+### Missing timecard is a flagged data gap, not 0% utilization
+
+> "I think Josh Brown's time wasnt put in when your automation fired off
+> because he's listed at 0% on yours which dropped your number."
+
+Josh Brown billed 31.47 CRM hours but had no iSolved time when the run fired
+(he doesn't clock in; David Hicks backfills his time to match Zoho events).
+The math gave him 0% and averaged it into the company mean, dragging 64.52%
+down from ~75%. New rule: billed hours > 0 with a zero timecard sets
+`timecard_missing` — the row stays in the table and hour totals with
+utilization rendered as a placeholder, is left out of the company mean and
+congrats list (same treatment as ramp-up), gets a Notes entry and a banner
+naming affected techs. Distinct from the whole-run iSolved-pending state.
+
+### Accepted deltas (no code change)
+
+- **Elijah in the table but out of the mean** — already matches Henry's
+  2026-08-17 "let him burden the number" call combined with the ramp-up
+  exclusion; Dustin excludes him entirely, which is presentation only.
+- **Week boundary stays Mon-Sun** — Dustin's manual week runs Sun-Sat. Henry
+  2026-08-25: keep Mon-Sun as is for now. Revisit if iSolved's payroll week
+  (likely Sun-Sat) makes the OT split drift from payroll.
+
 ## Open verification items (not blocking, surface during build)
 
 1. **30-min adder scope** — spec Section 5.2 is ambiguous whether it applies to all non-trip events or only non-billable. Ask Dustin during parallel-run reconciliation.

@@ -16,7 +16,7 @@ those as "—" until iSolved tenant API access lands. Hours Billed and
 Non-Billable Hours still come through from CRM in that mode.
 """
 
-from event_types import event_category, is_assigned_to
+from event_types import event_category, is_assigned_to, trip_charge_hours
 
 WEEKLY_CAP_HRS = 40
 OT_PAY_MULTIPLIER = 1.5
@@ -46,7 +46,10 @@ def actuals_for_technician(technician, events, time_card_total=None):
         hrs = e.get("Duration_Hrs") or 0
         cat = event_category(e)
         if cat == "billable":
-            hours_billed += hrs
+            # Trip charges labeled on the event are billed hours on top of
+            # the wall-clock (SOP "including trip charges"; Dustin 2026-08-25
+            # flagged Jason and Josh B trip charges the report missed).
+            hours_billed += hrs + trip_charge_hours(e)
         elif cat == "non_billable":
             non_billable_hours += hrs
 
@@ -60,6 +63,24 @@ def actuals_for_technician(technician, events, time_card_total=None):
             "actual_hours_paid": None,
             "actual_utilization": None,
             "worked_utilization": None,
+            "timecard_missing": False,
+        }
+
+    # A tech with billed CRM hours but a zero timecard didn't work for free:
+    # their iSolved time wasn't entered when the run fired (Josh Brown week
+    # of 8/10, Dustin 2026-08-25). Averaging in the resulting 0% craters the
+    # company number, so flag the row and let the rollup leave it out.
+    if time_card_total == 0 and hours_billed > 0:
+        return {
+            "technician": technician,
+            "hours_billed": hours_billed,
+            "non_billable_hours": non_billable_hours,
+            "hours_worked": 0,
+            "ot": 0,
+            "actual_hours_paid": 0,
+            "actual_utilization": None,
+            "worked_utilization": 0,
+            "timecard_missing": True,
         }
 
     if time_card_total > WEEKLY_CAP_HRS:
@@ -87,6 +108,7 @@ def actuals_for_technician(technician, events, time_card_total=None):
         "actual_hours_paid": actual_hours_paid,
         "actual_utilization": actual_utilization,
         "worked_utilization": worked_utilization,
+        "timecard_missing": False,
     }
 
 
@@ -104,7 +126,16 @@ def company_rollup(per_tech_results):
     total_hours = total_billable + total_non_billable
     delta = total_billable - total_non_billable
 
-    isolved_pending = any(r["actual_utilization"] is None for r in per_tech_results)
+    # A None utilization means iSolved-pending only when the row isn't a
+    # per-tech missing timecard — those also carry None but the run itself
+    # had timecard data.
+    isolved_pending = any(
+        r["actual_utilization"] is None and not r.get("timecard_missing")
+        for r in per_tech_results
+    )
+    timecard_missing_techs = [
+        r["technician"] for r in per_tech_results if r.get("timecard_missing")
+    ]
 
     if isolved_pending:
         return {
@@ -120,6 +151,7 @@ def company_rollup(per_tech_results):
             "company_utilization": None,
             "techs_above_target": None,
             "isolved_pending": True,
+            "timecard_missing_techs": [],
         }
 
     total_hours_worked = sum(r["hours_worked"] for r in per_tech_results)
@@ -127,14 +159,21 @@ def company_rollup(per_tech_results):
     total_actual_hours_paid = sum(r["actual_hours_paid"] for r in per_tech_results)
 
     # Sheet convention (matches forecast company rollup): mean of per-tech
-    # utilizations, not total_billable / total_paid.
-    utils = [r["actual_utilization"] for r in per_tech_results]
+    # utilizations, not total_billable / total_paid. Techs with a missing
+    # timecard stay in the table and hour totals but out of the mean —
+    # their 0% is a data gap, not a performance number.
+    utils = [
+        r["actual_utilization"]
+        for r in per_tech_results
+        if not r.get("timecard_missing")
+    ]
     company_utilization = sum(utils) / len(utils) if utils else 0
 
     techs_above_target = [
         r["technician"]
         for r in per_tech_results
-        if r["actual_utilization"] >= COMPANY_UTILIZATION_TARGET
+        if not r.get("timecard_missing")
+        and r["actual_utilization"] >= COMPANY_UTILIZATION_TARGET
     ]
 
     return {
@@ -150,4 +189,5 @@ def company_rollup(per_tech_results):
         "company_utilization": company_utilization,
         "techs_above_target": techs_above_target,
         "isolved_pending": False,
+        "timecard_missing_techs": timecard_missing_techs,
     }

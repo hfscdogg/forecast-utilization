@@ -13,6 +13,10 @@ void write_actuals_history(Map result, String run_id)
     for each r in techs
     {
         notes_parts = List();
+        if(r.get("timecard_missing") == true)
+        {
+            notes_parts.add("timecard missing in iSolved at run time");
+        }
         if(r.get("non_billable_hours") > 0)
         {
             notes_parts.add(r.get("non_billable_hours") + " non-billable hours");
