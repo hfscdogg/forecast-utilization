@@ -58,7 +58,7 @@ void write_actuals_history(Map result, String run_id)
             Actual_Hours_Paid = r.get("actual_hours_paid")
             Actual_Utilization = r.get("actual_utilization")
             Worked_Utilization = r.get("worked_utilization")
-            ISolved_Pending = isolved_pending
+            iSolved_Pending = isolved_pending
             Notes = notes_text
             Source_Events_Count = r.get("source_events_count")
         ];
