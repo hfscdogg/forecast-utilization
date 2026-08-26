@@ -24,7 +24,7 @@ records from a single run share a `Run_ID` (matches the convention of
 | Actual Hours Paid | `Actual_Hours_Paid` | Decimal | No | Hours Worked + (OT × 1.5). Null pending iSolved. |
 | Actual Utilization | `Actual_Utilization` | Decimal | No | Hours Billed / Actual Hours Paid, fraction. Null pending iSolved. |
 | Worked Utilization | `Worked_Utilization` | Decimal | No | Hours Worked / 40, fraction. Forecast-comparable. Null pending iSolved. |
-| iSolved Pending | `ISolved_Pending` | Boolean | Yes | True when this row's time-card data is not yet wired. Flips to false once iSolved is integrated. |
+| iSolved Pending | `iSolved_Pending` | Boolean | Yes | True when this row's time-card data is not yet wired. Flips to false once iSolved is integrated. Link name confirmed against the live form 2026-08-26 (lowercase leading i; Creator link names are case-insensitive-unique, so a case-only rename is impossible). |
 | Notes | `Notes` | Multi Line | No | Auto-derived: non-billable totals, OT amount, "iSolved pending" marker. |
 | Source Events Count | `Source_Events_Count` | Number | No | Total events the run scanned for this tech in the lag week. |
 
