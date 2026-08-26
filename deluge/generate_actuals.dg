@@ -142,7 +142,10 @@ Map generate_actuals(String week_start, String week_end, Map time_cards)
                 {
                     trip_val = evt.get("Trip_Charge");
                     trip_hrs = 0.0;
-                    if(trip_val != null && trip_val != "" && trip_val != "-None-" && trip_val != "0")
+                    // Cancelled events (1-minute duration, status Incomplete -
+                    // Job Not Ready) keep their Trip_Charge but bill nothing.
+                    is_cancelled = (evt.get("Event_Status") == "Incomplete - Job Not Ready" && hrs <= 0.1);
+                    if(!is_cancelled && trip_val != null && trip_val != "" && trip_val != "-None-" && trip_val != "0")
                     {
                         trip_count = trip_val.toDecimal();
                         if(helper != null && helper != "No Helper" && helper != "-None-" && helper != "")

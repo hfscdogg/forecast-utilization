@@ -375,13 +375,19 @@ to billable-type events only. Constants `TRIP_CHARGE_HOURS_SOLO` and
 Jim's missed trip charge that week was a scheduling data-entry gap (charge
 not labeled on the event) — Dustin owns that process fix, not the automation.
 
-**OPEN:** the forecast side has the same gap. The 2026-05-13 note that
-`Duration_Man_Hrs` "handles trip charge math upstream" was invalidated on
-2026-05-19 (`Duration_Man_Hrs = Duration_Hrs x tech_count`, no trip math),
-and Dustin's 8/7 and 8/13 forecast reviews both flagged missing trip
-charges. Port `trip_charge_hours()` into `forecast_math.py` /
-`generate_forecast.dg` as a follow-up; forecast fixtures and the drive-adder
-interplay (trip charge removes the 0.5 hr adder) need re-validation together.
+**RESOLVED same day:** the forecast side had the same gap. The 2026-05-13
+note that `Duration_Man_Hrs` "handles trip charge math upstream" was
+invalidated on 2026-05-19 (`Duration_Man_Hrs = Duration_Hrs x tech_count`,
+no trip math), and Dustin's 8/7 and 8/13 forecast reviews both flagged
+missing trip charges. `trip_charge_hours()` is now applied in
+`forecast_math.py` / `generate_forecast.dg` too; the drive-adder interplay
+is unchanged (a trip charge still suppresses the 0.5 hr adder).
+
+Guard added in the same pass: cancelled events are shrunk to a 1-minute
+duration but KEEP their `Trip_Charge`, so trip hours are skipped for events
+matching the cancellation heuristic (status "Incomplete - Job Not Ready"
+and duration <= 0.1 hr) in both forecast and actuals. Without this a
+cancelled out-of-town job would have billed its trip hours forever.
 
 ### Missing timecard is a flagged data gap, not 0% utilization
 

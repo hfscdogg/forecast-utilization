@@ -24,6 +24,18 @@ Map generate_forecast(String week_start, String week_end)
     TRIP_CHARGE_NONE_VALUES = {null, "", "-None-", "0"};
     WEEKLY_OT_THRESHOLD_HRS = 40;
     DRIVE_TIME_ADDER_HRS = 0.5;
+    // SOP trip-charge rule: each trip charge is worth 2 billable hours on a
+    // solo event and 1 billable hour per tech on a paired event. Trip_Charge
+    // is a count picklist (1-4). Dustin 2026-08-07 and 2026-08-13: the
+    // forecast wasn't factoring in trip charges. Keep in sync with
+    // event_types.py and generate_actuals.dg.
+    TRIP_CHARGE_HOURS_SOLO = 2.0;
+    TRIP_CHARGE_HOURS_PAIRED_PER_TECH = 1.0;
+    // Cancelled events keep their Trip_Charge but are shrunk to a 1-minute
+    // duration with this status (Dustin 2026-05-18) — their trip charge
+    // must not bill hours.
+    EVENT_STATUS_NOT_READY = "Incomplete - Job Not Ready";
+    CANCELLED_EVENT_MAX_HOURS = 0.1;
     // Targets raised by Stacy (relayed by Dustin 2026-08-17, approved by
     // Henry same day): 80% for techs, 67.5% for service techs (was 62.5%
     // across the board). Service roster per Henry 2026-08-17: Jim
@@ -187,7 +199,21 @@ Map generate_forecast(String week_start, String week_end)
 
                 if(EVENT_TYPES_BILLABLE.contains(et))
                 {
-                    billable_hrs = billable_hrs + hrs;
+                    trip_hrs = 0.0;
+                    is_cancelled = (evt.get("Event_Status") == EVENT_STATUS_NOT_READY && hrs <= CANCELLED_EVENT_MAX_HOURS);
+                    if(!no_trip && !is_cancelled)
+                    {
+                        trip_count = tc.toDecimal();
+                        if(helper != null && helper != "No Helper" && helper != "-None-" && helper != "")
+                        {
+                            trip_hrs = trip_count * TRIP_CHARGE_HOURS_PAIRED_PER_TECH;
+                        }
+                        else
+                        {
+                            trip_hrs = trip_count * TRIP_CHARGE_HOURS_SOLO;
+                        }
+                    }
+                    billable_hrs = billable_hrs + hrs + trip_hrs;
                     if(no_trip && EVENT_TYPES_ONSITE.contains(et))
                     {
                         adder_count = adder_count + 1;

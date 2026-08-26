@@ -68,6 +68,14 @@ TRIP_CHARGE_HOURS_PAIRED_PER_TECH = 1.0
 
 HELPER_NONE_VALUES = {None, "", "No Helper", "-None-"}
 
+# Cancelled events are shrunk to a 1-minute duration and set to
+# "Incomplete - Job Not Ready" (Dustin 2026-05-18). The tiny duration
+# self-neutralizes in the hours sums, but the event keeps its Trip_Charge,
+# which must not bill hours. Genuinely-not-ready jobs carry the same status
+# with real durations, so the duration bound is what marks a cancellation.
+EVENT_STATUS_NOT_READY = "Incomplete - Job Not Ready"
+CANCELLED_EVENT_MAX_HOURS = 0.1
+
 
 def event_category(event):
     """Return billable / non_billable / training / excluded / unknown."""
@@ -96,13 +104,21 @@ def is_paired(event):
     return event.get("Helper1") not in HELPER_NONE_VALUES
 
 
+def is_heuristically_cancelled(event):
+    return (
+        event.get("Event_Status") == EVENT_STATUS_NOT_READY
+        and (event.get("Duration_Hrs") or 0) <= CANCELLED_EVENT_MAX_HOURS
+    )
+
+
 def trip_charge_hours(event):
     """Per-tech billable hours contributed by the event's trip charge(s).
 
     Dustin 2026-08-25: trip charges labeled on events must count toward Hours
     Billed. Trip_Charge is a count (numeric picklist 1-4); a malformed value
-    contributes nothing rather than raising."""
-    if not has_trip_charge(event):
+    contributes nothing rather than raising. Cancelled events keep their
+    Trip_Charge but bill nothing."""
+    if not has_trip_charge(event) or is_heuristically_cancelled(event):
         return 0.0
     try:
         count = float(event.get("Trip_Charge"))

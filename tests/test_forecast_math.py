@@ -41,23 +41,41 @@ def make_event(
 
 
 def test_jim_zimmerman_example_solo_plus_paired_sums_to_five():
-    """SOP Section 5.1: 2hr + 2hr solo + 1hr paired with Jordan = 5 billable hrs.
-    All carry trip charges so no drive adder applies."""
+    """SOP Section 5.1 trip-charge walkthrough: one charge is worth 2 hrs on
+    each solo event and 1 hr on the event paired with Jordan = 5 billable
+    hrs from trip charges alone. No drive adder on trip-charged events."""
     events = [
-        make_event("Jim", 2.0, trip_charge="1", start_iso="2026-05-12T09:00:00-04:00"),
-        make_event("Jim", 2.0, trip_charge="1", start_iso="2026-05-15T09:00:00-04:00"),
-        make_event("Jim", 1.0, helper1="Jordan", trip_charge="1"),
+        make_event("Jim", 0.0, trip_charge="1", start_iso="2026-05-12T09:00:00-04:00"),
+        make_event("Jim", 0.0, trip_charge="1", start_iso="2026-05-15T09:00:00-04:00"),
+        make_event("Jim", 0.0, helper1="Jordan", trip_charge="1"),
     ]
     result = forecast_for_technician("Jim", events)
     assert result["billable_hours_scheduled"] == pytest.approx(5.0)
     assert result["drive_time_adder"] == 0
 
 
+def test_trip_charge_adds_two_hours_per_charge_for_solo_tech():
+    """SOP: trip charge x 2 for solo. A "2" on a solo event adds 4 scheduled
+    billable hours on top of wall-clock (Dustin 2026-08-07: Andre's time was
+    right "except it didnt account for a trip charge 2")."""
+    events = [make_event("Andre", 8.0, trip_charge="2")]
+    result = forecast_for_technician("Andre", events)
+    assert result["billable_hours_scheduled"] == pytest.approx(8.0 + 4.0)
+    assert result["drive_time_adder"] == 0
+
+
+def test_trip_charge_adds_one_hour_per_charge_per_tech_when_paired():
+    events = [make_event("Jason", 4.0, helper1="Josh Brown", trip_charge="1")]
+    for tech in ("Jason", "Josh Brown"):
+        result = forecast_for_technician(tech, events)
+        assert result["billable_hours_scheduled"] == pytest.approx(4.0 + 1.0)
+
+
 def test_utilization_is_billable_over_scheduled():
     """Sheet-confirmed formula: billable_hours_scheduled / hours_scheduled.
     20 billable + 5 non-billable -> 20 / 25 = 0.80."""
     events = [
-        make_event("Sam", 20.0, event_type="Finish-Out ($$$)", trip_charge="1"),
+        make_event("Sam", 18.0, event_type="Finish-Out ($$$)", trip_charge="1"),  # +2 trip hrs = 20
         make_event("Sam", 5.0, event_type="Project Management"),
     ]
     result = forecast_for_technician("Sam", events)
@@ -67,7 +85,7 @@ def test_utilization_is_billable_over_scheduled():
 def test_over_forty_hours_splits_into_forecast_hours_and_ot():
     """Hours Scheduled is uncapped. Forecast Hours is the within-40 portion
     (Hours Scheduled minus the OT overflow). Utilization uses Forecast Hours."""
-    events = [make_event("Andy", 45.0, trip_charge="1")]
+    events = [make_event("Andy", 43.0, trip_charge="1")]  # +2 trip hrs = 45
     result = forecast_for_technician("Andy", events)
     assert result["hours_scheduled"] == pytest.approx(45.0)
     assert result["forecast_ot"] == pytest.approx(5.0)
@@ -76,7 +94,7 @@ def test_over_forty_hours_splits_into_forecast_hours_and_ot():
 
 
 def test_under_forty_hours_no_ot():
-    events = [make_event("Ben", 30.0, trip_charge="1")]
+    events = [make_event("Ben", 28.0, trip_charge="1")]  # +2 trip hrs = 30
     result = forecast_for_technician("Ben", events)
     assert result["hours_scheduled"] == pytest.approx(30.0)
     assert result["forecast_ot"] == 0
@@ -86,7 +104,7 @@ def test_under_forty_hours_no_ot():
 def test_scheduled_off_excluded_entirely():
     """Dustin 2026-05-18: Scheduled Off means the tech is not working — do not count."""
     events = [
-        make_event("Drake", 30.0, trip_charge="1"),
+        make_event("Drake", 28.0, trip_charge="1"),  # +2 trip hrs = 30
         make_event("Drake", 8.0, event_type="Scheduled Off"),
     ]
     result = forecast_for_technician("Drake", events)
@@ -96,7 +114,7 @@ def test_scheduled_off_excluded_entirely():
 def test_service_location_excluded_entirely():
     """Service Location is Dustin's online-booking blocker — not counted at all."""
     events = [
-        make_event("Greg", 30.0, trip_charge="1"),
+        make_event("Greg", 28.0, trip_charge="1"),  # +2 trip hrs = 30
         make_event("Greg", 8.0, event_type="Service Location"),
     ]
     result = forecast_for_technician("Greg", events)
@@ -107,7 +125,8 @@ def test_cancelled_event_self_neutralizes_via_one_minute_duration():
     """Dustin 2026-05-18: cancelled events get a 1-minute duration and status
     Incomplete - Job Not Ready. No status filter needed."""
     events = [
-        make_event("Greg", 30.0, trip_charge="1"),
+        make_event("Greg", 28.0, trip_charge="1"),  # +2 trip hrs = 30
+        # Cancelled events keep their Trip_Charge; it must not bill hours.
         make_event(
             "Greg",
             0.0167,
@@ -125,14 +144,15 @@ def test_paired_tech_counted_when_helper1_matches():
         make_event("Patrick", 3.0, helper1="Jim", trip_charge="1"),
     ]
     result = forecast_for_technician("Jim", events)
-    assert result["billable_hours_scheduled"] == pytest.approx(5.0)
+    # 2 + 3 wall-clock plus 1 trip hr per paired event
+    assert result["billable_hours_scheduled"] == pytest.approx(7.0)
 
 
 def test_training_counts_as_worked_and_flagged_if_drives_ot():
     """Training counts as worked hours, flag it if it drives OT. Training is
     shop-based so it gets no drive adder."""
     events = [
-        make_event("Anthony", 36.0, trip_charge="1"),
+        make_event("Anthony", 34.0, trip_charge="1"),  # +2 trip hrs = 36
         make_event("Anthony", 6.0, event_type="Training"),
     ]
     result = forecast_for_technician("Anthony", events)
@@ -157,7 +177,8 @@ def test_drive_adder_skipped_when_trip_charge_present():
     events = [make_event("Tom", 8.0, event_type="Finish-Out ($$$)", trip_charge="2")]
     result = forecast_for_technician("Tom", events)
     assert result["drive_time_adder"] == 0
-    assert result["hours_scheduled"] == pytest.approx(8.0)
+    # 8 wall-clock + 4 trip hrs, no adder
+    assert result["hours_scheduled"] == pytest.approx(12.0)
 
 
 def test_drive_adder_skipped_for_shop_based_events():
@@ -179,12 +200,13 @@ def test_drive_adder_accumulates_per_qualifying_event():
     ]
     result = forecast_for_technician("Tom", events)
     assert result["drive_time_adder"] == pytest.approx(1.0)  # 2 qualifying events
-    assert result["hours_scheduled"] == pytest.approx(13.0)
+    # 12 wall-clock + 2 trip hrs + 1.0 adder
+    assert result["hours_scheduled"] == pytest.approx(15.0)
 
 
 def test_non_billable_tracked_separately_from_billable():
     events = [
-        make_event("Sam", 20.0, event_type="Finish-Out ($$$)", trip_charge="1"),
+        make_event("Sam", 18.0, event_type="Finish-Out ($$$)", trip_charge="1"),  # +2 trip hrs = 20
         make_event("Sam", 5.0, event_type="Project Management"),
     ]
     result = forecast_for_technician("Sam", events)
@@ -220,7 +242,7 @@ def test_unknown_event_type_flagged_not_silently_dropped():
     """Types Dustin confirmed unused (e.g. Remote Assistance) should surface
     if they appear — a data-entry mistake worth flagging."""
     events = [
-        make_event("Pat", 10.0, event_type="Finish-Out ($$$)", trip_charge="1"),
+        make_event("Pat", 8.0, event_type="Finish-Out ($$$)", trip_charge="1"),  # +2 trip hrs = 10
         make_event("Pat", 3.0, event_type="Remote Assistance (Payment Required)"),
     ]
     result = forecast_for_technician("Pat", events)
