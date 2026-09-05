@@ -206,6 +206,19 @@ mirroring Actual Hours Paid) is possible but less likely for a utilization
 metric. The reference validation week has every tech under 40, so this does
 not block Phase 1. Confirm with Dustin if a parallel-run week drifts.
 
+**RESOLVED for the utilization denominator (2026-08, reconciled against
+Dustin's 8/10-8/16 sheet):** dividing billable by the capped forecast_hours
+put any tech at or over 40 billable hours at a false 100%+ (e.g. 50 / 40 =
+125%). The live formula divides by the UNCAPPED hours_scheduled, which
+bounds utilization at 100% and matches Dustin's sheet exactly — Patrick and
+Thomas, the only two OT techs that week, land at 95.24%, not 100%. Under-40
+rows are unchanged (hours_scheduled == forecast_hours when forecast_ot is
+0), so the 2026-05-19 under-40 checks above still hold. forecast_hours
+itself (= min(hours_scheduled, 40)) is unchanged and still reported as its
+own column. Encoded in `generate_forecast.dg` and `forecast_math.py`
+(2026-09-05: the Python mirror had kept the pre-fix denominator; now
+re-synced).
+
 Consequence: forecast utilization and actual utilization are BOTH billable-
 fraction metrics, so they are directly comparable. The earlier worry about
 non-comparability (capacity vs billing efficiency) was based on the spec's
