@@ -206,6 +206,19 @@ mirroring Actual Hours Paid) is possible but less likely for a utilization
 metric. The reference validation week has every tech under 40, so this does
 not block Phase 1. Confirm with Dustin if a parallel-run week drifts.
 
+**RESOLVED for the utilization denominator (2026-08, reconciled against
+Dustin's 8/10-8/16 sheet):** dividing billable by the capped forecast_hours
+put any tech at or over 40 billable hours at a false 100%+ (e.g. 50 / 40 =
+125%). The live formula divides by the UNCAPPED hours_scheduled, which
+bounds utilization at 100% and matches Dustin's sheet exactly — Patrick and
+Thomas, the only two OT techs that week, land at 95.24%, not 100%. Under-40
+rows are unchanged (hours_scheduled == forecast_hours when forecast_ot is
+0), so the 2026-05-19 under-40 checks above still hold. forecast_hours
+itself (= min(hours_scheduled, 40)) is unchanged and still reported as its
+own column. Encoded in `generate_forecast.dg` and `forecast_math.py`
+(2026-09-05: the Python mirror had kept the pre-fix denominator; now
+re-synced).
+
 Consequence: forecast utilization and actual utilization are BOTH billable-
 fraction metrics, so they are directly comparable. The earlier worry about
 non-comparability (capacity vs billing efficiency) was based on the spec's
@@ -411,6 +424,62 @@ naming affected techs. Distinct from the whole-run iSolved-pending state.
 - **Week boundary stays Mon-Sun** — Dustin's manual week runs Sun-Sat. Henry
   2026-08-25: keep Mon-Sun as is for now. Revisit if iSolved's payroll week
   (likely Sun-Sat) makes the OT split drift from payroll.
+  **SUPERSEDED 2026-09-05** — see the week-boundary entry below.
+
+## 2026-08-31 / 2026-09-04 — Dustin (8/17-8/23 actuals review + 9/7-9/13 forecast review)
+
+Dustin's review of the 8/31 actuals email ("Everyone else's time looks
+correct within a few tenths of a point") surfaced one bug and re-raised the
+week boundary; his 9/4 forecast review pinned the same bug on the forecast
+side ("Trip charges" was his entire diagnosis of the delta).
+
+### Trip charge merged from BOTH the meeting and the potential
+
+> "The billable report has two Trip charge fields. One is pulled from the
+> meeting and one from the potential. ... Ultimately it should check both
+> and if its the same, discard one result, but if its different then keep
+> the positive result, because service potentials do not update the
+> tripcharge field when automatically created from the meeting which is how
+> Service calls are scheduled 98% of the time. Those potentials are created
+> after the meeting is created, but finish out meetings are created after
+> the potential is created."
+
+This is what dropped Jim's trip charges from the 8/17-8/23 actuals: the
+automation only read `Events.Trip_Charge`, and on finish-out meetings
+created from a potential that field can sit blank while the potential holds
+the real value (the mirror drift of the service case). Fix: both generators
+now select `What_Id`, fetch `Trip_Charge` from the related Deals records,
+and take the MAX of the two counts — equal values collapse to one, differing
+values keep the positive one, never a sum. A trip charge from either source
+also suppresses the forecast drive-time adder. Failure mode is conservative:
+if the Deals query errors or the field name is wrong, the map stays empty
+and the run behaves exactly as before (event-side only). Encoded in
+`generate_actuals.dg`, `generate_forecast.dg`, and
+`event_types.py` (`effective_trip_charge_count()`); the fetch layer merges
+the potential-side value onto the event as `Potential_Trip_Charge` for the
+Python mirror. The Deals-side API name `Trip_Charge` is an assumption —
+verify with `deluge/inspectors/inspect_deal_trip_charge.dg` before deploy
+(open item 8).
+
+Dustin's "We may need to streamline that somehow" is the upstream fix: the
+CRM automations that create service potentials from meetings (and finish-out
+meetings from potentials) should copy the trip-charge field across. That
+kills the drift at the source; the report-side max() stays as a safety net
+(open item 9, Dustin owns the CRM automation side).
+
+### Week boundary is now Sun-Sat (supersedes Henry 2026-08-25)
+
+> "Also yours is still doing Monday to Sunday instead of Sunday to Saturday"
+
+The 2026-08-25 revisit condition was effectively met: the actuals OT split
+caps iSolved hours at 40 over OUR window, so a window offset from the
+Sun-Sat payroll week skews OT and Actual Hours Paid, and every parallel-run
+comparison against Dustin's Sun-Sat sheet carried Sunday-edge noise. Both
+reports now use Sun-Sat: the Monday actuals run reports the Sun-Sat ending
+9 days prior (`subDay(15)`/`subDay(9)`), the Friday forecast run targets the
+upcoming Sun-Sat (`days_to_sunday = 2`). Email subjects and labels derive
+from the dates, so they follow automatically. History rows keep their field
+names (`Lag_Week_Start` etc.) — only the dates they carry shift.
 
 ## Open verification items (not blocking, surface during build)
 
@@ -421,3 +490,11 @@ naming affected techs. Distinct from the whole-run iSolved-pending state.
 5. **Event_Type categorization** (NEW) — see CRM Inspector Run above.
 6. **Cancellation tracking** (NEW) — see CRM Inspector Run above.
 7. **Technician identification** (NEW) — see CRM Inspector Run above.
+8. **Deals-side trip-charge field API name** — assumed `Trip_Charge` on the
+   `Deals` module. Run `deluge/inspectors/inspect_deal_trip_charge.dg` over a
+   recent week and confirm before deploying the dual-field merge; also
+   confirms `What_Id` resolves to the potential.
+9. **Upstream trip-charge sync** — Dustin to make the CRM automations copy
+   the trip-charge field when creating service potentials from meetings and
+   finish-out meetings from potentials ("We may need to streamline that
+   somehow", 2026-08-31).

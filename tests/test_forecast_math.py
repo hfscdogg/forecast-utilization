@@ -26,6 +26,7 @@ def make_event(
     event_status=None,
     helper1="No Helper",
     trip_charge=None,
+    potential_trip_charge=None,
     start_iso="2026-05-18T09:00:00-04:00",
 ):
     return {
@@ -36,6 +37,7 @@ def make_event(
         "Event_Type": event_type,
         "Event_Status": event_status,
         "Trip_Charge": trip_charge,
+        "Potential_Trip_Charge": potential_trip_charge,
         "Start_DateTime": start_iso,
     }
 
@@ -84,13 +86,16 @@ def test_utilization_is_billable_over_scheduled():
 
 def test_over_forty_hours_splits_into_forecast_hours_and_ot():
     """Hours Scheduled is uncapped. Forecast Hours is the within-40 portion
-    (Hours Scheduled minus the OT overflow). Utilization uses Forecast Hours."""
+    (Hours Scheduled minus the OT overflow). Utilization divides by the
+    uncapped Hours Scheduled — dividing by the capped Forecast Hours gave
+    over-40 techs a false 100%+ (matches generate_forecast.dg, verified
+    against Dustin's 8/10-8/16 sheet: Patrick and Thomas at 95.24%)."""
     events = [make_event("Andy", 43.0, trip_charge="1")]  # +2 trip hrs = 45
     result = forecast_for_technician("Andy", events)
     assert result["hours_scheduled"] == pytest.approx(45.0)
     assert result["forecast_ot"] == pytest.approx(5.0)
     assert result["forecast_hours"] == pytest.approx(40.0)
-    assert result["forecast_utilization"] == pytest.approx(45.0 / 40.0)  # 112.5%
+    assert result["forecast_utilization"] == pytest.approx(1.0)  # all billable, bounded at 100%
 
 
 def test_under_forty_hours_no_ot():
@@ -161,7 +166,35 @@ def test_training_counts_as_worked_and_flagged_if_drives_ot():
     assert result["forecast_ot"] == pytest.approx(2.0)
     assert result["forecast_hours"] == pytest.approx(40.0)
     assert result["training_drove_ot"] is True
-    assert result["forecast_utilization"] == pytest.approx(36.0 / 40.0)
+    # Denominator is the uncapped Hours Scheduled, not the capped 40.
+    assert result["forecast_utilization"] == pytest.approx(36.0 / 42.0)
+
+
+def test_potential_only_trip_charge_counts_and_suppresses_adder():
+    """Dustin 2026-09-04 ("Trip charges" — his diagnosis of the 9/7-9/13
+    forecast delta): a trip charge living only on the potential must add
+    scheduled billable hours AND suppress the drive-time adder, exactly as
+    an event-side charge would."""
+    events = [
+        make_event("Jim", 6.0, trip_charge=None, potential_trip_charge="1"),
+    ]
+    result = forecast_for_technician("Jim", events)
+    assert result["billable_hours_scheduled"] == pytest.approx(8.0)  # 6 + 1 x 2
+    assert result["drive_time_adder"] == 0.0
+
+
+def test_matching_event_and_potential_trip_charges_count_once():
+    """Dustin's rule: equal values on the two fields describe the same trip
+    and collapse to one — never sum."""
+    events = [make_event("Andre", 8.0, trip_charge="2", potential_trip_charge="2")]
+    result = forecast_for_technician("Andre", events)
+    assert result["billable_hours_scheduled"] == pytest.approx(12.0)  # 8 + 2 x 2
+
+
+def test_differing_trip_charges_keep_the_positive_result():
+    events = [make_event("Jason", 4.0, trip_charge="2", potential_trip_charge=None)]
+    result = forecast_for_technician("Jason", events)
+    assert result["billable_hours_scheduled"] == pytest.approx(8.0)  # event "2" x 2
 
 
 def test_drive_adder_applies_to_onsite_event_without_trip_charge():

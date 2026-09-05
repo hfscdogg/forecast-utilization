@@ -66,6 +66,17 @@ TRIP_CHARGE_NONE_VALUES = {None, "", "-None-", "0"}
 TRIP_CHARGE_HOURS_SOLO = 2.0
 TRIP_CHARGE_HOURS_PAIRED_PER_TECH = 1.0
 
+# Dustin 2026-08-31 (actuals) and 2026-09-04 (forecast): the billable report
+# carries TWO trip-charge fields — one on the meeting (Trip_Charge) and one on
+# the related service potential. Service potentials auto-created from meetings
+# (98% of service scheduling) never populate their trip-charge field, and
+# finish-out meetings created from a potential can carry a blank event-side
+# value, so the two drift. The fetch layer merges the potential-side value
+# onto the event under this key; Dustin's rule — "if its the same, discard one
+# result, but if its different then keep the positive result" — is a max() of
+# the two counts. Never sum them: they describe the same trip.
+FIELD_POTENTIAL_TRIP_CHARGE = "Potential_Trip_Charge"
+
 HELPER_NONE_VALUES = {None, "", "No Helper", "-None-"}
 
 # Cancelled events are shrunk to a 1-minute duration and set to
@@ -96,8 +107,29 @@ def is_assigned_to(event, technician):
     return event.get("Owner") == technician or event.get("Helper1") == technician
 
 
+def _trip_charge_count(value):
+    """Parse one trip-charge field value to a count; malformed or none-ish
+    values contribute nothing rather than raising."""
+    if value in TRIP_CHARGE_NONE_VALUES:
+        return 0.0
+    try:
+        return max(0.0, float(value))
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def effective_trip_charge_count(event):
+    """Merged trip-charge count across the event-side and potential-side
+    fields (Dustin's 2026-08-31 rule: equal values collapse to one, differing
+    values keep the positive one — both cases are a max())."""
+    return max(
+        _trip_charge_count(event.get("Trip_Charge")),
+        _trip_charge_count(event.get(FIELD_POTENTIAL_TRIP_CHARGE)),
+    )
+
+
 def has_trip_charge(event):
-    return event.get("Trip_Charge") not in TRIP_CHARGE_NONE_VALUES
+    return effective_trip_charge_count(event) > 0
 
 
 def is_paired(event):
@@ -115,14 +147,13 @@ def trip_charge_hours(event):
     """Per-tech billable hours contributed by the event's trip charge(s).
 
     Dustin 2026-08-25: trip charges labeled on events must count toward Hours
-    Billed. Trip_Charge is a count (numeric picklist 1-4); a malformed value
-    contributes nothing rather than raising. Cancelled events keep their
-    Trip_Charge but bill nothing."""
-    if not has_trip_charge(event) or is_heuristically_cancelled(event):
+    Billed. The count is the merged event/potential value (Dustin 2026-08-31,
+    see effective_trip_charge_count). Cancelled events keep their trip charge
+    but bill nothing."""
+    if is_heuristically_cancelled(event):
         return 0.0
-    try:
-        count = float(event.get("Trip_Charge"))
-    except (TypeError, ValueError):
+    count = effective_trip_charge_count(event)
+    if count == 0:
         return 0.0
     if is_paired(event):
         return count * TRIP_CHARGE_HOURS_PAIRED_PER_TECH

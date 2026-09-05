@@ -7,11 +7,16 @@ taxonomy lives in event_types.py (Deluge equivalent: deluge/config.dg).
 Reference: docs/spec_forecast.md Section 5, docs/field_mapping.md,
 docs/decisions.md (Dustin 2026-05-18, sheet-derived corrections 2026-05-19).
 
-NOTE on the utilization formula: the spec said hours_scheduled / 40. The real
-formula (confirmed by Dustin 2026-05-19) is billable_hours_scheduled divided
-by Forecast Hours, where Forecast Hours is the within-40 portion of scheduled
-time (hours_scheduled minus the OT overflow). For a tech under 40 hours
-Forecast Hours equals hours_scheduled. See docs/decisions.md.
+NOTE on the utilization formula: the spec said hours_scheduled / 40, and an
+earlier revision (Dustin 2026-05-19) divided billable_hours_scheduled by the
+capped Forecast Hours. The live formula divides by hours_scheduled — the
+UNCAPPED total — because dividing by the capped forecast_hours put any tech
+at or over 40 billable hours at a false 100% (or above, e.g. 50 billable /
+40 = 125%). Dividing by hours_scheduled bounds it at 100% and matches
+Dustin's sheet (verified against his 8/10-8/16 reply: Patrick and Thomas,
+the only two OT techs, land at 95.24% not 100%). Techs under 40 are
+unchanged (hours_scheduled == forecast_hours when forecast_ot is 0). Keep
+in sync with generate_forecast.dg.
 """
 
 from datetime import datetime
@@ -106,9 +111,11 @@ def forecast_for_technician(technician, events, window_start=None, window_end=No
     # minus the OT overflow). Equals hours_scheduled when the tech is under 40.
     forecast_hours = hours_scheduled - forecast_ot
 
-    # Sheet formula (Dustin 2026-05-19): billable scheduled / Forecast Hours.
-    if forecast_hours > 0:
-        forecast_utilization = billable_hours / forecast_hours
+    # Utilization divides billable by TOTAL scheduled hours (pre-OT-cap),
+    # not by forecast_hours — see the module NOTE. Matches
+    # generate_forecast.dg.
+    if hours_scheduled > 0:
+        forecast_utilization = billable_hours / hours_scheduled
     else:
         forecast_utilization = 0
 

@@ -1,0 +1,127 @@
+Map inspect_deal_trip_charge(String week_start, String week_end)
+{
+    // Verifies the two assumptions behind the dual trip-charge merge
+    // (Dustin 2026-08-31 / 2026-09-04, see config.dg FIELD_DEAL_TRIP_CHARGE):
+    //   1. The Potentials (Deals) module has a trip-charge field, and its
+    //      API name is Trip_Charge (display-label convention).
+    //   2. Events link to their potential through the built-in Related To
+    //      lookup (What_Id), so Events.What_Id.id matches Deals.id.
+    // Run it over a recent week and eyeball the output: fields_matching_trip
+    // should contain exactly one Deals field, and linked_samples should show
+    // events whose event-side and deal-side trip charges agree or drift the
+    // way Dustin described (deal-side blank on auto-created service
+    // potentials, event-side blank on finish-out meetings).
+    token_resp = invokeurl
+    [
+        url: "https://accounts.zoho.com/oauth/v2/token"
+        type: POST
+        parameters: {"grant_type": "refresh_token", "client_id": thisapp.Variables.ZOHO_CLIENT_ID, "client_secret": thisapp.Variables.ZOHO_CLIENT_SECRET, "refresh_token": thisapp.Variables.ZOHO_REFRESH_TOKEN}
+    ];
+    access_token = token_resp.get("access_token");
+    auth_header = {"Authorization": "Zoho-oauthtoken " + access_token, "Content-Type": "application/json"};
+    auth_header_get = {"Authorization": "Zoho-oauthtoken " + access_token};
+
+    result = Map();
+
+    // 1. Deals field metadata — every field whose API name or display label
+    //    mentions "trip".
+    fields_resp = invokeurl
+    [
+        url: "https://www.zohoapis.com/crm/v6/settings/fields?module=Deals"
+        type: GET
+        headers: auth_header_get
+    ];
+    trip_fields = List();
+    fields_data = fields_resp.get("fields");
+    if(fields_data != null)
+    {
+        for each f in fields_data
+        {
+            api_name = f.get("api_name");
+            label = f.get("field_label");
+            if(api_name.toLowerCase().contains("trip") || label.toLowerCase().contains("trip"))
+            {
+                brief = Map();
+                brief.put("api_name", api_name);
+                brief.put("field_label", label);
+                brief.put("data_type", f.get("data_type"));
+                pick = f.get("pick_list_values");
+                if(pick != null)
+                {
+                    vals = List();
+                    for each pv in pick
+                    {
+                        vals.add(pv.get("display_value"));
+                    }
+                    brief.put("pick_list_values", vals);
+                }
+                trip_fields.add(brief);
+            }
+        }
+    }
+    result.put("fields_matching_trip", trip_fields);
+
+    // 2. Sample the week's events: resolve each What_Id against Deals and
+    //    show both trip-charge values side by side.
+    q = "SELECT id, Event_Type, Trip_Charge, What_Id, Owner FROM Events WHERE Start_DateTime <= '" + week_end + "' AND End_DateTime >= '" + week_start + "' LIMIT 0, 200";
+    body = {"select_query": q};
+    resp = invokeurl
+    [
+        url: "https://www.zohoapis.com/crm/v6/coql"
+        type: POST
+        parameters: body.toString()
+        headers: auth_header
+    ];
+    events_data = resp.get("data");
+    if(events_data == null)
+    {
+        events_data = List();
+    }
+
+    linked_samples = List();
+    unlinked_count = 0;
+    for each evt in events_data
+    {
+        w = evt.get("What_Id");
+        if(w == null)
+        {
+            unlinked_count = unlinked_count + 1;
+        }
+        else
+        {
+            wid = w.get("id").toString();
+            deal_resp = invokeurl
+            [
+                url: "https://www.zohoapis.com/crm/v6/Deals/" + wid + "?fields=id,Deal_Name,Trip_Charge"
+                type: GET
+                headers: auth_header_get
+            ];
+            deal_trip = null;
+            deal_name = null;
+            found = false;
+            deal_data = deal_resp.get("data");
+            if(deal_data != null && deal_data.size() > 0)
+            {
+                found = true;
+                deal_trip = deal_data.get(0).get("Trip_Charge");
+                deal_name = deal_data.get(0).get("Deal_Name");
+            }
+            sample = Map();
+            sample.put("event_id", evt.get("id"));
+            sample.put("event_type", evt.get("Event_Type"));
+            sample.put("event_trip_charge", evt.get("Trip_Charge"));
+            sample.put("what_id", wid);
+            sample.put("what_name", w.get("name"));
+            sample.put("resolves_to_deal", found);
+            sample.put("deal_name", deal_name);
+            sample.put("deal_trip_charge", deal_trip);
+            linked_samples.add(sample);
+        }
+    }
+    result.put("events_in_window", events_data.size());
+    result.put("events_without_related_record", unlinked_count);
+    result.put("linked_samples", linked_samples);
+
+    info result;
+    return result;
+}

@@ -5,18 +5,21 @@ void scheduled_forecast()
 
     try
     {
-        // The forecast runs Friday at 4pm ET for the upcoming Mon-Sun.
+        // The forecast runs Friday at 4pm ET for the upcoming Sun-Sat.
         // Moved from Thursday per Dustin 2026-08-13: "Friday afternoon
         // 3-4pm for best results. Most of the data is going to be
-        // dependent Josh/PM scheduling." The Creator schedule day and
-        // days_to_monday must move together: from Friday, Monday =
-        // today + 3 days.
+        // dependent Josh/PM scheduling." Week boundary is Sun-Sat to
+        // match Dustin's manual report and the iSolved payroll week
+        // (Dustin 2026-08-31; supersedes Henry's 2026-08-25 keep-Mon-Sun
+        // call). The Creator schedule day and days_to_sunday must move
+        // together: from Friday, Sunday = today + 2 days (Thursday would
+        // be + 3).
         // The UTC offset is computed per boundary date via eastern_offset
         // so a week straddling a DST transition gets the right offset on
         // each edge.
         today = zoho.currenttime.toDate();
-        days_to_monday = 3;
-        week_start_date = today.addDay(days_to_monday);
+        days_to_sunday = 2;
+        week_start_date = today.addDay(days_to_sunday);
         week_end_date = week_start_date.addDay(6);
         week_start_str = week_start_date.toString("yyyy-MM-dd");
         week_end_str = week_end_date.toString("yyyy-MM-dd");

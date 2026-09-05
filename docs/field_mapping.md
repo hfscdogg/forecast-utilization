@@ -78,6 +78,23 @@ Sample event observed: `"Trip_Charge": null` — so the absence of a trip charge
 shows as `null`, not `"0"` or `"-None-"`. Filter for "no trip charge" =
 `Trip_Charge == null OR Trip_Charge == "-None-"`.
 
+### Related potential (Deals) — second trip-charge field
+
+Dustin 2026-08-31: the billable report carries a SECOND trip-charge field on
+the related service potential, and the two drift (potentials auto-created
+from meetings never populate theirs; finish-out meetings created from a
+potential can carry a blank event-side value). Assumed mapping — **verify
+with `deluge/inspectors/inspect_deal_trip_charge.dg` before deploy**:
+
+| Display label | API name | Type | Notes |
+|---|---|---|---|
+| Related To | `What_Id` | lookup | Built-in on Events; `id` matches `Deals.id` for potentials. TODO confirm it is populated on service/finish-out meetings |
+| Trip Charge? (on Deals) | `Trip_Charge` | picklist? | TODO confirm API name and picklist values via inspector |
+
+The generators take the MAX of the event-side and deal-side counts (equal →
+one; different → the positive one; never a sum). The Python mirror sees the
+deal-side value merged onto the event as `Potential_Trip_Charge`.
+
 ### Helper1 picklist values (paired tech names)
 
 Free picklist of name strings, not a user lookup. Currently "used" values

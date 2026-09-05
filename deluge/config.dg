@@ -124,6 +124,23 @@ CANCELLED_EVENT_MAX_HOURS  = 0.1;
  * Trip_Charge IS NULL OR "-None-" OR "0". */
 TRIP_CHARGE_NONE_VALUES = list(null, "-None-", "0");
 
+/* Dual trip-charge fields — Dustin 2026-08-31 (actuals review) and
+ * 2026-09-04 (his one-line diagnosis of the 9/7-9/13 forecast delta was
+ * "Trip charges"): the billable report carries TWO trip-charge fields, one
+ * on the meeting (Events.Trip_Charge above) and one on the related service
+ * potential. They drift because potentials auto-created from meetings (98%
+ * of service scheduling) never populate theirs, while finish-out meetings
+ * created from a potential can carry a blank event-side value. Merge rule
+ * (Dustin, verbatim intent): "check both and if its the same, discard one
+ * result, but if its different then keep the positive result" — a max of
+ * the two counts, never a sum. Events link to the potential via the
+ * built-in Related To lookup. The report-side merge is a safety net; the
+ * upstream fix (making the CRM automations copy the field both ways) is
+ * tracked as an open item in docs/decisions.md. */
+FIELD_EVENT_RELATED_TO   = "What_Id";       /* built-in Related To lookup on Events; id matches Deals.id for potentials */
+DEALS_MODULE             = "Deals";         /* API name of the Potentials module */
+FIELD_DEAL_TRIP_CHARGE   = "Trip_Charge";   /* TODO verify via inspectors/inspect_deal_trip_charge.dg before deploy — assumed same display-label convention as the Events field */
+
 /* ============================================================
  * SHARED — CRM (Zoho) Users (built-in users endpoint)
  * ============================================================ */
@@ -178,12 +195,21 @@ RAMP_UP_BILLABLE_FROM.put("Elijah Good", "2026-10-01");  /* hired 2026-07-01 */
 FIELD_USER_ISOLVED_ID      = "iSolved_Employee_ID"; /* Phase 4b: custom field on Users, one-time backfill */
 
 /* ============================================================
+ * Week boundary — SUN-SAT for both reports as of 2026-09-05.
+ * Dustin 2026-08-31: "yours is still doing Monday to Sunday instead of
+ * Sunday to Saturday." Supersedes Henry's 2026-08-25 keep-Mon-Sun call:
+ * Dustin's manual report and the iSolved payroll week run Sun-Sat, and
+ * the actuals OT split caps iSolved hours at 40 over our window, so a
+ * window offset from the payroll week skews OT and Actual Hours Paid.
+ * ============================================================ */
+
+/* ============================================================
  * FORECAST — Friday 4 PM ET
  * Moved from Thursday per Dustin 2026-08-13: "Friday afternoon 3-4pm
  * for best results. Most of the data is going to be dependent Josh/PM
  * scheduling. I'll let him know that he should expect that deadline."
- * If this day changes again, scheduled_forecast.dg days_to_monday must
- * change with it (Friday = 3, Thursday = 4).
+ * If this day changes again, scheduled_forecast.dg days_to_sunday must
+ * change with it (Friday = 2, Thursday = 3).
  * ============================================================ */
 
 FORECAST_SCHEDULE_DAY      = "Friday";
@@ -200,7 +226,8 @@ FORECAST_WEEKLY_CAP_HRS    = 40;                    /* hard cap, overflow = OT *
 FORECAST_HISTORY_FORM      = "Utilization_Forecast_History";
 
 /* ============================================================
- * ACTUALS (LAGGING) — Monday 4 PM ET, reporting on the week ending 8 days prior
+ * ACTUALS (LAGGING) — Monday 4 PM ET, reporting on the Sun-Sat week
+ * ending 9 days prior (lag_week_start = run day - 15, end = - 9)
  * ============================================================ */
 
 ACTUALS_SCHEDULE_DAY       = "Monday";

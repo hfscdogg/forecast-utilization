@@ -92,7 +92,7 @@ Map generate_forecast(String week_start, String week_end)
     offsets = {0, 200, 400};
     for each off in offsets
     {
-        q = "SELECT id, Owner, Helper1, Event_Type, Event_Status, Trip_Charge, Duration_Hrs, Duration_Man_Hrs, Start_DateTime, End_DateTime FROM Events WHERE Start_DateTime <= '" + week_end + "' AND End_DateTime >= '" + week_start + "' LIMIT " + off + ", 200";
+        q = "SELECT id, Owner, Helper1, Event_Type, Event_Status, Trip_Charge, What_Id, Duration_Hrs, Duration_Man_Hrs, Start_DateTime, End_DateTime FROM Events WHERE Start_DateTime <= '" + week_end + "' AND End_DateTime >= '" + week_start + "' LIMIT " + off + ", 200";
         body = {"select_query": q};
         resp = invokeurl
         [
@@ -108,6 +108,70 @@ Map generate_forecast(String week_start, String week_end)
             {
                 all_events.add(evt);
             }
+        }
+    }
+
+    // ============================================================
+    // 1b. Pull the potential-side trip charge for every related record.
+    //     Dustin 2026-08-31 (actuals) and 2026-09-04 (forecast: "Trip
+    //     charges" was his whole diagnosis of the 9/7-9/13 delta): the
+    //     billable report carries TWO trip-charge fields — one on the
+    //     meeting (Events.Trip_Charge) and one on the related service
+    //     potential — and they drift, because potentials auto-created
+    //     from meetings never populate theirs while finish-out meetings
+    //     created from a potential can carry a blank event-side value.
+    //     The merge rule at the point of use keeps the positive one when
+    //     they differ. Non-Deal What_Ids match no rows; a failed Deals
+    //     query leaves the map empty and the run degrades to
+    //     event-side-only, today's behavior.
+    // ============================================================
+    deal_trip_by_id = Map();
+    what_ids = List();
+    for each evt in all_events
+    {
+        w = evt.get("What_Id");
+        if(w != null)
+        {
+            wid = w.get("id").toString();
+            if(!what_ids.contains(wid))
+            {
+                what_ids.add(wid);
+            }
+        }
+    }
+    id_chunk = "";
+    chunk_count = 0;
+    seen = 0;
+    for each wid in what_ids
+    {
+        if(id_chunk != "")
+        {
+            id_chunk = id_chunk + ",";
+        }
+        id_chunk = id_chunk + "'" + wid + "'";
+        chunk_count = chunk_count + 1;
+        seen = seen + 1;
+        if(chunk_count == 50 || seen == what_ids.size())
+        {
+            dq = "SELECT id, Trip_Charge FROM Deals WHERE id in (" + id_chunk + ") LIMIT 0, 200";
+            dbody = {"select_query": dq};
+            dresp = invokeurl
+            [
+                url: "https://www.zohoapis.com/crm/v6/coql"
+                type: POST
+                parameters: dbody.toString()
+                headers: auth_header
+            ];
+            ddata = dresp.get("data");
+            if(ddata != null)
+            {
+                for each d in ddata
+                {
+                    deal_trip_by_id.put(d.get("id").toString(), d.get("Trip_Charge"));
+                }
+            }
+            id_chunk = "";
+            chunk_count = 0;
         }
     }
 
@@ -194,8 +258,33 @@ Map generate_forecast(String week_start, String week_end)
                 }
 
                 et = evt.get("Event_Type");
+                // Merged trip-charge count across the event-side and
+                // potential-side fields (Dustin 2026-08-31: equal values
+                // collapse to one, differing values keep the positive one —
+                // both cases are a max, never a sum). A trip charge from
+                // EITHER source also suppresses the drive-time adder.
                 tc = evt.get("Trip_Charge");
-                no_trip = TRIP_CHARGE_NONE_VALUES.contains(tc);
+                event_trip = 0.0;
+                if(!TRIP_CHARGE_NONE_VALUES.contains(tc))
+                {
+                    event_trip = tc.toDecimal();
+                }
+                deal_trip = 0.0;
+                w = evt.get("What_Id");
+                if(w != null)
+                {
+                    dv = deal_trip_by_id.get(w.get("id").toString());
+                    if(!TRIP_CHARGE_NONE_VALUES.contains(dv))
+                    {
+                        deal_trip = dv.toDecimal();
+                    }
+                }
+                trip_count = event_trip;
+                if(deal_trip > trip_count)
+                {
+                    trip_count = deal_trip;
+                }
+                no_trip = (trip_count == 0);
 
                 if(EVENT_TYPES_BILLABLE.contains(et))
                 {
@@ -203,7 +292,6 @@ Map generate_forecast(String week_start, String week_end)
                     is_cancelled = (evt.get("Event_Status") == EVENT_STATUS_NOT_READY && hrs <= CANCELLED_EVENT_MAX_HOURS);
                     if(!no_trip && !is_cancelled)
                     {
-                        trip_count = tc.toDecimal();
                         if(helper != null && helper != "No Helper" && helper != "-None-" && helper != "")
                         {
                             trip_hrs = trip_count * TRIP_CHARGE_HOURS_PAIRED_PER_TECH;
