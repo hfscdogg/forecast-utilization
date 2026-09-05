@@ -59,7 +59,7 @@ Map generate_actuals(String week_start, String week_end, Map time_cards)
     offsets = {0, 200, 400};
     for each off in offsets
     {
-        q = "SELECT id, Owner, Helper1, Event_Type, Event_Status, Trip_Charge, Duration_Hrs, Duration_Man_Hrs, Start_DateTime, End_DateTime FROM Events WHERE Start_DateTime <= '" + week_end + "' AND End_DateTime >= '" + week_start + "' LIMIT " + off + ", 200";
+        q = "SELECT id, Owner, Helper1, Event_Type, Event_Status, Trip_Charge, What_Id, Duration_Hrs, Duration_Man_Hrs, Start_DateTime, End_DateTime FROM Events WHERE Start_DateTime <= '" + week_end + "' AND End_DateTime >= '" + week_start + "' LIMIT " + off + ", 200";
         body = {"select_query": q};
         resp = invokeurl
         [
@@ -75,6 +75,67 @@ Map generate_actuals(String week_start, String week_end, Map time_cards)
             {
                 all_events.add(evt);
             }
+        }
+    }
+
+    // Dustin 2026-08-31: the billable report carries TWO trip-charge fields —
+    // one on the meeting (Events.Trip_Charge) and one on the related service
+    // potential. Service potentials auto-created from meetings (98% of
+    // service scheduling) never populate their trip-charge field, and
+    // finish-out meetings created from a potential can carry a blank
+    // event-side value (this is what dropped Jim's trip charges from the
+    // 8/17-8/23 actuals). Pull the potential-side value for every related
+    // record; the merge rule below keeps the positive one when they differ.
+    // Non-Deal What_Ids simply match no rows; a failed Deals query leaves
+    // the map empty and the run degrades to event-side-only, today's
+    // behavior.
+    deal_trip_by_id = Map();
+    what_ids = List();
+    for each evt in all_events
+    {
+        w = evt.get("What_Id");
+        if(w != null)
+        {
+            wid = w.get("id").toString();
+            if(!what_ids.contains(wid))
+            {
+                what_ids.add(wid);
+            }
+        }
+    }
+    id_chunk = "";
+    chunk_count = 0;
+    seen = 0;
+    for each wid in what_ids
+    {
+        if(id_chunk != "")
+        {
+            id_chunk = id_chunk + ",";
+        }
+        id_chunk = id_chunk + "'" + wid + "'";
+        chunk_count = chunk_count + 1;
+        seen = seen + 1;
+        if(chunk_count == 50 || seen == what_ids.size())
+        {
+            dq = "SELECT id, Trip_Charge FROM Deals WHERE id in (" + id_chunk + ") LIMIT 0, 200";
+            dbody = {"select_query": dq};
+            dresp = invokeurl
+            [
+                url: "https://www.zohoapis.com/crm/v6/coql"
+                type: POST
+                parameters: dbody.toString()
+                headers: auth_header
+            ];
+            ddata = dresp.get("data");
+            if(ddata != null)
+            {
+                for each d in ddata
+                {
+                    deal_trip_by_id.put(d.get("id").toString(), d.get("Trip_Charge"));
+                }
+            }
+            id_chunk = "";
+            chunk_count = 0;
         }
     }
 
@@ -140,14 +201,37 @@ Map generate_actuals(String week_start, String week_end, Map time_cards)
                 et = evt.get("Event_Type");
                 if(EVENT_TYPES_BILLABLE.contains(et))
                 {
+                    // Merged trip-charge count across the event-side and
+                    // potential-side fields (Dustin 2026-08-31: equal values
+                    // collapse to one, differing values keep the positive
+                    // one — both cases are a max, never a sum).
                     trip_val = evt.get("Trip_Charge");
+                    event_trip = 0.0;
+                    if(trip_val != null && trip_val != "" && trip_val != "-None-" && trip_val != "0")
+                    {
+                        event_trip = trip_val.toDecimal();
+                    }
+                    deal_trip = 0.0;
+                    w = evt.get("What_Id");
+                    if(w != null)
+                    {
+                        dv = deal_trip_by_id.get(w.get("id").toString());
+                        if(dv != null && dv != "" && dv != "-None-" && dv != "0")
+                        {
+                            deal_trip = dv.toDecimal();
+                        }
+                    }
+                    trip_count = event_trip;
+                    if(deal_trip > trip_count)
+                    {
+                        trip_count = deal_trip;
+                    }
                     trip_hrs = 0.0;
                     // Cancelled events (1-minute duration, status Incomplete -
-                    // Job Not Ready) keep their Trip_Charge but bill nothing.
+                    // Job Not Ready) keep their trip charge but bill nothing.
                     is_cancelled = (evt.get("Event_Status") == "Incomplete - Job Not Ready" && hrs <= 0.1);
-                    if(!is_cancelled && trip_val != null && trip_val != "" && trip_val != "-None-" && trip_val != "0")
+                    if(!is_cancelled && trip_count > 0)
                     {
-                        trip_count = trip_val.toDecimal();
                         if(helper != null && helper != "No Helper" && helper != "-None-" && helper != "")
                         {
                             trip_hrs = trip_count * TRIP_CHARGE_HOURS_PAIRED_PER_TECH;

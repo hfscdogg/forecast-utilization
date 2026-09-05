@@ -1,7 +1,8 @@
 # Parallel Run Log
 
 Weekly comparison of the automated forecast against Dustin's manual numbers
-for the same Mon-Sun. The point is the same-moment apples-to-apples diff:
+for the same report week (Sun-Sat as of 2026-09-05, matching Dustin's manual
+week; Mon-Sun before that). The point is the same-moment apples-to-apples diff:
 both runs read CRM as it stands Thursday afternoon and produce numbers for
 the upcoming week. The 5/14 manual vs 5/21 automated mismatch we did during
 Phase 1 validation is *not* a parallel run; it was a snapshot mismatch.

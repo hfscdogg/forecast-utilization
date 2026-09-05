@@ -24,6 +24,7 @@ def make_event(
     event_status=None,
     helper1="No Helper",
     trip_charge=None,
+    potential_trip_charge=None,
 ):
     return {
         "Owner": owner,
@@ -33,6 +34,7 @@ def make_event(
         "Event_Type": event_type,
         "Event_Status": event_status,
         "Trip_Charge": trip_charge,
+        "Potential_Trip_Charge": potential_trip_charge,
     }
 
 
@@ -180,6 +182,51 @@ def test_trip_charge_on_cancelled_event_not_billed():
             0.0167,
             event_status="Incomplete - Job Not Ready",
             trip_charge="2",
+        ),
+    ]
+    result = actuals_for_technician("Ben", events, time_card_total=40.0)
+    assert result["hours_billed"] == pytest.approx(0.0167, abs=0.001)
+
+
+def test_potential_only_trip_charge_is_billed():
+    """Dustin 2026-08-31 (Jim's 8/17-8/23 trip charges): finish-out meetings
+    created from a potential can carry a blank event-side Trip_Charge while
+    the potential holds the real value. The merged count must bill it."""
+    events = [make_event("Jim", 6.0, trip_charge=None, potential_trip_charge="1")]
+    result = actuals_for_technician("Jim", events, time_card_total=40.0)
+    assert result["hours_billed"] == pytest.approx(8.0)  # 6 + 1 charge x 2 solo
+
+
+def test_matching_event_and_potential_trip_charges_count_once():
+    """Dustin's rule: "if its the same, discard one result" — the two fields
+    describe the same trip, so they must never sum."""
+    events = [make_event("Andre", 8.0, trip_charge="2", potential_trip_charge="2")]
+    result = actuals_for_technician("Andre", events, time_card_total=40.0)
+    assert result["hours_billed"] == pytest.approx(12.0)  # 8 + 2 charges x 2, once
+
+
+def test_differing_trip_charges_keep_the_positive_result():
+    """Dustin's rule: "if its different then keep the positive result" —
+    covers both a blank potential (event value wins) and a larger value on
+    either side."""
+    events = [make_event("Jason", 4.0, trip_charge="1", potential_trip_charge=None)]
+    result = actuals_for_technician("Jason", events, time_card_total=40.0)
+    assert result["hours_billed"] == pytest.approx(6.0)  # event-side "1" x 2
+
+    events = [make_event("Jason", 4.0, trip_charge="1", potential_trip_charge="2")]
+    result = actuals_for_technician("Jason", events, time_card_total=40.0)
+    assert result["hours_billed"] == pytest.approx(8.0)  # positive max "2" x 2
+
+
+def test_potential_trip_charge_on_cancelled_event_not_billed():
+    """The cancellation guard applies to the merged count too — a cancelled
+    out-of-town job must not bill its potential-side trip hours forever."""
+    events = [
+        make_event(
+            "Ben",
+            0.0167,
+            event_status="Incomplete - Job Not Ready",
+            potential_trip_charge="2",
         ),
     ]
     result = actuals_for_technician("Ben", events, time_card_total=40.0)
