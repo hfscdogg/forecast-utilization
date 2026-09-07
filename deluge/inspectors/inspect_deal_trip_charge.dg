@@ -1,16 +1,17 @@
 Map inspect_deal_trip_charge(String week_start, String week_end)
 {
-    // Verifies the two assumptions behind the dual trip-charge merge
-    // (Dustin 2026-08-31 / 2026-09-04, see config.dg FIELD_DEAL_TRIP_CHARGE):
-    //   1. The Potentials (Deals) module has a trip-charge field, and its
-    //      API name is Trip_Charge (display-label convention).
-    //   2. Events link to their potential through the built-in Related To
-    //      lookup (What_Id), so Events.What_Id.id matches Deals.id.
-    // Run it over a recent week and eyeball the output: fields_matching_trip
-    // should contain exactly one Deals field, and linked_samples should show
-    // events whose event-side and deal-side trip charges agree or drift the
-    // way Dustin described (deal-side blank on auto-created service
-    // potentials, event-side blank on finish-out meetings).
+    // ROUND 2 (2026-09-05). Round 1 found: Deals.Trip_Charge EXISTS but is a
+    // travel-band picklist ("Travel Band 1: 35-60 Miles from Livewire" ..
+    // "Travel Band 4"), and NONE of the 47 sampled What_Ids resolved in the
+    // Deals module — the meetings' Related To points somewhere else. This
+    // version answers two questions:
+    //   1. Which module does What_Id actually point to? (read $se_module off
+    //      a REST fetch of each sampled event)
+    //   2. Which modules carry a trip-charge-ish field? (scan field metadata
+    //      across every API-supported module)
+    // For each sampled event it also fetches the related record from its
+    // real module and lists any field whose name mentions "trip" with its
+    // value, so we can see the potential-side trip charge in the wild.
     token_resp = invokeurl
     [
         url: "https://accounts.zoho.com/oauth/v2/token"
@@ -23,47 +24,79 @@ Map inspect_deal_trip_charge(String week_start, String week_end)
 
     result = Map();
 
-    // 1. Deals field metadata — every field whose API name or display label
-    //    mentions "trip".
-    fields_resp = invokeurl
+    // ============================================================
+    // 1. Trip-charge-ish fields across ALL modules.
+    // ============================================================
+    modules_resp = invokeurl
     [
-        url: "https://www.zohoapis.com/crm/v6/settings/fields?module=Deals"
+        url: "https://www.zohoapis.com/crm/v6/settings/modules"
         type: GET
         headers: auth_header_get
     ];
-    trip_fields = List();
-    fields_data = fields_resp.get("fields");
-    if(fields_data != null)
+    trip_fields_by_module = Map();
+    modules_data = modules_resp.get("modules");
+    if(modules_data == null)
     {
-        for each f in fields_data
+        modules_data = List();
+    }
+    for each m in modules_data
+    {
+        m_api = m.get("api_name");
+        if(m.get("api_supported") == true)
         {
-            api_name = f.get("api_name");
-            label = f.get("field_label");
-            if(api_name.toLowerCase().contains("trip") || label.toLowerCase().contains("trip"))
+            try
             {
-                brief = Map();
-                brief.put("api_name", api_name);
-                brief.put("field_label", label);
-                brief.put("data_type", f.get("data_type"));
-                pick = f.get("pick_list_values");
-                if(pick != null)
+                fields_resp = invokeurl
+                [
+                    url: "https://www.zohoapis.com/crm/v6/settings/fields?module=" + m_api
+                    type: GET
+                    headers: auth_header_get
+                ];
+                fields_data = fields_resp.get("fields");
+                if(fields_data != null)
                 {
-                    vals = List();
-                    for each pv in pick
+                    matches = List();
+                    for each f in fields_data
                     {
-                        vals.add(pv.get("display_value"));
+                        api_name = f.get("api_name");
+                        label = f.get("field_label");
+                        if(api_name.toLowerCase().contains("trip") || label.toLowerCase().contains("trip"))
+                        {
+                            brief = Map();
+                            brief.put("api_name", api_name);
+                            brief.put("field_label", label);
+                            brief.put("data_type", f.get("data_type"));
+                            pick = f.get("pick_list_values");
+                            if(pick != null)
+                            {
+                                vals = List();
+                                for each pv in pick
+                                {
+                                    vals.add(pv.get("display_value"));
+                                }
+                                brief.put("pick_list_values", vals);
+                            }
+                            matches.add(brief);
+                        }
                     }
-                    brief.put("pick_list_values", vals);
+                    if(matches.size() > 0)
+                    {
+                        trip_fields_by_module.put(m_api, matches);
+                    }
                 }
-                trip_fields.add(brief);
+            }
+            catch (fe)
+            {
+                // Some modules reject the fields call; skip them.
             }
         }
     }
-    result.put("fields_matching_trip", trip_fields);
+    result.put("trip_fields_by_module", trip_fields_by_module);
 
-    // 2. Sample the week's events: resolve each What_Id against Deals and
-    //    show both trip-charge values side by side.
-    q = "SELECT id, Event_Type, Trip_Charge, What_Id, Owner FROM Events WHERE Start_DateTime <= '" + week_end + "' AND End_DateTime >= '" + week_start + "' LIMIT 0, 200";
+    // ============================================================
+    // 2. Sample the week's events and read $se_module via REST.
+    // ============================================================
+    q = "SELECT id, Event_Type, Trip_Charge, What_Id FROM Events WHERE Start_DateTime <= '" + week_end + "' AND End_DateTime >= '" + week_start + "' LIMIT 0, 200";
     body = {"select_query": q};
     resp = invokeurl
     [
@@ -78,48 +111,95 @@ Map inspect_deal_trip_charge(String week_start, String week_end)
         events_data = List();
     }
 
+    se_module_counts = Map();
     linked_samples = List();
-    unlinked_count = 0;
+    sampled = 0;
     for each evt in events_data
     {
         w = evt.get("What_Id");
-        if(w == null)
+        if(w != null && sampled < 10)
         {
-            unlinked_count = unlinked_count + 1;
-        }
-        else
-        {
-            wid = w.get("id").toString();
-            deal_resp = invokeurl
+            sampled = sampled + 1;
+            evt_resp = invokeurl
             [
-                url: "https://www.zohoapis.com/crm/v6/Deals/" + wid + "?fields=id,Deal_Name,Trip_Charge"
+                url: "https://www.zohoapis.com/crm/v6/Events/" + evt.get("id")
                 type: GET
                 headers: auth_header_get
             ];
-            deal_trip = null;
-            deal_name = null;
-            found = false;
-            deal_data = deal_resp.get("data");
-            if(deal_data != null && deal_data.size() > 0)
+            se_module = null;
+            what_name = null;
+            evt_data = evt_resp.get("data");
+            if(evt_data != null && evt_data.size() > 0)
             {
-                found = true;
-                deal_trip = deal_data.get(0).get("Trip_Charge");
-                deal_name = deal_data.get(0).get("Deal_Name");
+                rec = evt_data.get(0);
+                se_module = rec.get("$se_module");
+                what_rec = rec.get("What_Id");
+                if(what_rec != null)
+                {
+                    what_name = what_rec.get("name");
+                }
             }
+            if(se_module != null)
+            {
+                prev = se_module_counts.get(se_module);
+                if(prev == null)
+                {
+                    prev = 0;
+                }
+                se_module_counts.put(se_module, prev + 1);
+            }
+
             sample = Map();
             sample.put("event_id", evt.get("id"));
             sample.put("event_type", evt.get("Event_Type"));
             sample.put("event_trip_charge", evt.get("Trip_Charge"));
-            sample.put("what_id", wid);
-            sample.put("what_name", w.get("name"));
-            sample.put("resolves_to_deal", found);
-            sample.put("deal_name", deal_name);
-            sample.put("deal_trip_charge", deal_trip);
+            sample.put("what_id", w.get("id").toString());
+            sample.put("what_name", what_name);
+            sample.put("se_module", se_module);
+
+            // 3. Fetch the related record from its REAL module and surface
+            //    every field whose name mentions "trip".
+            if(se_module != null)
+            {
+                try
+                {
+                    rel_resp = invokeurl
+                    [
+                        url: "https://www.zohoapis.com/crm/v6/" + se_module + "/" + w.get("id").toString()
+                        type: GET
+                        headers: auth_header_get
+                    ];
+                    rel_data = rel_resp.get("data");
+                    if(rel_data != null && rel_data.size() > 0)
+                    {
+                        rel = rel_data.get(0);
+                        trip_values = Map();
+                        for each k in rel.keys()
+                        {
+                            if(k.toLowerCase().contains("trip"))
+                            {
+                                trip_values.put(k, rel.get(k));
+                            }
+                        }
+                        sample.put("related_record_found", true);
+                        sample.put("related_trip_fields", trip_values);
+                    }
+                    else
+                    {
+                        sample.put("related_record_found", false);
+                    }
+                }
+                catch (re)
+                {
+                    sample.put("related_record_found", false);
+                    sample.put("related_fetch_error", re.toString());
+                }
+            }
             linked_samples.add(sample);
         }
     }
     result.put("events_in_window", events_data.size());
-    result.put("events_without_related_record", unlinked_count);
+    result.put("se_module_counts", se_module_counts);
     result.put("linked_samples", linked_samples);
 
     info result;

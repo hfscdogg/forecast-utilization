@@ -10,6 +10,8 @@ Deluge equivalent of this shared module is deluge/config.dg.
 Reference: docs/field_mapping.md, docs/decisions.md (Dustin 2026-05-18).
 """
 
+import re
+
 EVENT_TYPES_BILLABLE = {
     "Trim-Out ($$$)",
     "Rough-In ($$$)",
@@ -109,13 +111,23 @@ def is_assigned_to(event, technician):
 
 def _trip_charge_count(value):
     """Parse one trip-charge field value to a count; malformed or none-ish
-    values contribute nothing rather than raising."""
+    values contribute nothing rather than raising.
+
+    Event-side values are numeric counts ("1".."4"). Potential-side values
+    are travel bands — inspector run 2026-09-05 on the live CRM:
+    "Travel Band 1: 35-60 Miles from Livewire" .. "Travel Band 4: 112-137
+    Miles from Livewire" (one typo variant "Travel Band4"). ASSUMPTION
+    pending Dustin's confirmation: band N is worth N trip charges."""
     if value in TRIP_CHARGE_NONE_VALUES:
         return 0.0
     try:
         return max(0.0, float(value))
     except (TypeError, ValueError):
-        return 0.0
+        pass
+    m = re.match(r"\s*Travel Band\s*(\d)", str(value))
+    if m:
+        return float(m.group(1))
+    return 0.0
 
 
 def effective_trip_charge_count(event):

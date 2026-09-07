@@ -490,10 +490,17 @@ names (`Lag_Week_Start` etc.) — only the dates they carry shift.
 5. **Event_Type categorization** (NEW) — see CRM Inspector Run above.
 6. **Cancellation tracking** (NEW) — see CRM Inspector Run above.
 7. **Technician identification** (NEW) — see CRM Inspector Run above.
-8. **Deals-side trip-charge field API name** — assumed `Trip_Charge` on the
-   `Deals` module. Run `deluge/inspectors/inspect_deal_trip_charge.dg` over a
-   recent week and confirm before deploying the dual-field merge; also
-   confirms `What_Id` resolves to the potential.
+8. **Deals-side trip-charge field API name** — ROUND 1 RUN (Henry,
+   2026-09-05, week 8/30-9/5): `Deals.Trip_Charge` EXISTS (picklist) but
+   holds travel bands, not counts — "Travel Band 1: 35-60 Miles from
+   Livewire" through "Travel Band 4: 112-137" plus a typo variant "Travel
+   Band4". Band parsing added to both generators and event_types.py (band
+   N = N trip charges, pending Dustin's confirmation). STILL OPEN: none of
+   the 47 sampled What_Ids resolved in `Deals`, so the related records live
+   in a different module and the merge finds nothing yet. Inspector round 2
+   reads `$se_module` per event and scans all modules for trip fields;
+   re-point the generators' Deals COQL at whatever it reports. Do NOT
+   promise Dustin corrected numbers until round 2 lands.
 9. **Upstream trip-charge sync** — Dustin to make the CRM automations copy
    the trip-charge field when creating service potentials from meetings and
    finish-out meetings from potentials ("We may need to streamline that

@@ -218,6 +218,38 @@ def test_differing_trip_charges_keep_the_positive_result():
     assert result["hours_billed"] == pytest.approx(8.0)  # positive max "2" x 2
 
 
+def test_potential_travel_band_maps_to_trip_charge_count():
+    """Inspector 2026-09-05: the potential-side field holds travel bands, not
+    counts ("Travel Band 2: 61-85 Miles from Livewire"). Band N = N trip
+    charges (assumption pending Dustin's confirmation), including the CRM's
+    typo variant "Travel Band4"."""
+    events = [
+        make_event(
+            "Jim",
+            6.0,
+            potential_trip_charge="Travel Band 2: 61-85 Miles from Livewire",
+        )
+    ]
+    result = actuals_for_technician("Jim", events, time_card_total=40.0)
+    assert result["hours_billed"] == pytest.approx(10.0)  # 6 + 2 charges x 2 solo
+
+    events = [
+        make_event(
+            "Jim",
+            6.0,
+            potential_trip_charge="Travel Band4: 112-137 Miles from Livewire",
+        )
+    ]
+    result = actuals_for_technician("Jim", events, time_card_total=40.0)
+    assert result["hours_billed"] == pytest.approx(14.0)  # 6 + 4 charges x 2 solo
+
+
+def test_unparseable_potential_trip_charge_contributes_nothing():
+    events = [make_event("Jim", 6.0, potential_trip_charge="Local: no charge")]
+    result = actuals_for_technician("Jim", events, time_card_total=40.0)
+    assert result["hours_billed"] == pytest.approx(6.0)
+
+
 def test_potential_trip_charge_on_cancelled_event_not_billed():
     """The cancellation guard applies to the merged count too — a cancelled
     out-of-town job must not bill its potential-side trip hours forever."""

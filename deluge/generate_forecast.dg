@@ -276,7 +276,25 @@ Map generate_forecast(String week_start, String week_end)
                     dv = deal_trip_by_id.get(w.get("id").toString());
                     if(!TRIP_CHARGE_NONE_VALUES.contains(dv))
                     {
-                        deal_trip = dv.toDecimal();
+                        // Potential-side values are travel bands, not counts
+                        // ("Travel Band 2: 61-85 Miles from Livewire" —
+                        // inspector 2026-09-05). ASSUMPTION pending Dustin:
+                        // band N = N trip charges. The endsWith check on the
+                        // part before the colon also covers plain numeric
+                        // values ("2").
+                        dv_str = dv + "";
+                        if(dv_str.contains(":"))
+                        {
+                            dv_str = dv_str.getPrefix(":");
+                        }
+                        dv_str = dv_str.trim();
+                        for each band_n in {"1", "2", "3", "4"}
+                        {
+                            if(dv_str.endsWith(band_n))
+                            {
+                                deal_trip = band_n.toDecimal();
+                            }
+                        }
                     }
                 }
                 trip_count = event_trip;

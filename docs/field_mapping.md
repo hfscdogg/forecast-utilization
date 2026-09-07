@@ -88,12 +88,21 @@ with `deluge/inspectors/inspect_deal_trip_charge.dg` before deploy**:
 
 | Display label | API name | Type | Notes |
 |---|---|---|---|
-| Related To | `What_Id` | lookup | Built-in on Events; `id` matches `Deals.id` for potentials. TODO confirm it is populated on service/finish-out meetings |
-| Trip Charge? (on Deals) | `Trip_Charge` | picklist? | TODO confirm API name and picklist values via inspector |
+| Related To | `What_Id` | lookup | Built-in on Events. Inspector round 1 (2026-09-05): populated on 47 of 55 events in the sample week, but NONE resolved in `Deals` — the target module is still unknown (round 2 of the inspector reads `$se_module` to find it) |
+| Trip Charge (on Deals) | `Trip_Charge` | picklist | CONFIRMED 2026-09-05. Values are travel bands, NOT counts: `-None-`, `Travel Band 1: 35-60 Miles from Livewire`, `Travel Band 2: 61-85 ...`, `Travel Band 3: 86-111 ...`, `Travel Band 4: 112-137 ...`, plus typo variant `Travel Band4: 112-137 ...` |
 
-The generators take the MAX of the event-side and deal-side counts (equal →
-one; different → the positive one; never a sum). The Python mirror sees the
-deal-side value merged onto the event as `Potential_Trip_Charge`.
+Band-to-count mapping: band N = N trip charges (ASSUMPTION pending Dustin's
+confirmation). The generators take the MAX of the event-side and deal-side
+counts (equal → one; different → the positive one; never a sum). The Python
+mirror sees the deal-side value merged onto the event as
+`Potential_Trip_Charge` and parses both numeric counts and band strings.
+
+**OPEN (blocking the merge going live):** since no sampled `What_Id`
+resolves in `Deals`, the potential-side lookup finds nothing yet — the
+related records live in another module (candidates: `Service_Tickets` /
+CustomModule1, or another custom module). Inspector round 2 reports
+`$se_module` per event plus every module carrying a trip-charge field; the
+generators' Deals COQL must be re-pointed once it answers.
 
 ### Helper1 picklist values (paired tech names)
 
