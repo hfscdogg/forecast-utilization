@@ -97,12 +97,15 @@ counts (equal → one; different → the positive one; never a sum). The Python
 mirror sees the deal-side value merged onto the event as
 `Potential_Trip_Charge` and parses both numeric counts and band strings.
 
-**OPEN (blocking the merge going live):** since no sampled `What_Id`
-resolves in `Deals`, the potential-side lookup finds nothing yet — the
-related records live in another module (candidates: `Service_Tickets` /
-CustomModule1, or another custom module). Inspector round 2 reports
-`$se_module` per event plus every module carrying a trip-charge field; the
-generators' Deals COQL must be re-pointed once it answers.
+**RESOLVED (inspector rounds 2-3, 2026-09-07):** `What_Id` does point at
+`Deals` — `$se_module` is "Deals" on every sampled event and deal names
+resolve — and Events/Deals are the only modules with trip-charge fields.
+The empty reads were `OAUTH_SCOPE_MISMATCH`: the refresh token was minted
+without a Deals read scope (Deals *field metadata* still read fine through
+the settings scope, which is why the picklist dump worked). Fix: re-mint
+the refresh token with `ZohoCRM.modules.READ` (helper:
+`deluge/inspectors/mint_refresh_token.dg`); the generators' Deals COQL is
+correct as written.
 
 ### Helper1 picklist values (paired tech names)
 

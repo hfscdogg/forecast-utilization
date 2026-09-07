@@ -495,12 +495,18 @@ names (`Lag_Week_Start` etc.) — only the dates they carry shift.
    holds travel bands, not counts — "Travel Band 1: 35-60 Miles from
    Livewire" through "Travel Band 4: 112-137" plus a typo variant "Travel
    Band4". Band parsing added to both generators and event_types.py (band
-   N = N trip charges, pending Dustin's confirmation). STILL OPEN: none of
-   the 47 sampled What_Ids resolved in `Deals`, so the related records live
-   in a different module and the merge finds nothing yet. Inspector round 2
-   reads `$se_module` per event and scans all modules for trip fields;
-   re-point the generators' Deals COQL at whatever it reports. Do NOT
-   promise Dustin corrected numbers until round 2 lands.
+   N = N trip charges, pending Dustin's confirmation).
+   ROUNDS 2-3 (2026-09-07): `What_Id` DOES point at Deals ($se_module
+   "Deals" on every sample; Events and Deals are the only modules with
+   trip-charge fields), and the empty reads were OAUTH_SCOPE_MISMATCH —
+   "user does not have a scope permission to access the module: Deals".
+   The original refresh token was minted without a Deals read scope. Fix:
+   mint a new refresh token via the existing Self Client with scopes
+   ZohoCRM.modules.READ, ZohoCRM.users.READ, ZohoCRM.coql.READ,
+   ZohoCRM.settings.READ (helper: inspectors/mint_refresh_token.dg) and
+   update the ZOHO_REFRESH_TOKEN Creator variable; the generators are
+   correct as written. Verify with inspector round 3, then deploy the
+   generators.
 9. **Upstream trip-charge sync** — Dustin to make the CRM automations copy
    the trip-charge field when creating service potentials from meetings and
    finish-out meetings from potentials ("We may need to streamline that
