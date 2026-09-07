@@ -1,17 +1,16 @@
 Map inspect_deal_trip_charge(String week_start, String week_end)
 {
-    // ROUND 2 (2026-09-05). Round 1 found: Deals.Trip_Charge EXISTS but is a
-    // travel-band picklist ("Travel Band 1: 35-60 Miles from Livewire" ..
-    // "Travel Band 4"), and NONE of the 47 sampled What_Ids resolved in the
-    // Deals module — the meetings' Related To points somewhere else. This
-    // version answers two questions:
-    //   1. Which module does What_Id actually point to? (read $se_module off
-    //      a REST fetch of each sampled event)
-    //   2. Which modules carry a trip-charge-ish field? (scan field metadata
-    //      across every API-supported module)
-    // For each sampled event it also fetches the related record from its
-    // real module and lists any field whose name mentions "trip" with its
-    // value, so we can see the potential-side trip charge in the wild.
+    // ROUND 3 (2026-09-07). Round 2 proved What_Id DOES point to Deals
+    // ($se_module = "Deals" on all 10 samples, deal names resolve on the
+    // event), yet both the Deals COQL (round 1) and the record GET (rounds
+    // 1-2) came back empty. Both earlier rounds discarded the error body,
+    // so this round returns the RAW responses to name the failure. Leading
+    // suspect: the OAuth grant (or the API user's profile) covers Events
+    // but not Deals records — field metadata reads through the settings
+    // scope, which is why the picklist dump worked anyway. If the raw
+    // responses show OAUTH_SCOPE_MISMATCH or NO_PERMISSION, no code change
+    // fixes it: the refresh token must be re-minted with a Deals read
+    // scope (or the profile granted Deals access).
     token_resp = invokeurl
     [
         url: "https://accounts.zoho.com/oauth/v2/token"
@@ -24,79 +23,8 @@ Map inspect_deal_trip_charge(String week_start, String week_end)
 
     result = Map();
 
-    // ============================================================
-    // 1. Trip-charge-ish fields across ALL modules.
-    // ============================================================
-    modules_resp = invokeurl
-    [
-        url: "https://www.zohoapis.com/crm/v6/settings/modules"
-        type: GET
-        headers: auth_header_get
-    ];
-    trip_fields_by_module = Map();
-    modules_data = modules_resp.get("modules");
-    if(modules_data == null)
-    {
-        modules_data = List();
-    }
-    for each m in modules_data
-    {
-        m_api = m.get("api_name");
-        if(m.get("api_supported") == true)
-        {
-            try
-            {
-                fields_resp = invokeurl
-                [
-                    url: "https://www.zohoapis.com/crm/v6/settings/fields?module=" + m_api
-                    type: GET
-                    headers: auth_header_get
-                ];
-                fields_data = fields_resp.get("fields");
-                if(fields_data != null)
-                {
-                    matches = List();
-                    for each f in fields_data
-                    {
-                        api_name = f.get("api_name");
-                        label = f.get("field_label");
-                        if(api_name.toLowerCase().contains("trip") || label.toLowerCase().contains("trip"))
-                        {
-                            brief = Map();
-                            brief.put("api_name", api_name);
-                            brief.put("field_label", label);
-                            brief.put("data_type", f.get("data_type"));
-                            pick = f.get("pick_list_values");
-                            if(pick != null)
-                            {
-                                vals = List();
-                                for each pv in pick
-                                {
-                                    vals.add(pv.get("display_value"));
-                                }
-                                brief.put("pick_list_values", vals);
-                            }
-                            matches.add(brief);
-                        }
-                    }
-                    if(matches.size() > 0)
-                    {
-                        trip_fields_by_module.put(m_api, matches);
-                    }
-                }
-            }
-            catch (fe)
-            {
-                // Some modules reject the fields call; skip them.
-            }
-        }
-    }
-    result.put("trip_fields_by_module", trip_fields_by_module);
-
-    // ============================================================
-    // 2. Sample the week's events and read $se_module via REST.
-    // ============================================================
-    q = "SELECT id, Event_Type, Trip_Charge, What_Id FROM Events WHERE Start_DateTime <= '" + week_end + "' AND End_DateTime >= '" + week_start + "' LIMIT 0, 200";
+    // 1. Collect a few real deal ids from this week's events.
+    q = "SELECT id, What_Id FROM Events WHERE Start_DateTime <= '" + week_end + "' AND End_DateTime >= '" + week_start + "' LIMIT 0, 200";
     body = {"select_query": q};
     resp = invokeurl
     [
@@ -110,97 +38,64 @@ Map inspect_deal_trip_charge(String week_start, String week_end)
     {
         events_data = List();
     }
-
-    se_module_counts = Map();
-    linked_samples = List();
-    sampled = 0;
+    deal_ids = List();
     for each evt in events_data
     {
         w = evt.get("What_Id");
-        if(w != null && sampled < 10)
+        if(w != null && deal_ids.size() < 3)
         {
-            sampled = sampled + 1;
-            evt_resp = invokeurl
-            [
-                url: "https://www.zohoapis.com/crm/v6/Events/" + evt.get("id")
-                type: GET
-                headers: auth_header_get
-            ];
-            se_module = null;
-            what_name = null;
-            evt_data = evt_resp.get("data");
-            if(evt_data != null && evt_data.size() > 0)
+            wid = w.get("id").toString();
+            if(!deal_ids.contains(wid))
             {
-                rec = evt_data.get(0);
-                se_module = rec.get("$se_module");
-                what_rec = rec.get("What_Id");
-                if(what_rec != null)
-                {
-                    what_name = what_rec.get("name");
-                }
+                deal_ids.add(wid);
             }
-            if(se_module != null)
-            {
-                prev = se_module_counts.get(se_module);
-                if(prev == null)
-                {
-                    prev = 0;
-                }
-                se_module_counts.put(se_module, prev + 1);
-            }
-
-            sample = Map();
-            sample.put("event_id", evt.get("id"));
-            sample.put("event_type", evt.get("Event_Type"));
-            sample.put("event_trip_charge", evt.get("Trip_Charge"));
-            sample.put("what_id", w.get("id").toString());
-            sample.put("what_name", what_name);
-            sample.put("se_module", se_module);
-
-            // 3. Fetch the related record from its REAL module and surface
-            //    every field whose name mentions "trip".
-            if(se_module != null)
-            {
-                try
-                {
-                    rel_resp = invokeurl
-                    [
-                        url: "https://www.zohoapis.com/crm/v6/" + se_module + "/" + w.get("id").toString()
-                        type: GET
-                        headers: auth_header_get
-                    ];
-                    rel_data = rel_resp.get("data");
-                    if(rel_data != null && rel_data.size() > 0)
-                    {
-                        rel = rel_data.get(0);
-                        trip_values = Map();
-                        for each k in rel.keys()
-                        {
-                            if(k.toLowerCase().contains("trip"))
-                            {
-                                trip_values.put(k, rel.get(k));
-                            }
-                        }
-                        sample.put("related_record_found", true);
-                        sample.put("related_trip_fields", trip_values);
-                    }
-                    else
-                    {
-                        sample.put("related_record_found", false);
-                    }
-                }
-                catch (re)
-                {
-                    sample.put("related_record_found", false);
-                    sample.put("related_fetch_error", re.toString());
-                }
-            }
-            linked_samples.add(sample);
         }
     }
-    result.put("events_in_window", events_data.size());
-    result.put("se_module_counts", se_module_counts);
-    result.put("linked_samples", linked_samples);
+    result.put("sample_deal_ids", deal_ids);
+
+    if(deal_ids.size() > 0)
+    {
+        // 2. RAW response of a v6 REST GET on one deal, fields param included.
+        raw_get = invokeurl
+        [
+            url: "https://www.zohoapis.com/crm/v6/Deals/" + deal_ids.get(0) + "?fields=id,Deal_Name,Trip_Charge"
+            type: GET
+            headers: auth_header_get
+        ];
+        result.put("deals_rest_get_raw", raw_get);
+
+        // 3. RAW response of the same COQL shape the generators use.
+        in_list = "";
+        for each did in deal_ids
+        {
+            if(in_list != "")
+            {
+                in_list = in_list + ",";
+            }
+            in_list = in_list + "'" + did + "'";
+        }
+        dq = "SELECT id, Deal_Name, Trip_Charge FROM Deals WHERE id in (" + in_list + ") LIMIT 0, 10";
+        dbody = {"select_query": dq};
+        raw_coql = invokeurl
+        [
+            url: "https://www.zohoapis.com/crm/v6/coql"
+            type: POST
+            parameters: dbody.toString()
+            headers: auth_header
+        ];
+        result.put("deals_coql_raw", raw_coql);
+
+        // 4. Control: the same REST GET shape against an Events record,
+        //    which we know the grant can read — proves the request shape
+        //    is right and isolates the difference to the Deals module.
+        control_get = invokeurl
+        [
+            url: "https://www.zohoapis.com/crm/v6/Events/" + events_data.get(0).get("id") + "?fields=id,Event_Type,Trip_Charge"
+            type: GET
+            headers: auth_header_get
+        ];
+        result.put("events_rest_get_control_raw", control_get);
+    }
 
     info result;
     return result;
