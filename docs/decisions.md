@@ -505,8 +505,12 @@ names (`Lag_Week_Start` etc.) — only the dates they carry shift.
    ZohoCRM.modules.READ, ZohoCRM.users.READ, ZohoCRM.coql.READ,
    ZohoCRM.settings.READ (helper: inspectors/mint_refresh_token.dg) and
    update the ZOHO_REFRESH_TOKEN Creator variable; the generators are
-   correct as written. Verify with inspector round 3, then deploy the
-   generators.
+   correct as written.
+   RESOLVED 2026-09-07: Henry re-minted the token and swapped the
+   variable; inspector round 3 re-run returns Deals records (names +
+   Trip_Charge) through both the REST GET and the generators' COQL shape.
+   Remaining assumption: Travel Band N = N trip charges — confirm with
+   Dustin.
 9. **Upstream trip-charge sync** — Dustin to make the CRM automations copy
    the trip-charge field when creating service potentials from meetings and
    finish-out meetings from potentials ("We may need to streamline that
