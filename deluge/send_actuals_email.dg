@@ -322,7 +322,9 @@ void send_actuals_email(Map result)
                     if(ri > header_idx && row.size() > col_we)
                     {
                         we_cell = row.get(col_we);
-                        if(we_cell.matches("^\\d{1,4}[/\\-]\\d{1,2}[/\\-]\\d{1,4}$"))
+                        // The published CSV emits dates AS DISPLAYED in the
+                        // sheet, so accept both "9/7" and "9/7/2026".
+                        if(we_cell.matches("^\\d{1,4}[/\\-]\\d{1,2}([/\\-]\\d{1,4})?$"))
                         {
                             has_entry = false;
                             for each mc in metric_cols
