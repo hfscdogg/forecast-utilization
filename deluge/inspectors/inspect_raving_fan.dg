@@ -1,0 +1,75 @@
+Map inspect_raving_fan()
+{
+    // Dry-run of the Raving Fan snapshot block in send_actuals_email.dg.
+    // Runs the exact same CSV fetch and row-parsing the email uses and
+    // returns what the block would render — without sending anything.
+    // The email block fails silently by design, so this is the way to
+    // check it before a Monday run. Both the email and the dashboard
+    // (hfscdogg.github.io/raving-fan) read the same published sheet;
+    // expected columns: Week Beginning, Week Ending, Reviews, Mentions,
+    // Referrals, Repeat, Fan Score. If would_render is false or the
+    // values look wrong, the sheet's columns have drifted — compare
+    // last_csv_line against the expected order.
+    RAVING_FAN_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRsQaH6Q29LCTAkbX_t8_yB3cTXLcXt9EUU9OEn8xE8vzla4j8ijx7Wb1exPNAuDUw79_EBil_N2Gfc/pub?output=csv";
+
+    result = Map();
+    result.put("would_render", false);
+    try
+    {
+        rf_resp = invokeurl
+        [
+            url: RAVING_FAN_CSV_URL
+            type: GET
+        ];
+        rf_text = rf_resp + "";
+        if(rf_text == null || rf_text == "")
+        {
+            result.put("failure", "CSV fetch returned empty");
+            info result;
+            return result;
+        }
+        rf_lines = rf_text.toList("\n");
+        result.put("csv_line_count", rf_lines.size());
+        last_line = "";
+        rf_target = null;
+        for each line in rf_lines
+        {
+            cells = line.toList(",");
+            if(cells.size() >= 7)
+            {
+                week_end_cell = cells.get(1).trim();
+                fan_score_cell = cells.get(6).trim();
+                if(week_end_cell.contains("/") && fan_score_cell.matches("^\\d+$"))
+                {
+                    rf_target = cells;
+                    last_line = line;
+                }
+            }
+        }
+        if(rf_target == null)
+        {
+            result.put("failure", "no row matched the block's shape (>=7 cells, col 1 a date with '/', col 6 an integer) — columns have likely drifted");
+            if(rf_lines.size() > 0)
+            {
+                result.put("first_csv_line", rf_lines.get(0));
+                result.put("last_csv_line", rf_lines.get(rf_lines.size() - 1));
+            }
+            info result;
+            return result;
+        }
+        result.put("would_render", true);
+        result.put("week_ending", rf_target.get(1).trim());
+        result.put("reviews", rf_target.get(2).trim());
+        result.put("mentions", rf_target.get(3).trim());
+        result.put("referrals", rf_target.get(4).trim());
+        result.put("repeat", rf_target.get(5).trim());
+        result.put("fan_score", rf_target.get(6).trim());
+        result.put("last_csv_line", last_line);
+    }
+    catch (e)
+    {
+        result.put("failure", e.toString());
+    }
+    info result;
+    return result;
+}
