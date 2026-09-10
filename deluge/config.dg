@@ -204,15 +204,19 @@ FIELD_USER_ISOLVED_ID      = "iSolved_Employee_ID"; /* Phase 4b: custom field on
  * ============================================================ */
 
 /* ============================================================
- * FORECAST — Friday 4 PM ET
- * Moved from Thursday per Dustin 2026-08-13: "Friday afternoon 3-4pm
- * for best results. Most of the data is going to be dependent Josh/PM
- * scheduling. I'll let him know that he should expect that deadline."
+ * FORECAST — Thursday 4 PM ET
+ * Moved back to Thursday per Henry 2026-09-10 ("change delivery time
+ * of forecast to thursdays at 4 p.m. et"). Supersedes Dustin's
+ * 2026-08-13 Friday preference ("Friday afternoon 3-4pm for best
+ * results. Most of the data is going to be dependent Josh/PM
+ * scheduling") — Thursday forecasts may see slightly less complete PM
+ * scheduling.
  * If this day changes again, scheduled_forecast.dg days_to_sunday must
- * change with it (Friday = 2, Thursday = 3).
+ * change with it (Thursday = 3, Friday = 2), and the Creator schedule
+ * day must be flipped in the schedule settings UI at the same time.
  * ============================================================ */
 
-FORECAST_SCHEDULE_DAY      = "Friday";
+FORECAST_SCHEDULE_DAY      = "Thursday";
 FORECAST_SCHEDULE_TIME     = "16:00";               /* America/New_York */
 FORECAST_TIMEZONE          = "America/New_York";
 
@@ -277,9 +281,12 @@ ISOLVED_NAME_ALIAS_JAMES_ZIMMERMAN = "Jim Zimmerman";
  * ============================================================ */
 
 EMAIL_SENDER               = "henry@getlivewire.com";
-EMAIL_PARALLEL_RUN_TO      = list("henry@getlivewire.com");    /* Henry-only until 2-week parallel match */
-EMAIL_FULL_DISTRIBUTION    = list("henry@getlivewire.com");    /* TODO: expand at cutover — Leadership/PM/Logistics */
-EMAIL_FAILURE_ALERT_TO     = "henry@getlivewire.com";
+/* Cutover — Henry 2026-09-10: both reports go to all@getlivewire.com
+ * effective immediately. Supersedes the parallel-run Henry-only address
+ * and Dustin's 8/28 group-list suggestion (PM/Leadership/Logistics for
+ * forecast, + Production for utilization). */
+EMAIL_FULL_DISTRIBUTION    = list("all@getlivewire.com");
+EMAIL_FAILURE_ALERT_TO     = "henry@getlivewire.com";          /* failure alerts stay Henry-only */
 
 /* Brand styling — restyle in Phase 2 from claude.ai/design/p/9c200e29-... guide.
  * Defaults are clean/neutral placeholders. */

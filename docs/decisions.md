@@ -481,6 +481,23 @@ upcoming Sun-Sat (`days_to_sunday = 2`). Email subjects and labels derive
 from the dates, so they follow automatically. History rows keep their field
 names (`Lag_Week_Start` etc.) — only the dates they carry shift.
 
+## 2026-09-10 — Henry (distribution cutover + forecast day)
+
+Henry: "forecast & utilization reports going to all@getlivewire.com
+effective immediately" and "change delivery time of forecast to thursdays
+at 4 p.m. et."
+
+- **Distribution**: both `send_forecast_email.dg` and
+  `send_actuals_email.dg` now send to `all@getlivewire.com`. Supersedes
+  the Henry-only parallel-run address and Dustin's 8/28 group-list
+  suggestion (PM/Leadership/Logistics, + Production for utilization).
+  Failure alerts stay Henry-only.
+- **Forecast day**: back to Thursday 4 PM ET (`days_to_sunday = 3`; the
+  Creator schedule day flips Friday→Thursday in the schedule UI at the
+  same moment). Supersedes Dustin's 2026-08-13 Friday preference; noted
+  trade-off: PM scheduling may be slightly less complete on Thursdays.
+- Actuals stay Monday 4 PM ET.
+
 ## Open verification items (not blocking, surface during build)
 
 1. **30-min adder scope** — spec Section 5.2 is ambiguous whether it applies to all non-trip events or only non-billable. Ask Dustin during parallel-run reconciliation.
