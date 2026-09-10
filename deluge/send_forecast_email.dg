@@ -19,8 +19,11 @@ void send_forecast_email(Map result)
     STATUS_YELLOW_COLOR = "#B7950B";
     STATUS_RED_COLOR = "#C0392B";
 
-    // Henry-only during parallel run. Widen at cutover.
-    EMAIL_TO = "henry@getlivewire.com";
+    // Full distribution — Henry 2026-09-10: "forecast & utilization
+    // reports going to all@getlivewire.com effective immediately."
+    // Supersedes the Henry-only parallel-run address and Dustin's 8/28
+    // group-list suggestion (PM/Leadership/Logistics).
+    EMAIL_TO = "all@getlivewire.com";
     EMAIL_SENDER = "henry@getlivewire.com";
 
     techs = result.get("techs");

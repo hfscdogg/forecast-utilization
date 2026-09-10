@@ -23,7 +23,11 @@ void send_actuals_email(Map result)
     RAVING_FAN_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRsQaH6Q29LCTAkbX_t8_yB3cTXLcXt9EUU9OEn8xE8vzla4j8ijx7Wb1exPNAuDUw79_EBil_N2Gfc/pub?output=csv";
     RAVING_FAN_URL = "https://hfscdogg.github.io/raving-fan/";
 
-    EMAIL_TO = "henry@getlivewire.com";
+    // Full distribution — Henry 2026-09-10: "forecast & utilization
+    // reports going to all@getlivewire.com effective immediately."
+    // Supersedes the Henry-only parallel-run address and Dustin's 8/28
+    // group-list suggestion (PM/Leadership/Logistics + Production).
+    EMAIL_TO = "all@getlivewire.com";
     EMAIL_SENDER = "henry@getlivewire.com";
 
     techs = result.get("techs");
