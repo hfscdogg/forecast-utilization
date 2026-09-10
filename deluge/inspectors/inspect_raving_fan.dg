@@ -153,6 +153,22 @@ Map inspect_raving_fan()
         col_map.put("repeat", col_rep);
         col_map.put("fan_score", col_fs);
         result.put("column_map", col_map);
+        // Always show the first rows after the header so a non-matching
+        // date or metric format is visible instead of guessed at.
+        sample_rows = List();
+        if(header_idx >= 0)
+        {
+            si = 0;
+            for each row in rf_rows
+            {
+                if(si > header_idx && si <= header_idx + 6)
+                {
+                    sample_rows.add(row);
+                }
+                si = si + 1;
+            }
+        }
+        result.put("sample_rows_after_header", sample_rows);
         metric_cols = List();
         metric_cols.add(col_rev);
         metric_cols.add(col_men);
@@ -167,7 +183,9 @@ Map inspect_raving_fan()
                 if(ri > header_idx && row.size() > col_we)
                 {
                     we_cell = row.get(col_we);
-                    if(we_cell.matches("^\\d{1,4}[/\\-]\\d{1,2}[/\\-]\\d{1,4}$"))
+                    // The published CSV emits dates AS DISPLAYED in the
+                    // sheet, so accept both "9/7" and "9/7/2026".
+                    if(we_cell.matches("^\\d{1,4}[/\\-]\\d{1,2}([/\\-]\\d{1,4})?$"))
                     {
                         has_entry = false;
                         for each mc in metric_cols
