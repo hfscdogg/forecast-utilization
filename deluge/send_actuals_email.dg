@@ -177,29 +177,204 @@ void send_actuals_email(Map result)
         rf_text = rf_resp + "";
         if(rf_text != null && rf_text != "")
         {
+            // Header-aware parsing, ported from the dashboard
+            // (hfscdogg/raving-fan index.html parseScorecard) after the
+            // fixed-position version matched nothing on the live sheet
+            // (verified 2026-09-10 via inspect_raving_fan): the sheet has
+            // decorative rows above/below the table and its columns have
+            // drifted before, so columns are located by header TEXT.
+            // Deluge's toList drops empty tokens, which would silently
+            // shift sparse rows — pad a space after every comma (and one
+            // in front for a leading empty cell) so every cell survives.
             rf_lines = rf_text.toList("\n");
-            rf_target = null;
+            rf_rows = List();
             for each line in rf_lines
             {
-                cells = line.toList(",");
-                if(cells.size() >= 7)
+                padded = " " + line.replaceAll(",", ", ");
+                raw_cells = padded.toList(",");
+                row = List();
+                for each c in raw_cells
                 {
-                    week_end_cell = cells.get(1).trim();
-                    fan_score_cell = cells.get(6).trim();
-                    if(week_end_cell.contains("/") && fan_score_cell.matches("^\\d+$"))
+                    row.add(c.trim());
+                }
+                rf_rows.add(row);
+            }
+            // Header row: "Week Ending" + "Total Fan Score" together (or
+            // "Week Beginning" as fallback), matching the dashboard.
+            header_idx = -1;
+            ri = 0;
+            for each row in rf_rows
+            {
+                has_we = false;
+                has_fs = false;
+                has_wb = false;
+                for each c in row
+                {
+                    lc = c.toLowerCase();
+                    if(lc.contains("week ending"))
                     {
-                        rf_target = cells;
+                        has_we = true;
                     }
+                    if(lc.contains("total fan score"))
+                    {
+                        has_fs = true;
+                    }
+                    if(lc.contains("week beginning"))
+                    {
+                        has_wb = true;
+                    }
+                }
+                if(header_idx < 0 && ((has_we && has_fs) || has_wb))
+                {
+                    header_idx = ri;
+                }
+                ri = ri + 1;
+            }
+            // Map columns by header name; backfill any missing from the
+            // sheet's fixed order relative to Week Beginning.
+            col_wb = -1;
+            col_we = -1;
+            col_rev = -1;
+            col_men = -1;
+            col_ref = -1;
+            col_rep = -1;
+            col_fs = -1;
+            if(header_idx >= 0)
+            {
+                hrow = rf_rows.get(header_idx);
+                ci = 0;
+                for each c in hrow
+                {
+                    lc = c.toLowerCase();
+                    if(col_wb < 0 && lc.contains("week beginning"))
+                    {
+                        col_wb = ci;
+                    }
+                    if(col_we < 0 && lc.contains("week ending"))
+                    {
+                        col_we = ci;
+                    }
+                    if(col_rev < 0 && lc.contains("5-star"))
+                    {
+                        col_rev = ci;
+                    }
+                    if(col_men < 0 && lc.contains("mentioning staff"))
+                    {
+                        col_men = ci;
+                    }
+                    if(col_ref < 0 && lc.contains("referred leads"))
+                    {
+                        col_ref = ci;
+                    }
+                    if(col_rep < 0 && lc.contains("repeat clients"))
+                    {
+                        col_rep = ci;
+                    }
+                    if(col_fs < 0 && lc.contains("total fan score"))
+                    {
+                        col_fs = ci;
+                    }
+                    ci = ci + 1;
+                }
+                if(col_wb >= 0)
+                {
+                    if(col_we < 0)
+                    {
+                        col_we = col_wb + 1;
+                    }
+                    if(col_rev < 0)
+                    {
+                        col_rev = col_wb + 2;
+                    }
+                    if(col_men < 0)
+                    {
+                        col_men = col_wb + 3;
+                    }
+                    if(col_ref < 0)
+                    {
+                        col_ref = col_wb + 4;
+                    }
+                    if(col_rep < 0)
+                    {
+                        col_rep = col_wb + 5;
+                    }
+                    if(col_fs < 0)
+                    {
+                        col_fs = col_wb + 6;
+                    }
+                }
+            }
+            metric_cols = List();
+            metric_cols.add(col_rev);
+            metric_cols.add(col_men);
+            metric_cols.add(col_ref);
+            metric_cols.add(col_rep);
+            // Latest completed week: the LAST row after the header whose
+            // Week Ending is a real date AND that has at least one metric
+            // filled in — the sheet pre-fills the whole quarter's week
+            // rows, so empty future weeks must not render as zeros.
+            rf_target = null;
+            if(header_idx >= 0 && col_we >= 0)
+            {
+                ri = 0;
+                for each row in rf_rows
+                {
+                    if(ri > header_idx && row.size() > col_we)
+                    {
+                        we_cell = row.get(col_we);
+                        if(we_cell.matches("^\\d{1,4}[/\\-]\\d{1,2}[/\\-]\\d{1,4}$"))
+                        {
+                            has_entry = false;
+                            for each mc in metric_cols
+                            {
+                                if(mc >= 0 && row.size() > mc && row.get(mc) != "")
+                                {
+                                    has_entry = true;
+                                }
+                            }
+                            if(has_entry)
+                            {
+                                rf_target = row;
+                            }
+                        }
+                    }
+                    ri = ri + 1;
                 }
             }
             if(rf_target != null)
             {
-                rf_week_end = rf_target.get(1).trim();
-                rf_reviews = rf_target.get(2).trim();
-                rf_mentions = rf_target.get(3).trim();
-                rf_referrals = rf_target.get(4).trim();
-                rf_repeat = rf_target.get(5).trim();
-                rf_fan_score = rf_target.get(6).trim();
+                rf_week_end = rf_target.get(col_we);
+                rf_reviews = 0;
+                if(col_rev >= 0 && rf_target.size() > col_rev && rf_target.get(col_rev).matches("^\\d+$"))
+                {
+                    rf_reviews = rf_target.get(col_rev).toLong();
+                }
+                rf_mentions = 0;
+                if(col_men >= 0 && rf_target.size() > col_men && rf_target.get(col_men).matches("^\\d+$"))
+                {
+                    rf_mentions = rf_target.get(col_men).toLong();
+                }
+                rf_referrals = 0;
+                if(col_ref >= 0 && rf_target.size() > col_ref && rf_target.get(col_ref).matches("^\\d+$"))
+                {
+                    rf_referrals = rf_target.get(col_ref).toLong();
+                }
+                rf_repeat = 0;
+                if(col_rep >= 0 && rf_target.size() > col_rep && rf_target.get(col_rep).matches("^\\d+$"))
+                {
+                    rf_repeat = rf_target.get(col_rep).toLong();
+                }
+                // Fan Score: the sheet's cell when populated, else the sum
+                // of the four metrics (dashboard behavior).
+                rf_fan_score = 0;
+                if(col_fs >= 0 && rf_target.size() > col_fs && rf_target.get(col_fs).matches("^\\d+$"))
+                {
+                    rf_fan_score = rf_target.get(col_fs).toLong();
+                }
+                if(rf_fan_score == 0)
+                {
+                    rf_fan_score = rf_reviews + rf_mentions + rf_referrals + rf_repeat;
+                }
 
                 metric_label_style = "margin:0 0 6px;font-family:" + RF_SANS_STACK + ";font-size:10.5px;letter-spacing:0.24em;text-transform:uppercase;font-weight:600;color:" + RF_TEXT_SECONDARY + ";";
                 metric_value_style = "margin:0;font-family:" + RF_SERIF_STACK + ";font-size:32px;line-height:1;font-weight:400;color:" + RF_TEXT_PRIMARY + ";letter-spacing:-0.02em;";
