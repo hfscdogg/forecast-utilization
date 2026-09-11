@@ -24,6 +24,7 @@ from datetime import datetime
 from event_types import (
     event_category,
     is_assigned_to,
+    is_block_event,
     qualifies_for_drive_adder,
     trip_charge_hours,
 )
@@ -68,6 +69,10 @@ def forecast_for_technician(technician, events, window_start=None, window_end=No
     Duration_Hrs is used (synthetic tests use this path).
     """
     tech_events = [e for e in events if is_assigned_to(e, technician)]
+    # Multi-day / all-day scheduling blocks contribute nothing anywhere
+    # (hours, trip charges, adder); the email surfaces them in a banner.
+    block_events_count = sum(1 for e in tech_events if is_block_event(e))
+    tech_events = [e for e in tech_events if not is_block_event(e)]
 
     billable_hours = 0.0
     non_billable_hours = 0.0
@@ -133,4 +138,5 @@ def forecast_for_technician(technician, events, window_start=None, window_end=No
         "forecast_utilization": forecast_utilization,
         "training_drove_ot": training_drove_ot,
         "unknown_event_types": sorted(t for t in unknown_types if t is not None),
+        "block_events_count": block_events_count,
     }

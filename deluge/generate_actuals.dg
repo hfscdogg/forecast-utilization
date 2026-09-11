@@ -32,6 +32,13 @@ Map generate_actuals(String week_start, String week_end, Map time_cards)
     // events must land in Hours Billed. Keep in sync with event_types.py.
     TRIP_CHARGE_HOURS_SOLO = 2.0;
     TRIP_CHARGE_HOURS_PAIRED_PER_TECH = 1.0;
+    // Multi-day / all-day scheduling blocks — 2026-09-11: a single 240 h
+    // Rough-In block blew the 9/13-9/19 forecast up to 618 scheduled
+    // billable hours. No real field event exceeds a double shift, so
+    // events longer than this are excluded from every hour figure and
+    // surfaced in the email banner via rollup.block_events instead. Keep
+    // in sync with generate_forecast.dg and event_types.py.
+    BLOCK_EVENT_MAX_HOURS = 16.0;
     // Targets raised by Stacy (relayed by Dustin 2026-08-17, approved by
     // Henry same day): 80% for techs, 67.5% for service techs (was 62.5%
     // across the board). Service roster per Henry 2026-08-17: Jim
@@ -151,6 +158,31 @@ Map generate_actuals(String week_start, String week_end, Map time_cards)
         users_by_id.put(u.get("id").toString(), u.get("full_name"));
     }
 
+    // Multi-day / all-day scheduling blocks collected for the email
+    // banner; their hours are excluded in the per-tech loop below.
+    block_events = List();
+    for each evt in all_events
+    {
+        et = evt.get("Event_Type");
+        is_counted_type = EVENT_TYPES_BILLABLE.contains(et) || EVENT_TYPES_NON_BILLABLE.contains(et) || et == EVENT_TYPE_TRAINING;
+        b_hrs = evt.get("Duration_Hrs");
+        if(b_hrs == null)
+        {
+            b_hrs = 0.0;
+        }
+        if(is_counted_type && b_hrs > BLOCK_EVENT_MAX_HOURS)
+        {
+            b = Map();
+            b.put("owner", users_by_id.get(evt.get("Owner").get("id").toString()));
+            b.put("helper", evt.get("Helper1"));
+            b.put("event_type", et);
+            b.put("start", evt.get("Start_DateTime"));
+            b.put("end", evt.get("End_DateTime"));
+            b.put("duration_hrs", b_hrs);
+            block_events.add(b);
+        }
+    }
+
     // Roster: distinct names appearing as Owner or Helper1 on counted events.
     // Named non-field roles are filtered out (see EXCLUDED_NON_TECH_NAMES).
     tech_set = List();
@@ -198,8 +230,11 @@ Map generate_actuals(String week_start, String week_end, Map time_cards)
                 {
                     hrs = 0.0;
                 }
+                // Scheduling blocks contribute nothing (hours or trip
+                // charges); they are listed in rollup.block_events.
+                is_block = (hrs > BLOCK_EVENT_MAX_HOURS);
                 et = evt.get("Event_Type");
-                if(EVENT_TYPES_BILLABLE.contains(et))
+                if(EVENT_TYPES_BILLABLE.contains(et) && !is_block)
                 {
                     // Merged trip-charge count across the event-side and
                     // potential-side fields (Dustin 2026-08-31: equal values
@@ -261,7 +296,7 @@ Map generate_actuals(String week_start, String week_end, Map time_cards)
                     }
                     hours_billed = hours_billed + hrs + trip_hrs;
                 }
-                else if(EVENT_TYPES_NON_BILLABLE.contains(et))
+                else if(EVENT_TYPES_NON_BILLABLE.contains(et) && !is_block)
                 {
                     non_billable_hrs = non_billable_hrs + hrs;
                 }
@@ -407,6 +442,7 @@ Map generate_actuals(String week_start, String week_end, Map time_cards)
     rollup.put("avg_billable_per_tech", avg_billable_per_tech);
     rollup.put("isolved_pending", isolved_pending);
     rollup.put("timecard_missing_techs", timecard_missing_techs);
+    rollup.put("block_events", block_events);
 
     if(isolved_pending)
     {
