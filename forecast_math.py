@@ -75,6 +75,10 @@ def forecast_for_technician(technician, events, window_start=None, window_end=No
     tech_events = [e for e in tech_events if not is_block_event(e)]
 
     billable_hours = 0.0
+    # Wall-clock-only billable, without trip-charge credit — feeds Hours
+    # Scheduled and OT (Dustin 2026-09-11: trip charges are billable
+    # CREDIT, not time on the schedule).
+    billable_wall_hours = 0.0
     non_billable_hours = 0.0
     training_hours = 0.0
     unknown_types = set()
@@ -94,6 +98,7 @@ def forecast_for_technician(technician, events, window_start=None, window_end=No
             # the forecast "isn't factoring in trip charges"). Flat, so not
             # pro-rated to the window.
             billable_hours += hrs + trip_charge_hours(e)
+            billable_wall_hours += hrs
         elif cat == "non_billable":
             non_billable_hours += hrs
         elif cat == "training":
@@ -106,9 +111,14 @@ def forecast_for_technician(technician, events, window_start=None, window_end=No
         1 for e in tech_events if qualifies_for_drive_adder(e)
     )
 
-    # "Hours Scheduled" on the sheet — uncapped total of all counted time.
+    # "Hours Scheduled" on the sheet — uncapped total of all counted CLOCK
+    # time. Trip-charge credit stays in billable_hours (and the utilization
+    # numerator) but never inflates the schedule or OT (Dustin 2026-09-11
+    # review of the 9/13-9/19 forecast: Jim's 47.5 scheduled / 7.5 OT was
+    # showing as 53.5 / 13.5). Consequence: utilization can exceed 100%
+    # when trip credit outpaces clock time — real, not a bug.
     hours_scheduled = (
-        billable_hours + non_billable_hours + training_hours + drive_adder
+        billable_wall_hours + non_billable_hours + training_hours + drive_adder
     )
 
     forecast_ot = max(0.0, hours_scheduled - WEEKLY_OT_THRESHOLD_HRS)
