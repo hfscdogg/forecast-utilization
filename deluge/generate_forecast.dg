@@ -269,6 +269,12 @@ Map generate_forecast(String week_start, String week_end)
     for each tech_name in tech_set
     {
         billable_hrs = 0.0;
+        // Wall-clock-only billable, without trip-charge credit — feeds
+        // Hours Scheduled and OT (Dustin 2026-09-11: trip charges are
+        // billable CREDIT, not time on the schedule; counting them in
+        // Hours Scheduled inflated Jim's 47.5 scheduled / 7.5 OT to
+        // 53.5 / 13.5).
+        billable_wall_hrs = 0.0;
         non_billable_hrs = 0.0;
         training_hrs = 0.0;
         adder_count = 0;
@@ -362,6 +368,7 @@ Map generate_forecast(String week_start, String week_end)
                         }
                     }
                     billable_hrs = billable_hrs + hrs + trip_hrs;
+                    billable_wall_hrs = billable_wall_hrs + hrs;
                     if(no_trip && EVENT_TYPES_ONSITE.contains(et))
                     {
                         adder_count = adder_count + 1;
@@ -390,7 +397,12 @@ Map generate_forecast(String week_start, String week_end)
         }
 
         drive_adder = DRIVE_TIME_ADDER_HRS * adder_count;
-        hours_scheduled = billable_hrs + non_billable_hrs + training_hrs + drive_adder;
+        // Hours Scheduled is CLOCK time only: trip-charge credit stays in
+        // billable_hrs (and the utilization numerator) but never inflates
+        // the schedule or OT (Dustin 2026-09-11 review of the 9/13-9/19
+        // forecast). Consequence: utilization can exceed 100% when trip
+        // credit outpaces clock time — that's real, not a bug.
+        hours_scheduled = billable_wall_hrs + non_billable_hrs + training_hrs + drive_adder;
         forecast_ot = 0.0;
         if(hours_scheduled > WEEKLY_OT_THRESHOLD_HRS)
         {
@@ -400,11 +412,11 @@ Map generate_forecast(String week_start, String week_end)
         // Utilization divides billable by TOTAL scheduled hours (pre-OT-cap),
         // not by forecast_hours. Dividing by the capped forecast_hours put any
         // tech at or over 40 billable hours at a false 100% (or above, e.g.
-        // 50 billable / 40 = 125%). Dividing by hours_scheduled bounds it at
-        // 100% and matches Dustin's sheet (verified against his 8/10-8/16
-        // reply: Patrick and Thomas, the only two OT techs, land at 95.24%
-        // not 100%). Techs under 40 are unchanged (hours_scheduled ==
-        // forecast_hours when forecast_ot is 0).
+        // 50 billable / 40 = 125%); hours_scheduled matches Dustin's sheet
+        // (verified against his 8/10-8/16 reply: Patrick and Thomas, the
+        // only two OT techs, land at 95.24% not 100%). Since 2026-09-11
+        // hours_scheduled is clock time only, so a tech with heavy trip
+        // credit can legitimately exceed 100%.
         forecast_util = 0.0;
         if(hours_scheduled > 0)
         {

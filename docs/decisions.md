@@ -524,6 +524,27 @@ Also of note: bad rows for the blown run are in Utilization Forecast
 History under a run id containing "-manual-" dated 2026-09-11 — delete
 them if the history feeds anything downstream.
 
+## 2026-09-11 — Dustin (9/13-9/19 forecast review): trip credit out of Hours Scheduled
+
+Dustin's review of the corrected 9/13-9/19 forecast: "Once that slight
+bug is fixed the rest of it looks exactly the same as what I reported."
+Only Jim's row diverged. Reconciliation against the window's events:
+Jim's Billable 45.00 MATCHED Dustin (39 wall + 6 trip-charge credit —
+the dual-field trip merge is confirmed working), but our Hours
+Scheduled 53.5 / OT 13.5 vs his ~47.5-48 / 8 differed by exactly the
+6 trip hours. Rule: trip charges are billable CREDIT, not time on the
+schedule — they stay in Billable Hrs Sched and the utilization
+numerator, and are excluded from Hours Scheduled / Forecast OT /
+Forecast Hours (`billable_wall_hrs` in generate_forecast.dg,
+`billable_wall_hours` in forecast_math.py). Consequence: utilization
+can exceed 100% when trip credit outpaces clock time — real, not a
+bug. Actuals are unaffected (Hours Worked comes from iSolved, not the
+schedule; Hours Billed keeps trip credit per the SOP).
+
+Accepted delta, no code change: Dustin's manual drive time for Jim was
+5.5 vs our 6.0 — he called it rounding; our convention is a flat 0.5
+per qualifying on-site no-trip event (12 events that week).
+
 ## Open verification items (not blocking, surface during build)
 
 1. **30-min adder scope** — spec Section 5.2 is ambiguous whether it applies to all non-trip events or only non-billable. Ask Dustin during parallel-run reconciliation.
