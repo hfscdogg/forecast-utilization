@@ -170,6 +170,33 @@ def test_training_counts_as_worked_and_flagged_if_drives_ot():
     assert result["forecast_utilization"] == pytest.approx(36.0 / 42.0)
 
 
+def test_multi_day_block_event_excluded_for_owner_and_helper():
+    """2026-09-11: a single 240 h Rough-In block (a project entered as one
+    calendar event) blew the 9/13-9/19 forecast to 618 scheduled billable
+    hours. Events longer than 16 wall-clock hours are scheduling blocks:
+    excluded from hours, trip charges, and the drive adder, for the owner
+    AND the helper."""
+    events = [
+        make_event("Patrick", 240.0, event_type="Rough-In ($$$)", helper1="Thomas", trip_charge="1"),
+        make_event("Patrick", 4.0, event_type="Trim-Out ($$$)", helper1="Thomas"),
+    ]
+    for tech in ("Patrick", "Thomas"):
+        result = forecast_for_technician(tech, events)
+        # Only the real 4 h event counts: 4 wall-clock + 0.5 adder.
+        assert result["billable_hours_scheduled"] == pytest.approx(4.0)
+        assert result["hours_scheduled"] == pytest.approx(4.5)
+        assert result["forecast_ot"] == 0.0
+        assert result["block_events_count"] == 1
+
+
+def test_double_shift_length_event_still_counts():
+    """16 h is the boundary: a legitimate double shift is not a block."""
+    events = [make_event("Jim", 16.0, event_type="Service - Payment Required ($$$)")]
+    result = forecast_for_technician("Jim", events)
+    assert result["billable_hours_scheduled"] == pytest.approx(16.0)
+    assert result["block_events_count"] == 0
+
+
 def test_potential_only_trip_charge_counts_and_suppresses_adder():
     """Dustin 2026-09-04 ("Trip charges" — his diagnosis of the 9/7-9/13
     forecast delta): a trip charge living only on the potential must add

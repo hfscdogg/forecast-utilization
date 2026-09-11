@@ -265,6 +265,18 @@ def test_potential_trip_charge_on_cancelled_event_not_billed():
     assert result["hours_billed"] == pytest.approx(0.0167, abs=0.001)
 
 
+def test_multi_day_block_event_excluded_from_hours_billed():
+    """Same guard as the forecast (2026-09-11): a multi-day scheduling
+    block must not land in Hours Billed, and its trip charge must not
+    bill hours either."""
+    events = [
+        make_event("Patrick", 240.0, event_type="Rough-In ($$$)", trip_charge="2"),
+        make_event("Patrick", 6.0),
+    ]
+    result = actuals_for_technician("Patrick", events, time_card_total=40.0)
+    assert result["hours_billed"] == pytest.approx(6.0)
+
+
 def test_missing_timecard_with_billed_hours_flags_instead_of_zero_percent():
     """Josh Brown week of 8/10: billed hours in CRM but his iSolved time
     wasn't entered when the run fired. That's a data gap, not 0%."""

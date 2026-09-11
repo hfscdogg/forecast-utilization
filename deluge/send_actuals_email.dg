@@ -461,6 +461,28 @@ void send_actuals_email(Map result)
         }
     }
 
+    // Multi-day / all-day scheduling blocks excluded from the numbers
+    // (2026-09-11: a 240 h Rough-In block put the forecast at 618
+    // scheduled billable hours; the actuals side carries the same
+    // guard). Flagged so the schedule gets fixed at the source.
+    blocks = rollup.get("block_events");
+    if(blocks != null && blocks.size() > 0)
+    {
+        items = "";
+        for each blk in blocks
+        {
+            line = blk.get("owner");
+            blk_helper = blk.get("helper");
+            if(blk_helper != null && blk_helper != "No Helper" && blk_helper != "-None-" && blk_helper != "")
+            {
+                line = line + " + " + blk_helper;
+            }
+            line = line + " &mdash; " + blk.get("event_type") + ", " + blk.get("start") + " to " + blk.get("end") + " (" + blk.get("duration_hrs").round(1) + " h)";
+            items = items + "<li>" + line + "</li>";
+        }
+        banner = banner + "<p style='background:" + BRAND_PENDING_BG + ";padding:10px 14px;border-left:3px solid #d4a017;font-size:13px;'><strong>Not counted:</strong> " + blocks.size() + " multi-day scheduling block(s) longer than 16 hours were left out of every figure below. These jobs need day-by-day events on the calendar to count:</p><ul style='font-size:12px;color:#666;margin-top:4px'>" + items + "</ul>";
+    }
+
     lead_in = "";
     congrats_line = "";
     if(isolved_pending)

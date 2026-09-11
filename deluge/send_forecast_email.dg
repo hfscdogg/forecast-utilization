@@ -134,6 +134,29 @@ void send_forecast_email(Map result)
 
     company_util_pct = (rollup.get("company_utilization") * 100).round(2) + "%";
 
+    // Multi-day / all-day scheduling blocks excluded from the numbers
+    // (2026-09-11: a 240 h Rough-In block put the forecast at 618
+    // scheduled billable hours). Loudly flagged so the schedule gets
+    // fixed at the source — these need day-by-day events to count.
+    block_banner = "";
+    blocks = rollup.get("block_events");
+    if(blocks != null && blocks.size() > 0)
+    {
+        items = "";
+        for each blk in blocks
+        {
+            line = blk.get("owner");
+            blk_helper = blk.get("helper");
+            if(blk_helper != null && blk_helper != "No Helper" && blk_helper != "-None-" && blk_helper != "")
+            {
+                line = line + " + " + blk_helper;
+            }
+            line = line + " &mdash; " + blk.get("event_type") + ", " + blk.get("start") + " to " + blk.get("end") + " (" + blk.get("duration_hrs").round(1) + " h)";
+            items = items + "<li>" + line + "</li>";
+        }
+        block_banner = "<p style='background:#fff8e1;padding:10px 14px;border-left:3px solid #d4a017;font-size:13px;'><strong>Not counted:</strong> " + blocks.size() + " multi-day scheduling block(s) longer than 16 hours were left out of every figure below. These jobs need day-by-day events on the calendar to show up in the forecast:</p><ul style='font-size:12px;color:#666;margin-top:4px'>" + items + "</ul>";
+    }
+
     html = "<!DOCTYPE html>" +
         "<html><head><meta charset='utf-8'>" +
         "<title>Utilization Forecast for " + week_label + "</title>" +
@@ -147,6 +170,7 @@ void send_forecast_email(Map result)
         "tfoot td { font-weight: 600; background: " + BRAND_TABLE_HEADER_BG + "; }" +
         "</style></head><body>" +
         "<h2>Utilization Forecast for " + week_label + "</h2>" +
+        block_banner +
         "<p>Forecasting <strong>" + rollup.get("total_billable").round(2) + "</strong> billable hours across <strong>" + rollup.get("tech_count") + "</strong> technicians, averaging <strong>" + rollup.get("avg_billable_per_tech").round(2) + "</strong> billable hours per tech for a company forecast utilization of <strong>" + company_util_pct + "</strong>.</p>" +
         goal_line +
         "<table><thead><tr>" +

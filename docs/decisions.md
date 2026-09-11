@@ -498,6 +498,32 @@ at 4 p.m. et."
   trade-off: PM scheduling may be slightly less complete on Thursdays.
 - Actuals stay Monday 4 PM ET.
 
+## 2026-09-11 — Multi-day scheduling blocks excluded and flagged
+
+The first manual forecast for Sun 9/13-9/19 went to all@ showing 618
+scheduled billable hours (Patrick 248, Thomas 270, "OT" 460). Root cause
+via inspect_forecast_events: ONE event — a Rough-In ($$$) block from
+9/15 8pm to 9/25 8pm, exactly 240 hours, Patrick + Thomas — a whole
+project entered as a single calendar event. generate_forecast counts an
+event's entire Duration_Hrs when it merely overlaps the window (pro-
+rating was deliberately deferred; day-sized events never tripped it),
+and helpers count too, so the block landed twice.
+
+Rule: no real field event exceeds a double shift, so counted-type events
+with Duration_Hrs > 16 (BLOCK_EVENT_MAX_HOURS) are treated as scheduling
+blocks — excluded from every hour figure, trip charges, and the drive
+adder, in BOTH generators and the Python mirror (is_block_event), and
+listed in rollup.block_events. Both emails render a "Not counted" banner
+naming each block (owner, type, span, hours) so the schedule gets fixed
+at the source: these jobs need day-by-day events to count. Deliberately
+NOT pro-rated or capped instead — any derived number would invent data;
+under-reporting with a loud flag is honest and matches the repo's
+whitelist-and-flag philosophy (Retrofit, unknown types).
+
+Also of note: bad rows for the blown run are in Utilization Forecast
+History under a run id containing "-manual-" dated 2026-09-11 — delete
+them if the history feeds anything downstream.
+
 ## Open verification items (not blocking, surface during build)
 
 1. **30-min adder scope** — spec Section 5.2 is ambiguous whether it applies to all non-trip events or only non-billable. Ask Dustin during parallel-run reconciliation.

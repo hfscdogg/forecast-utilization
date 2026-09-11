@@ -89,6 +89,20 @@ HELPER_NONE_VALUES = {None, "", "No Helper", "-None-"}
 EVENT_STATUS_NOT_READY = "Incomplete - Job Not Ready"
 CANCELLED_EVENT_MAX_HOURS = 0.1
 
+# Multi-day / all-day scheduling blocks — 2026-09-11: a single 240-hour
+# Rough-In block (a whole project entered as one calendar event) blew the
+# 9/13-9/19 forecast up to 618 scheduled billable hours, because an event's
+# entire Duration_Hrs is counted when it overlaps the window. No real field
+# event exceeds a double shift, so events longer than this are excluded
+# from every hour figure (and the drive adder) and flagged in the email
+# banner instead — the fix belongs in the schedule (day-by-day events),
+# not the math.
+BLOCK_EVENT_MAX_HOURS = 16.0
+
+
+def is_block_event(event):
+    return (event.get("Duration_Hrs") or 0) > BLOCK_EVENT_MAX_HOURS
+
 
 def event_category(event):
     """Return billable / non_billable / training / excluded / unknown."""
