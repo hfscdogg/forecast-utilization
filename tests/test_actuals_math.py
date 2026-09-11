@@ -41,7 +41,7 @@ def make_event(
 def test_grant_spreadsheet_example_with_ot_at_time_and_a_half():
     """Live spreadsheet: Grant Hours Worked 40, OT 2.88, Actual Hours Paid 44.32.
     40 + 2.88 * 1.5 = 44.32 exactly."""
-    events = [make_event("Grant", 29.11)]
+    events = [make_event("Grant", 16.0), make_event("Grant", 13.11)]
     result = actuals_for_technician("Grant", events, time_card_total=42.88)
     assert result["hours_worked"] == 40
     assert result["ot"] == pytest.approx(2.88)
@@ -51,7 +51,7 @@ def test_grant_spreadsheet_example_with_ot_at_time_and_a_half():
 
 def test_stephen_spreadsheet_example_with_ot():
     """Live spreadsheet: Stephen Hours Worked 40, OT 3.92, Actual Hours Paid 45.88."""
-    events = [make_event("Stephen", 29.0)]
+    events = [make_event("Stephen", 16.0), make_event("Stephen", 13.0)]
     result = actuals_for_technician("Stephen", events, time_card_total=43.92)
     assert result["hours_worked"] == 40
     assert result["ot"] == pytest.approx(3.92)
@@ -60,7 +60,7 @@ def test_stephen_spreadsheet_example_with_ot():
 
 def test_josh_spreadsheet_example_no_ot():
     """Live spreadsheet: Josh Hours Worked 35.57, no OT, Actual Hours Paid 35.57."""
-    events = [make_event("Josh", 26.61)]
+    events = [make_event("Josh", 16.0), make_event("Josh", 10.61)]
     result = actuals_for_technician("Josh", events, time_card_total=35.57)
     assert result["hours_worked"] == pytest.approx(35.57)
     assert result["ot"] == 0
@@ -76,7 +76,7 @@ def test_zero_time_card_does_not_divide_by_zero():
 
 def test_hours_billed_can_exceed_forty():
     """Per SOP: Hours Billed CAN exceed 40 (no cap on the billed side)."""
-    events = [make_event("Joe", 45.0)]
+    events = [make_event("Joe", 16.0), make_event("Joe", 16.0), make_event("Joe", 13.0)]
     result = actuals_for_technician("Joe", events, time_card_total=50.0)
     assert result["hours_billed"] == pytest.approx(45.0)
     assert result["hours_worked"] == 40
@@ -86,7 +86,8 @@ def test_hours_billed_can_exceed_forty():
 def test_cancelled_event_self_neutralizes():
     """Cancelled events get a 1-minute duration — no status filter needed."""
     events = [
-        make_event("Ben", 30.0),
+        make_event("Ben", 16.0),
+        make_event("Ben", 14.0),
         make_event("Ben", 0.0167, event_status="Incomplete - Job Not Ready"),
     ]
     result = actuals_for_technician("Ben", events, time_card_total=38.0)
@@ -95,7 +96,8 @@ def test_cancelled_event_self_neutralizes():
 
 def test_non_billable_event_type_tracked_separately():
     events = [
-        make_event("Sam", 30.0, event_type="Finish-Out ($$$)"),
+        make_event("Sam", 16.0, event_type="Finish-Out ($$$)"),
+        make_event("Sam", 14.0, event_type="Finish-Out ($$$)"),
         make_event("Sam", 6.0, event_type="Project Management"),
     ]
     result = actuals_for_technician("Sam", events, time_card_total=40.0)
@@ -114,7 +116,8 @@ def test_isolved_pending_returns_none_for_timecard_fields():
     timecard-derived fields all come back None but Hours Billed and
     Non-Billable Hours still populate from CRM."""
     events = [
-        make_event("Sam", 30.0, event_type="Finish-Out ($$$)"),
+        make_event("Sam", 16.0, event_type="Finish-Out ($$$)"),
+        make_event("Sam", 14.0, event_type="Finish-Out ($$$)"),
         make_event("Sam", 6.0, event_type="Project Management"),
     ]
     result = actuals_for_technician("Sam", events, time_card_total=None)
@@ -280,7 +283,7 @@ def test_multi_day_block_event_excluded_from_hours_billed():
 def test_missing_timecard_with_billed_hours_flags_instead_of_zero_percent():
     """Josh Brown week of 8/10: billed hours in CRM but his iSolved time
     wasn't entered when the run fired. That's a data gap, not 0%."""
-    events = [make_event("Josh Brown", 31.47)]
+    events = [make_event("Josh Brown", 16.0), make_event("Josh Brown", 15.47)]
     result = actuals_for_technician("Josh Brown", events, time_card_total=0)
     assert result["timecard_missing"] is True
     assert result["actual_utilization"] is None
@@ -297,9 +300,9 @@ def test_zero_timecard_with_zero_billed_is_not_flagged():
 
 def test_rollup_excludes_missing_timecard_from_company_mean():
     per_tech = [
-        actuals_for_technician("A", [make_event("A", 30.0)], time_card_total=40.0),
-        actuals_for_technician("B", [make_event("B", 35.0)], time_card_total=40.0),
-        actuals_for_technician("Josh Brown", [make_event("Josh Brown", 31.47)], time_card_total=0),
+        actuals_for_technician("A", [make_event("A", 16.0), make_event("A", 14.0)], time_card_total=40.0),
+        actuals_for_technician("B", [make_event("B", 16.0), make_event("B", 16.0), make_event("B", 3.0)], time_card_total=40.0),
+        actuals_for_technician("Josh Brown", [make_event("Josh Brown", 16.0), make_event("Josh Brown", 15.47)], time_card_total=0),
     ]
     rollup = company_rollup(per_tech)
     # A per-tech missing timecard is not the iSolved-pending state.
