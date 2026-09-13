@@ -559,7 +559,8 @@ per qualifying on-site no-trip event (12 events that week).
    holds travel bands, not counts — "Travel Band 1: 35-60 Miles from
    Livewire" through "Travel Band 4: 112-137" plus a typo variant "Travel
    Band4". Band parsing added to both generators and event_types.py (band
-   N = N trip charges, pending Dustin's confirmation).
+   N = N trip charges — CONFIRMED by Dustin 2026-09-13: "Travel band
+   1-4 does equal trip charge 1-4", closing the last assumption).
    ROUNDS 2-3 (2026-09-07): `What_Id` DOES point at Deals ($se_module
    "Deals" on every sample; Events and Deals are the only modules with
    trip-charge fields), and the empty reads were OAUTH_SCOPE_MISMATCH —

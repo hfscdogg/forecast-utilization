@@ -91,8 +91,8 @@ with `deluge/inspectors/inspect_deal_trip_charge.dg` before deploy**:
 | Related To | `What_Id` | lookup | Built-in on Events. Inspector round 1 (2026-09-05): populated on 47 of 55 events in the sample week, but NONE resolved in `Deals` — the target module is still unknown (round 2 of the inspector reads `$se_module` to find it) |
 | Trip Charge (on Deals) | `Trip_Charge` | picklist | CONFIRMED 2026-09-05. Values are travel bands, NOT counts: `-None-`, `Travel Band 1: 35-60 Miles from Livewire`, `Travel Band 2: 61-85 ...`, `Travel Band 3: 86-111 ...`, `Travel Band 4: 112-137 ...`, plus typo variant `Travel Band4: 112-137 ...` |
 
-Band-to-count mapping: band N = N trip charges (ASSUMPTION pending Dustin's
-confirmation). The generators take the MAX of the event-side and deal-side
+Band-to-count mapping: band N = N trip charges (CONFIRMED by Dustin
+2026-09-13: "Travel band 1-4 does equal trip charge 1-4"). The generators take the MAX of the event-side and deal-side
 counts (equal → one; different → the positive one; never a sum). The Python
 mirror sees the deal-side value merged onto the event as
 `Potential_Trip_Charge` and parses both numeric counts and band strings.
