@@ -130,8 +130,8 @@ def _trip_charge_count(value):
     Event-side values are numeric counts ("1".."4"). Potential-side values
     are travel bands — inspector run 2026-09-05 on the live CRM:
     "Travel Band 1: 35-60 Miles from Livewire" .. "Travel Band 4: 112-137
-    Miles from Livewire" (one typo variant "Travel Band4"). ASSUMPTION
-    pending Dustin's confirmation: band N is worth N trip charges."""
+    Miles from Livewire" (one typo variant "Travel Band4"). CONFIRMED by
+    Dustin 2026-09-13: band N is worth N trip charges."""
     if value in TRIP_CHARGE_NONE_VALUES:
         return 0.0
     try:

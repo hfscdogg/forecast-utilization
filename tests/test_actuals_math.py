@@ -224,7 +224,7 @@ def test_differing_trip_charges_keep_the_positive_result():
 def test_potential_travel_band_maps_to_trip_charge_count():
     """Inspector 2026-09-05: the potential-side field holds travel bands, not
     counts ("Travel Band 2: 61-85 Miles from Livewire"). Band N = N trip
-    charges (assumption pending Dustin's confirmation), including the CRM's
+    charges (confirmed by Dustin 2026-09-13), including the CRM's
     typo variant "Travel Band4"."""
     events = [
         make_event(
