@@ -183,9 +183,29 @@ Map inspect_raving_fan()
                 if(ri > header_idx && row.size() > col_we)
                 {
                     we_cell = row.get(col_we);
-                    // The published CSV emits dates AS DISPLAYED in the
-                    // sheet, so accept both "9/7" and "9/7/2026".
-                    if(we_cell.matches("^\\d{1,4}[/\\-]\\d{1,2}([/\\-]\\d{1,4})?$"))
+                    // No regex: Deluge string literals pass backslashes
+                    // verbatim, so "\\d" reached the engine as a literal
+                    // backslash + d and matched nothing (burned inspector
+                    // rounds 1-3). Structural test instead: 2-3 "/"-separated
+                    // all-numeric parts covers "9/7", "7/4/26", "7/4/2026".
+                    is_date = false;
+                    if(we_cell.contains("/"))
+                    {
+                        date_parts = we_cell.toList("/");
+                        if(date_parts.size() >= 2 && date_parts.size() <= 3)
+                        {
+                            is_date = true;
+                            for each dp in date_parts
+                            {
+                                dpt = dp.trim();
+                                if(dpt == "" || !dpt.isNumber() || dpt.contains("."))
+                                {
+                                    is_date = false;
+                                }
+                            }
+                        }
+                    }
+                    if(is_date)
                     {
                         has_entry = false;
                         for each mc in metric_cols
@@ -212,27 +232,27 @@ Map inspect_raving_fan()
         }
         rf_week_end = rf_target.get(col_we);
         rf_reviews = 0;
-        if(col_rev >= 0 && rf_target.size() > col_rev && rf_target.get(col_rev).matches("^\\d+$"))
+        if(col_rev >= 0 && rf_target.size() > col_rev && rf_target.get(col_rev).trim().isNumber() && !rf_target.get(col_rev).contains("."))
         {
             rf_reviews = rf_target.get(col_rev).toLong();
         }
         rf_mentions = 0;
-        if(col_men >= 0 && rf_target.size() > col_men && rf_target.get(col_men).matches("^\\d+$"))
+        if(col_men >= 0 && rf_target.size() > col_men && rf_target.get(col_men).trim().isNumber() && !rf_target.get(col_men).contains("."))
         {
             rf_mentions = rf_target.get(col_men).toLong();
         }
         rf_referrals = 0;
-        if(col_ref >= 0 && rf_target.size() > col_ref && rf_target.get(col_ref).matches("^\\d+$"))
+        if(col_ref >= 0 && rf_target.size() > col_ref && rf_target.get(col_ref).trim().isNumber() && !rf_target.get(col_ref).contains("."))
         {
             rf_referrals = rf_target.get(col_ref).toLong();
         }
         rf_repeat = 0;
-        if(col_rep >= 0 && rf_target.size() > col_rep && rf_target.get(col_rep).matches("^\\d+$"))
+        if(col_rep >= 0 && rf_target.size() > col_rep && rf_target.get(col_rep).trim().isNumber() && !rf_target.get(col_rep).contains("."))
         {
             rf_repeat = rf_target.get(col_rep).toLong();
         }
         rf_fan_score = 0;
-        if(col_fs >= 0 && rf_target.size() > col_fs && rf_target.get(col_fs).matches("^\\d+$"))
+        if(col_fs >= 0 && rf_target.size() > col_fs && rf_target.get(col_fs).trim().isNumber() && !rf_target.get(col_fs).contains("."))
         {
             rf_fan_score = rf_target.get(col_fs).toLong();
         }
