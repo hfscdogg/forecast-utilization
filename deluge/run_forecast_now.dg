@@ -1,0 +1,53 @@
+void run_forecast_now()
+{
+    FAILURE_ALERT_TO = "henry@getlivewire.com";
+    FAILURE_ALERT_FROM = "henry@getlivewire.com";
+
+    try
+    {
+        // Manual / off-schedule forecast run (added 2026-09-11 after the
+        // first Thursday run was missed). Unlike scheduled_forecast, which
+        // assumes it is running on the scheduled day, this computes the
+        // UPCOMING Sun-Sat from whatever day it is executed and runs the
+        // same generate -> history -> email pipeline. Executed on a
+        // Sunday it targets the week starting that day; any other day it
+        // targets the next Sunday. Sends to the full distribution
+        // immediately — execute only when the report should actually go
+        // out.
+        // getDayOfWeek: Zoho Deluge returns 1 for Sunday through 7 for
+        // Saturday (same convention as eastern_offset.dg).
+        today = zoho.currenttime.toDate();
+        dow = today.getDayOfWeek();
+        days_to_sunday = 8 - dow;
+        if(days_to_sunday == 7)
+        {
+            days_to_sunday = 0;
+        }
+        week_start_date = today.addDay(days_to_sunday);
+        week_end_date = week_start_date.addDay(6);
+        week_start_str = week_start_date.toString("yyyy-MM-dd");
+        week_end_str = week_end_date.toString("yyyy-MM-dd");
+        week_start_iso = week_start_str + "T00:00:00" + thisapp.eastern_offset(week_start_str);
+        week_end_iso = week_end_str + "T23:59:59" + thisapp.eastern_offset(week_end_str);
+
+        run_id = zoho.encryption.urlEncode(zoho.currenttime.toString("yyyyMMddHHmmss") + "-manual-" + randomNumber(1000, 9999));
+
+        result = thisapp.generate_forecast(week_start_iso, week_end_iso);
+        thisapp.write_forecast_history(result, run_id);
+        thisapp.send_forecast_email(result);
+
+        info "Manual forecast run " + run_id + " complete for " + week_start_str + " to " + week_end_str + ": " +
+            result.get("rollup").get("tech_count") + " techs, " +
+            result.get("events_count") + " events.";
+    }
+    catch (e)
+    {
+        sendmail
+        [
+            from: FAILURE_ALERT_FROM
+            to: FAILURE_ALERT_TO
+            subject: "Utilization Forecast manual run FAILED"
+            message: "The manual forecast run errored. Trace:\n\n" + e.toString()
+        ];
+    }
+}

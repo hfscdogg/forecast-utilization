@@ -5,16 +5,23 @@ void scheduled_actuals()
 
     try
     {
-        // The lagging report runs Monday at 4pm ET for the Mon-Sun that
-        // ended 8 days ago (a 2-week lag, per the SOP — gives PMs and
+        // The lagging report runs Monday at 4pm ET for the Sun-Sat that
+        // ended 9 days ago (a 2-week lag, per the SOP — gives PMs and
         // accounting time to settle hours).
-        // From today (Monday): lag_week_start = today - 14, lag_week_end = today - 8.
+        // Week boundary is Sun-Sat to match Dustin's manual report and the
+        // iSolved payroll week (Dustin 2026-08-31: "yours is still doing
+        // Monday to Sunday instead of Sunday to Saturday"; supersedes
+        // Henry's 2026-08-25 keep-Mon-Sun call — the OT split caps iSolved
+        // hours at 40 over this window, so a window offset from the
+        // payroll week skews OT and Actual Hours Paid).
+        // From today (Monday): lag_week_start = today - 15 (Sunday),
+        // lag_week_end = today - 9 (Saturday).
         // The UTC offset is computed per boundary date via eastern_offset
-        // so a lag week straddling a DST transition (e.g. Mon Oct 26 to
-        // Sun Nov 1) gets the right offset on each edge.
+        // so a lag week straddling a DST transition (e.g. Sun Oct 25 to
+        // Sat Oct 31) gets the right offset on each edge.
         today = zoho.currenttime.toDate();
-        week_start_date = today.subDay(14);
-        week_end_date = today.subDay(8);
+        week_start_date = today.subDay(15);
+        week_end_date = today.subDay(9);
         week_start_str = week_start_date.toString("yyyy-MM-dd");
         week_end_str = week_end_date.toString("yyyy-MM-dd");
         week_start_iso = week_start_str + "T00:00:00" + thisapp.eastern_offset(week_start_str);

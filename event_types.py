@@ -10,6 +10,8 @@ Deluge equivalent of this shared module is deluge/config.dg.
 Reference: docs/field_mapping.md, docs/decisions.md (Dustin 2026-05-18).
 """
 
+import re
+
 EVENT_TYPES_BILLABLE = {
     "Trim-Out ($$$)",
     "Rough-In ($$$)",
@@ -66,6 +68,17 @@ TRIP_CHARGE_NONE_VALUES = {None, "", "-None-", "0"}
 TRIP_CHARGE_HOURS_SOLO = 2.0
 TRIP_CHARGE_HOURS_PAIRED_PER_TECH = 1.0
 
+# Dustin 2026-08-31 (actuals) and 2026-09-04 (forecast): the billable report
+# carries TWO trip-charge fields — one on the meeting (Trip_Charge) and one on
+# the related service potential. Service potentials auto-created from meetings
+# (98% of service scheduling) never populate their trip-charge field, and
+# finish-out meetings created from a potential can carry a blank event-side
+# value, so the two drift. The fetch layer merges the potential-side value
+# onto the event under this key; Dustin's rule — "if its the same, discard one
+# result, but if its different then keep the positive result" — is a max() of
+# the two counts. Never sum them: they describe the same trip.
+FIELD_POTENTIAL_TRIP_CHARGE = "Potential_Trip_Charge"
+
 HELPER_NONE_VALUES = {None, "", "No Helper", "-None-"}
 
 # Cancelled events are shrunk to a 1-minute duration and set to
@@ -75,6 +88,20 @@ HELPER_NONE_VALUES = {None, "", "No Helper", "-None-"}
 # with real durations, so the duration bound is what marks a cancellation.
 EVENT_STATUS_NOT_READY = "Incomplete - Job Not Ready"
 CANCELLED_EVENT_MAX_HOURS = 0.1
+
+# Multi-day / all-day scheduling blocks — 2026-09-11: a single 240-hour
+# Rough-In block (a whole project entered as one calendar event) blew the
+# 9/13-9/19 forecast up to 618 scheduled billable hours, because an event's
+# entire Duration_Hrs is counted when it overlaps the window. No real field
+# event exceeds a double shift, so events longer than this are excluded
+# from every hour figure (and the drive adder) and flagged in the email
+# banner instead — the fix belongs in the schedule (day-by-day events),
+# not the math.
+BLOCK_EVENT_MAX_HOURS = 16.0
+
+
+def is_block_event(event):
+    return (event.get("Duration_Hrs") or 0) > BLOCK_EVENT_MAX_HOURS
 
 
 def event_category(event):
@@ -96,8 +123,39 @@ def is_assigned_to(event, technician):
     return event.get("Owner") == technician or event.get("Helper1") == technician
 
 
+def _trip_charge_count(value):
+    """Parse one trip-charge field value to a count; malformed or none-ish
+    values contribute nothing rather than raising.
+
+    Event-side values are numeric counts ("1".."4"). Potential-side values
+    are travel bands — inspector run 2026-09-05 on the live CRM:
+    "Travel Band 1: 35-60 Miles from Livewire" .. "Travel Band 4: 112-137
+    Miles from Livewire" (one typo variant "Travel Band4"). CONFIRMED by
+    Dustin 2026-09-13: band N is worth N trip charges."""
+    if value in TRIP_CHARGE_NONE_VALUES:
+        return 0.0
+    try:
+        return max(0.0, float(value))
+    except (TypeError, ValueError):
+        pass
+    m = re.match(r"\s*Travel Band\s*(\d)", str(value))
+    if m:
+        return float(m.group(1))
+    return 0.0
+
+
+def effective_trip_charge_count(event):
+    """Merged trip-charge count across the event-side and potential-side
+    fields (Dustin's 2026-08-31 rule: equal values collapse to one, differing
+    values keep the positive one — both cases are a max())."""
+    return max(
+        _trip_charge_count(event.get("Trip_Charge")),
+        _trip_charge_count(event.get(FIELD_POTENTIAL_TRIP_CHARGE)),
+    )
+
+
 def has_trip_charge(event):
-    return event.get("Trip_Charge") not in TRIP_CHARGE_NONE_VALUES
+    return effective_trip_charge_count(event) > 0
 
 
 def is_paired(event):
@@ -115,14 +173,13 @@ def trip_charge_hours(event):
     """Per-tech billable hours contributed by the event's trip charge(s).
 
     Dustin 2026-08-25: trip charges labeled on events must count toward Hours
-    Billed. Trip_Charge is a count (numeric picklist 1-4); a malformed value
-    contributes nothing rather than raising. Cancelled events keep their
-    Trip_Charge but bill nothing."""
-    if not has_trip_charge(event) or is_heuristically_cancelled(event):
+    Billed. The count is the merged event/potential value (Dustin 2026-08-31,
+    see effective_trip_charge_count). Cancelled events keep their trip charge
+    but bill nothing."""
+    if is_heuristically_cancelled(event):
         return 0.0
-    try:
-        count = float(event.get("Trip_Charge"))
-    except (TypeError, ValueError):
+    count = effective_trip_charge_count(event)
+    if count == 0:
         return 0.0
     if is_paired(event):
         return count * TRIP_CHARGE_HOURS_PAIRED_PER_TECH

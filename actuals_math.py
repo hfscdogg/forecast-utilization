@@ -16,7 +16,12 @@ those as "—" until iSolved tenant API access lands. Hours Billed and
 Non-Billable Hours still come through from CRM in that mode.
 """
 
-from event_types import event_category, is_assigned_to, trip_charge_hours
+from event_types import (
+    event_category,
+    is_assigned_to,
+    is_block_event,
+    trip_charge_hours,
+)
 
 WEEKLY_CAP_HRS = 40
 OT_PAY_MULTIPLIER = 1.5
@@ -36,6 +41,9 @@ def actuals_for_technician(technician, events, time_card_total=None):
     convention, so they self-neutralize in the hours sum.
     """
     tech_events = [e for e in events if is_assigned_to(e, technician)]
+    # Multi-day / all-day scheduling blocks contribute nothing (hours or
+    # trip charges); the email surfaces them in a banner.
+    tech_events = [e for e in tech_events if not is_block_event(e)]
 
     hours_billed = 0.0
     non_billable_hours = 0.0

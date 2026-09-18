@@ -1,0 +1,110 @@
+Map inspect_forecast_events(String week_start, String week_end)
+{
+    // Diagnostic for the 2026-09-11 blown-up forecast (Patrick 248 /
+    // Thomas 270 billable scheduled hours): lists every event the
+    // forecast would count for the window, with its full start/end and
+    // Duration_Hrs, so we can see whether the inflation comes from
+    // all-day events (24h durations), multi-day project blocks, or
+    // something else. generate_forecast counts an event's ENTIRE
+    // Duration_Hrs if it merely overlaps the window — no pro-rating —
+    // which is fine for day-sized events and catastrophic for blocks.
+    token_resp = invokeurl
+    [
+        url: "https://accounts.zoho.com/oauth/v2/token"
+        type: POST
+        parameters: {"grant_type": "refresh_token", "client_id": thisapp.Variables.ZOHO_CLIENT_ID, "client_secret": thisapp.Variables.ZOHO_CLIENT_SECRET, "refresh_token": thisapp.Variables.ZOHO_REFRESH_TOKEN}
+    ];
+    access_token = token_resp.get("access_token");
+    auth_header = {"Authorization": "Zoho-oauthtoken " + access_token, "Content-Type": "application/json"};
+    auth_header_get = {"Authorization": "Zoho-oauthtoken " + access_token};
+
+    EVENT_TYPES_COUNTED = {
+        "Trim-Out ($$$)", "Rough-In ($$$)", "Finish-Out ($$$)",
+        "Discovery - Payment Required ($$$)", "Service - Payment Required ($$$)",
+        "In-House Electrical", "Retrofit ($$$)",
+        "Service - Warranty / Punchout", "Install - Warranty / Punchout",
+        "Package Overage - Non Billable", "Meeting -Non Billable",
+        "Project Management", "Undersold - Not Billable",
+        "Training"
+    };
+
+    all_events = List();
+    offsets = {0, 200, 400};
+    for each off in offsets
+    {
+        q = "SELECT id, Owner, Helper1, Event_Type, Event_Status, Trip_Charge, Duration_Hrs, Duration_Man_Hrs, Start_DateTime, End_DateTime FROM Events WHERE Start_DateTime <= '" + week_end + "' AND End_DateTime >= '" + week_start + "' LIMIT " + off + ", 200";
+        body = {"select_query": q};
+        resp = invokeurl
+        [
+            url: "https://www.zohoapis.com/crm/v6/coql"
+            type: POST
+            parameters: body.toString()
+            headers: auth_header
+        ];
+        data = resp.get("data");
+        if(data != null)
+        {
+            for each evt in data
+            {
+                all_events.add(evt);
+            }
+        }
+    }
+
+    users_resp = invokeurl
+    [
+        url: "https://www.zohoapis.com/crm/v6/users?type=ActiveUsers"
+        type: GET
+        headers: auth_header_get
+    ];
+    users_by_id = Map();
+    for each u in users_resp.get("users")
+    {
+        users_by_id.put(u.get("id").toString(), u.get("full_name"));
+    }
+
+    counted = List();
+    total_counted_hrs = 0.0;
+    hours_by_owner = Map();
+    for each evt in all_events
+    {
+        et = evt.get("Event_Type");
+        if(EVENT_TYPES_COUNTED.contains(et))
+        {
+            owner_id = evt.get("Owner").get("id").toString();
+            owner_name = users_by_id.get(owner_id);
+            hrs = evt.get("Duration_Hrs");
+            if(hrs == null)
+            {
+                hrs = 0.0;
+            }
+            brief = Map();
+            brief.put("owner", owner_name);
+            brief.put("helper", evt.get("Helper1"));
+            brief.put("event_type", et);
+            brief.put("start", evt.get("Start_DateTime"));
+            brief.put("end", evt.get("End_DateTime"));
+            brief.put("duration_hrs", hrs);
+            brief.put("trip_charge", evt.get("Trip_Charge"));
+            counted.add(brief);
+            total_counted_hrs = total_counted_hrs + hrs;
+            prev = hours_by_owner.get(owner_name);
+            if(prev == null)
+            {
+                prev = 0.0;
+            }
+            hours_by_owner.put(owner_name, prev + hrs);
+        }
+    }
+
+    result = Map();
+    result.put("window_start", week_start);
+    result.put("window_end", week_end);
+    result.put("events_overlapping_window", all_events.size());
+    result.put("counted_events", counted.size());
+    result.put("total_counted_duration_hrs", total_counted_hrs);
+    result.put("hours_by_owner", hours_by_owner);
+    result.put("events", counted);
+    info result;
+    return result;
+}

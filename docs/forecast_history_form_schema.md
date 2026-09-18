@@ -13,8 +13,8 @@ from a single run share a `Run_ID` (UUID) for easy grouping later.
 |---|---|---|---|---|
 | Run ID | `Run_ID` | Single Line | Yes | UUID grouping all rows from one forecast run. Index this field for fast lookup. |
 | Forecast Generated At | `Forecast_Generated_At` | Date-Time | Yes | When the run executed. America/New_York. |
-| Forecast Week Start | `Forecast_Week_Start` | Date | Yes | Monday of the forecast week. |
-| Forecast Week End | `Forecast_Week_End` | Date | Yes | Sunday of the forecast week. |
+| Forecast Week Start | `Forecast_Week_Start` | Date | Yes | Sunday of the forecast week (Sun-Sat per Dustin 2026-08-31). |
+| Forecast Week End | `Forecast_Week_End` | Date | Yes | Saturday of the forecast week. |
 | Technician | `Technician` | Single Line | Yes | Full name as it appears in the CRM users module. Plain text, not a lookup, since the manual sheet uses display names. |
 | Billable Hours Scheduled | `Billable_Hours_Scheduled` | Decimal | Yes | 2 decimal places. |
 | Hours Scheduled | `Hours_Scheduled` | Decimal | Yes | Uncapped per-tech total of all counted event hours plus drive-time adder. |

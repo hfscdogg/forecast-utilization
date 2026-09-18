@@ -7,11 +7,16 @@ taxonomy lives in event_types.py (Deluge equivalent: deluge/config.dg).
 Reference: docs/spec_forecast.md Section 5, docs/field_mapping.md,
 docs/decisions.md (Dustin 2026-05-18, sheet-derived corrections 2026-05-19).
 
-NOTE on the utilization formula: the spec said hours_scheduled / 40. The real
-formula (confirmed by Dustin 2026-05-19) is billable_hours_scheduled divided
-by Forecast Hours, where Forecast Hours is the within-40 portion of scheduled
-time (hours_scheduled minus the OT overflow). For a tech under 40 hours
-Forecast Hours equals hours_scheduled. See docs/decisions.md.
+NOTE on the utilization formula: the spec said hours_scheduled / 40, and an
+earlier revision (Dustin 2026-05-19) divided billable_hours_scheduled by the
+capped Forecast Hours. The live formula divides by hours_scheduled — the
+UNCAPPED total — because dividing by the capped forecast_hours put any tech
+at or over 40 billable hours at a false 100% (or above, e.g. 50 billable /
+40 = 125%). Dividing by hours_scheduled bounds it at 100% and matches
+Dustin's sheet (verified against his 8/10-8/16 reply: Patrick and Thomas,
+the only two OT techs, land at 95.24% not 100%). Techs under 40 are
+unchanged (hours_scheduled == forecast_hours when forecast_ot is 0). Keep
+in sync with generate_forecast.dg.
 """
 
 from datetime import datetime
@@ -19,6 +24,7 @@ from datetime import datetime
 from event_types import (
     event_category,
     is_assigned_to,
+    is_block_event,
     qualifies_for_drive_adder,
     trip_charge_hours,
 )
@@ -63,8 +69,16 @@ def forecast_for_technician(technician, events, window_start=None, window_end=No
     Duration_Hrs is used (synthetic tests use this path).
     """
     tech_events = [e for e in events if is_assigned_to(e, technician)]
+    # Multi-day / all-day scheduling blocks contribute nothing anywhere
+    # (hours, trip charges, adder); the email surfaces them in a banner.
+    block_events_count = sum(1 for e in tech_events if is_block_event(e))
+    tech_events = [e for e in tech_events if not is_block_event(e)]
 
     billable_hours = 0.0
+    # Wall-clock-only billable, without trip-charge credit — feeds Hours
+    # Scheduled and OT (Dustin 2026-09-11: trip charges are billable
+    # CREDIT, not time on the schedule).
+    billable_wall_hours = 0.0
     non_billable_hours = 0.0
     training_hours = 0.0
     unknown_types = set()
@@ -84,6 +98,7 @@ def forecast_for_technician(technician, events, window_start=None, window_end=No
             # the forecast "isn't factoring in trip charges"). Flat, so not
             # pro-rated to the window.
             billable_hours += hrs + trip_charge_hours(e)
+            billable_wall_hours += hrs
         elif cat == "non_billable":
             non_billable_hours += hrs
         elif cat == "training":
@@ -96,9 +111,14 @@ def forecast_for_technician(technician, events, window_start=None, window_end=No
         1 for e in tech_events if qualifies_for_drive_adder(e)
     )
 
-    # "Hours Scheduled" on the sheet — uncapped total of all counted time.
+    # "Hours Scheduled" on the sheet — uncapped total of all counted CLOCK
+    # time. Trip-charge credit stays in billable_hours (and the utilization
+    # numerator) but never inflates the schedule or OT (Dustin 2026-09-11
+    # review of the 9/13-9/19 forecast: Jim's 47.5 scheduled / 7.5 OT was
+    # showing as 53.5 / 13.5). Consequence: utilization can exceed 100%
+    # when trip credit outpaces clock time — real, not a bug.
     hours_scheduled = (
-        billable_hours + non_billable_hours + training_hours + drive_adder
+        billable_wall_hours + non_billable_hours + training_hours + drive_adder
     )
 
     forecast_ot = max(0.0, hours_scheduled - WEEKLY_OT_THRESHOLD_HRS)
@@ -106,9 +126,11 @@ def forecast_for_technician(technician, events, window_start=None, window_end=No
     # minus the OT overflow). Equals hours_scheduled when the tech is under 40.
     forecast_hours = hours_scheduled - forecast_ot
 
-    # Sheet formula (Dustin 2026-05-19): billable scheduled / Forecast Hours.
-    if forecast_hours > 0:
-        forecast_utilization = billable_hours / forecast_hours
+    # Utilization divides billable by TOTAL scheduled hours (pre-OT-cap),
+    # not by forecast_hours — see the module NOTE. Matches
+    # generate_forecast.dg.
+    if hours_scheduled > 0:
+        forecast_utilization = billable_hours / hours_scheduled
     else:
         forecast_utilization = 0
 
@@ -126,4 +148,5 @@ def forecast_for_technician(technician, events, window_start=None, window_end=No
         "forecast_utilization": forecast_utilization,
         "training_drove_ot": training_drove_ot,
         "unknown_event_types": sorted(t for t in unknown_types if t is not None),
+        "block_events_count": block_events_count,
     }

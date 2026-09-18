@@ -78,6 +78,35 @@ Sample event observed: `"Trip_Charge": null` — so the absence of a trip charge
 shows as `null`, not `"0"` or `"-None-"`. Filter for "no trip charge" =
 `Trip_Charge == null OR Trip_Charge == "-None-"`.
 
+### Related potential (Deals) — second trip-charge field
+
+Dustin 2026-08-31: the billable report carries a SECOND trip-charge field on
+the related service potential, and the two drift (potentials auto-created
+from meetings never populate theirs; finish-out meetings created from a
+potential can carry a blank event-side value). Assumed mapping — **verify
+with `deluge/inspectors/inspect_deal_trip_charge.dg` before deploy**:
+
+| Display label | API name | Type | Notes |
+|---|---|---|---|
+| Related To | `What_Id` | lookup | Built-in on Events. Inspector round 1 (2026-09-05): populated on 47 of 55 events in the sample week, but NONE resolved in `Deals` — the target module is still unknown (round 2 of the inspector reads `$se_module` to find it) |
+| Trip Charge (on Deals) | `Trip_Charge` | picklist | CONFIRMED 2026-09-05. Values are travel bands, NOT counts: `-None-`, `Travel Band 1: 35-60 Miles from Livewire`, `Travel Band 2: 61-85 ...`, `Travel Band 3: 86-111 ...`, `Travel Band 4: 112-137 ...`, plus typo variant `Travel Band4: 112-137 ...` |
+
+Band-to-count mapping: band N = N trip charges (CONFIRMED by Dustin
+2026-09-13: "Travel band 1-4 does equal trip charge 1-4"). The generators take the MAX of the event-side and deal-side
+counts (equal → one; different → the positive one; never a sum). The Python
+mirror sees the deal-side value merged onto the event as
+`Potential_Trip_Charge` and parses both numeric counts and band strings.
+
+**RESOLVED (inspector rounds 2-3, 2026-09-07):** `What_Id` does point at
+`Deals` — `$se_module` is "Deals" on every sampled event and deal names
+resolve — and Events/Deals are the only modules with trip-charge fields.
+The empty reads were `OAUTH_SCOPE_MISMATCH`: the refresh token was minted
+without a Deals read scope (Deals *field metadata* still read fine through
+the settings scope, which is why the picklist dump worked). Fix: re-mint
+the refresh token with `ZohoCRM.modules.READ` (helper:
+`deluge/inspectors/mint_refresh_token.dg`); the generators' Deals COQL is
+correct as written.
+
 ### Helper1 picklist values (paired tech names)
 
 Free picklist of name strings, not a user lookup. Currently "used" values

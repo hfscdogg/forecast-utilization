@@ -14,8 +14,8 @@ records from a single run share a `Run_ID` (matches the convention of
 |---|---|---|---|---|
 | Run ID | `Run_ID` | Single Line | Yes | UUID-ish string grouping rows from one actuals run. |
 | Actuals Generated At | `Actuals_Generated_At` | Date-Time | Yes | When the run executed. America/New_York. |
-| Lag Week Start | `Lag_Week_Start` | Date | Yes | Monday of the lag week (8-14 days before run). |
-| Lag Week End | `Lag_Week_End` | Date | Yes | Sunday of the lag week. |
+| Lag Week Start | `Lag_Week_Start` | Date | Yes | Sunday of the lag week (9-15 days before run; Sun-Sat per Dustin 2026-08-31). |
+| Lag Week End | `Lag_Week_End` | Date | Yes | Saturday of the lag week. |
 | Technician | `Technician` | Single Line | Yes | Full name matching Zoho CRM users module. |
 | Hours Billed | `Hours_Billed` | Decimal | Yes | Sum of billable Event durations for the lag week. No cap. |
 | Non Billable Hours | `Non_Billable_Hours` | Decimal | Yes | Sum of non-billable Event durations for the lag week. |

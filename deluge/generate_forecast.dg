@@ -36,6 +36,17 @@ Map generate_forecast(String week_start, String week_end)
     // must not bill hours.
     EVENT_STATUS_NOT_READY = "Incomplete - Job Not Ready";
     CANCELLED_EVENT_MAX_HOURS = 0.1;
+    // Multi-day / all-day scheduling blocks — 2026-09-11: a single 240 h
+    // Rough-In block (9/15 8pm to 9/25 8pm, Patrick + Thomas) blew the
+    // 9/13-9/19 forecast up to 618 scheduled billable hours, because an
+    // event's ENTIRE Duration_Hrs is counted when it overlaps the window.
+    // No real field event exceeds a double shift, so events longer than
+    // this are treated as scheduling blocks: excluded from every hour
+    // figure (and the drive adder) and surfaced in the email banner via
+    // rollup.block_events — the fix belongs in the schedule (day-by-day
+    // events), not the math. Keep in sync with generate_actuals.dg and
+    // event_types.py.
+    BLOCK_EVENT_MAX_HOURS = 16.0;
     // Targets raised by Stacy (relayed by Dustin 2026-08-17, approved by
     // Henry same day): 80% for techs, 67.5% for service techs (was 62.5%
     // across the board). Service roster per Henry 2026-08-17: Jim
@@ -92,7 +103,7 @@ Map generate_forecast(String week_start, String week_end)
     offsets = {0, 200, 400};
     for each off in offsets
     {
-        q = "SELECT id, Owner, Helper1, Event_Type, Event_Status, Trip_Charge, Duration_Hrs, Duration_Man_Hrs, Start_DateTime, End_DateTime FROM Events WHERE Start_DateTime <= '" + week_end + "' AND End_DateTime >= '" + week_start + "' LIMIT " + off + ", 200";
+        q = "SELECT id, Owner, Helper1, Event_Type, Event_Status, Trip_Charge, What_Id, Duration_Hrs, Duration_Man_Hrs, Start_DateTime, End_DateTime FROM Events WHERE Start_DateTime <= '" + week_end + "' AND End_DateTime >= '" + week_start + "' LIMIT " + off + ", 200";
         body = {"select_query": q};
         resp = invokeurl
         [
@@ -112,6 +123,70 @@ Map generate_forecast(String week_start, String week_end)
     }
 
     // ============================================================
+    // 1b. Pull the potential-side trip charge for every related record.
+    //     Dustin 2026-08-31 (actuals) and 2026-09-04 (forecast: "Trip
+    //     charges" was his whole diagnosis of the 9/7-9/13 delta): the
+    //     billable report carries TWO trip-charge fields — one on the
+    //     meeting (Events.Trip_Charge) and one on the related service
+    //     potential — and they drift, because potentials auto-created
+    //     from meetings never populate theirs while finish-out meetings
+    //     created from a potential can carry a blank event-side value.
+    //     The merge rule at the point of use keeps the positive one when
+    //     they differ. Non-Deal What_Ids match no rows; a failed Deals
+    //     query leaves the map empty and the run degrades to
+    //     event-side-only, today's behavior.
+    // ============================================================
+    deal_trip_by_id = Map();
+    what_ids = List();
+    for each evt in all_events
+    {
+        w = evt.get("What_Id");
+        if(w != null)
+        {
+            wid = w.get("id").toString();
+            if(!what_ids.contains(wid))
+            {
+                what_ids.add(wid);
+            }
+        }
+    }
+    id_chunk = "";
+    chunk_count = 0;
+    seen = 0;
+    for each wid in what_ids
+    {
+        if(id_chunk != "")
+        {
+            id_chunk = id_chunk + ",";
+        }
+        id_chunk = id_chunk + "'" + wid + "'";
+        chunk_count = chunk_count + 1;
+        seen = seen + 1;
+        if(chunk_count == 50 || seen == what_ids.size())
+        {
+            dq = "SELECT id, Trip_Charge FROM Deals WHERE id in (" + id_chunk + ") LIMIT 0, 200";
+            dbody = {"select_query": dq};
+            dresp = invokeurl
+            [
+                url: "https://www.zohoapis.com/crm/v6/coql"
+                type: POST
+                parameters: dbody.toString()
+                headers: auth_header
+            ];
+            ddata = dresp.get("data");
+            if(ddata != null)
+            {
+                for each d in ddata
+                {
+                    deal_trip_by_id.put(d.get("id").toString(), d.get("Trip_Charge"));
+                }
+            }
+            id_chunk = "";
+            chunk_count = 0;
+        }
+    }
+
+    // ============================================================
     // 2. Pull active users; build id -> full_name map.
     // ============================================================
     users_resp = invokeurl
@@ -124,6 +199,33 @@ Map generate_forecast(String week_start, String week_end)
     for each u in users_resp.get("users")
     {
         users_by_id.put(u.get("id").toString(), u.get("full_name"));
+    }
+
+    // ============================================================
+    // 2b. Collect multi-day / all-day scheduling blocks for the email
+    //     banner. Their hours are excluded in the per-tech loop below.
+    // ============================================================
+    block_events = List();
+    for each evt in all_events
+    {
+        et = evt.get("Event_Type");
+        is_counted_type = EVENT_TYPES_BILLABLE.contains(et) || EVENT_TYPES_NON_BILLABLE.contains(et) || et == EVENT_TYPE_TRAINING;
+        b_hrs = evt.get("Duration_Hrs");
+        if(b_hrs == null)
+        {
+            b_hrs = 0.0;
+        }
+        if(is_counted_type && b_hrs > BLOCK_EVENT_MAX_HOURS)
+        {
+            b = Map();
+            b.put("owner", users_by_id.get(evt.get("Owner").get("id").toString()));
+            b.put("helper", evt.get("Helper1"));
+            b.put("event_type", et);
+            b.put("start", evt.get("Start_DateTime"));
+            b.put("end", evt.get("End_DateTime"));
+            b.put("duration_hrs", b_hrs);
+            block_events.add(b);
+        }
     }
 
     // ============================================================
@@ -167,6 +269,12 @@ Map generate_forecast(String week_start, String week_end)
     for each tech_name in tech_set
     {
         billable_hrs = 0.0;
+        // Wall-clock-only billable, without trip-charge credit — feeds
+        // Hours Scheduled and OT (Dustin 2026-09-11: trip charges are
+        // billable CREDIT, not time on the schedule; counting them in
+        // Hours Scheduled inflated Jim's 47.5 scheduled / 7.5 OT to
+        // 53.5 / 13.5).
+        billable_wall_hrs = 0.0;
         non_billable_hrs = 0.0;
         training_hrs = 0.0;
         adder_count = 0;
@@ -192,18 +300,64 @@ Map generate_forecast(String week_start, String week_end)
                 {
                     hrs = 0.0;
                 }
+                // Scheduling blocks contribute nothing anywhere (hours,
+                // trip charges, adder); they are listed in
+                // rollup.block_events instead.
+                is_block = (hrs > BLOCK_EVENT_MAX_HOURS);
 
                 et = evt.get("Event_Type");
+                // Merged trip-charge count across the event-side and
+                // potential-side fields (Dustin 2026-08-31: equal values
+                // collapse to one, differing values keep the positive one —
+                // both cases are a max, never a sum). A trip charge from
+                // EITHER source also suppresses the drive-time adder.
                 tc = evt.get("Trip_Charge");
-                no_trip = TRIP_CHARGE_NONE_VALUES.contains(tc);
+                event_trip = 0.0;
+                if(!TRIP_CHARGE_NONE_VALUES.contains(tc))
+                {
+                    event_trip = tc.toDecimal();
+                }
+                deal_trip = 0.0;
+                w = evt.get("What_Id");
+                if(w != null)
+                {
+                    dv = deal_trip_by_id.get(w.get("id").toString());
+                    if(!TRIP_CHARGE_NONE_VALUES.contains(dv))
+                    {
+                        // Potential-side values are travel bands, not counts
+                        // ("Travel Band 2: 61-85 Miles from Livewire" —
+                        // inspector 2026-09-05). CONFIRMED by Dustin
+                        // 2026-09-13: band N = N trip charges. The endsWith check on the
+                        // part before the colon also covers plain numeric
+                        // values ("2").
+                        dv_str = dv + "";
+                        if(dv_str.contains(":"))
+                        {
+                            dv_str = dv_str.getPrefix(":");
+                        }
+                        dv_str = dv_str.trim();
+                        for each band_n in {"1", "2", "3", "4"}
+                        {
+                            if(dv_str.endsWith(band_n))
+                            {
+                                deal_trip = band_n.toDecimal();
+                            }
+                        }
+                    }
+                }
+                trip_count = event_trip;
+                if(deal_trip > trip_count)
+                {
+                    trip_count = deal_trip;
+                }
+                no_trip = (trip_count == 0);
 
-                if(EVENT_TYPES_BILLABLE.contains(et))
+                if(EVENT_TYPES_BILLABLE.contains(et) && !is_block)
                 {
                     trip_hrs = 0.0;
                     is_cancelled = (evt.get("Event_Status") == EVENT_STATUS_NOT_READY && hrs <= CANCELLED_EVENT_MAX_HOURS);
                     if(!no_trip && !is_cancelled)
                     {
-                        trip_count = tc.toDecimal();
                         if(helper != null && helper != "No Helper" && helper != "-None-" && helper != "")
                         {
                             trip_hrs = trip_count * TRIP_CHARGE_HOURS_PAIRED_PER_TECH;
@@ -214,16 +368,17 @@ Map generate_forecast(String week_start, String week_end)
                         }
                     }
                     billable_hrs = billable_hrs + hrs + trip_hrs;
+                    billable_wall_hrs = billable_wall_hrs + hrs;
                     if(no_trip && EVENT_TYPES_ONSITE.contains(et))
                     {
                         adder_count = adder_count + 1;
                     }
                 }
-                else if(et == EVENT_TYPE_TRAINING)
+                else if(et == EVENT_TYPE_TRAINING && !is_block)
                 {
                     training_hrs = training_hrs + hrs;
                 }
-                else if(EVENT_TYPES_NON_BILLABLE.contains(et))
+                else if(EVENT_TYPES_NON_BILLABLE.contains(et) && !is_block)
                 {
                     non_billable_hrs = non_billable_hrs + hrs;
                     if(no_trip && EVENT_TYPES_ONSITE.contains(et))
@@ -231,7 +386,7 @@ Map generate_forecast(String week_start, String week_end)
                         adder_count = adder_count + 1;
                     }
                 }
-                else if(!EVENT_TYPES_EXCLUDED.contains(et))
+                else if(!EVENT_TYPES_EXCLUDED.contains(et) && !is_block)
                 {
                     if(!unknown_types.contains(et))
                     {
@@ -242,7 +397,12 @@ Map generate_forecast(String week_start, String week_end)
         }
 
         drive_adder = DRIVE_TIME_ADDER_HRS * adder_count;
-        hours_scheduled = billable_hrs + non_billable_hrs + training_hrs + drive_adder;
+        // Hours Scheduled is CLOCK time only: trip-charge credit stays in
+        // billable_hrs (and the utilization numerator) but never inflates
+        // the schedule or OT (Dustin 2026-09-11 review of the 9/13-9/19
+        // forecast). Consequence: utilization can exceed 100% when trip
+        // credit outpaces clock time — that's real, not a bug.
+        hours_scheduled = billable_wall_hrs + non_billable_hrs + training_hrs + drive_adder;
         forecast_ot = 0.0;
         if(hours_scheduled > WEEKLY_OT_THRESHOLD_HRS)
         {
@@ -252,11 +412,11 @@ Map generate_forecast(String week_start, String week_end)
         // Utilization divides billable by TOTAL scheduled hours (pre-OT-cap),
         // not by forecast_hours. Dividing by the capped forecast_hours put any
         // tech at or over 40 billable hours at a false 100% (or above, e.g.
-        // 50 billable / 40 = 125%). Dividing by hours_scheduled bounds it at
-        // 100% and matches Dustin's sheet (verified against his 8/10-8/16
-        // reply: Patrick and Thomas, the only two OT techs, land at 95.24%
-        // not 100%). Techs under 40 are unchanged (hours_scheduled ==
-        // forecast_hours when forecast_ot is 0).
+        // 50 billable / 40 = 125%); hours_scheduled matches Dustin's sheet
+        // (verified against his 8/10-8/16 reply: Patrick and Thomas, the
+        // only two OT techs, land at 95.24% not 100%). Since 2026-09-11
+        // hours_scheduled is clock time only, so a tech with heavy trip
+        // credit can legitimately exceed 100%.
         forecast_util = 0.0;
         if(hours_scheduled > 0)
         {
@@ -354,6 +514,7 @@ Map generate_forecast(String week_start, String week_end)
     rollup.put("company_utilization", company_util);
     rollup.put("avg_billable_per_tech", avg_billable_per_tech);
     rollup.put("techs_above_target", techs_above_target);
+    rollup.put("block_events", block_events);
 
     result = Map();
     result.put("techs", techs);

@@ -206,6 +206,19 @@ mirroring Actual Hours Paid) is possible but less likely for a utilization
 metric. The reference validation week has every tech under 40, so this does
 not block Phase 1. Confirm with Dustin if a parallel-run week drifts.
 
+**RESOLVED for the utilization denominator (2026-08, reconciled against
+Dustin's 8/10-8/16 sheet):** dividing billable by the capped forecast_hours
+put any tech at or over 40 billable hours at a false 100%+ (e.g. 50 / 40 =
+125%). The live formula divides by the UNCAPPED hours_scheduled, which
+bounds utilization at 100% and matches Dustin's sheet exactly — Patrick and
+Thomas, the only two OT techs that week, land at 95.24%, not 100%. Under-40
+rows are unchanged (hours_scheduled == forecast_hours when forecast_ot is
+0), so the 2026-05-19 under-40 checks above still hold. forecast_hours
+itself (= min(hours_scheduled, 40)) is unchanged and still reported as its
+own column. Encoded in `generate_forecast.dg` and `forecast_math.py`
+(2026-09-05: the Python mirror had kept the pre-fix denominator; now
+re-synced).
+
 Consequence: forecast utilization and actual utilization are BOTH billable-
 fraction metrics, so they are directly comparable. The earlier worry about
 non-comparability (capacity vs billing efficiency) was based on the spec's
@@ -411,20 +424,143 @@ naming affected techs. Distinct from the whole-run iSolved-pending state.
 - **Week boundary stays Mon-Sun** — Dustin's manual week runs Sun-Sat. Henry
   2026-08-25: keep Mon-Sun as is for now. Revisit if iSolved's payroll week
   (likely Sun-Sat) makes the OT split drift from payroll.
+  **SUPERSEDED 2026-09-05** — see the week-boundary entry below.
 
-## 2026-09-18 — Henry (forecast schedule)
+## 2026-08-31 / 2026-09-04 — Dustin (8/17-8/23 actuals review + 9/7-9/13 forecast review)
 
-### Forecast run moves to Thursday 5:00 PM ET
+Dustin's review of the 8/31 actuals email ("Everyone else's time looks
+correct within a few tenths of a point") surfaced one bug and re-raised the
+week boundary; his 9/4 forecast review pinned the same bug on the forecast
+side ("Trip charges" was his entire diagnosis of the delta).
 
-Henry's call, reversing the Friday 4pm slot Dustin requested 2026-08-13.
-Known trade-off: Dustin moved it to Friday because "most of the data is
-going to be dependent Josh/PM scheduling" — a Thursday run sees a slightly
-less complete schedule. Two things must always move together:
+### Trip charge merged from BOTH the meeting and the potential
 
-1. The Creator schedule entry (Settings > Schedules > "Weekly Utilization
-   Forecast") — UI state, edited by hand to Thursday 17:00 ET.
-2. `days_to_monday` in `scheduled_forecast.dg` — 4 from Thursday (was 3
-   from Friday). Mismatched, the report covers the wrong week.
+> "The billable report has two Trip charge fields. One is pulled from the
+> meeting and one from the potential. ... Ultimately it should check both
+> and if its the same, discard one result, but if its different then keep
+> the positive result, because service potentials do not update the
+> tripcharge field when automatically created from the meeting which is how
+> Service calls are scheduled 98% of the time. Those potentials are created
+> after the meeting is created, but finish out meetings are created after
+> the potential is created."
+
+This is what dropped Jim's trip charges from the 8/17-8/23 actuals: the
+automation only read `Events.Trip_Charge`, and on finish-out meetings
+created from a potential that field can sit blank while the potential holds
+the real value (the mirror drift of the service case). Fix: both generators
+now select `What_Id`, fetch `Trip_Charge` from the related Deals records,
+and take the MAX of the two counts — equal values collapse to one, differing
+values keep the positive one, never a sum. A trip charge from either source
+also suppresses the forecast drive-time adder. Failure mode is conservative:
+if the Deals query errors or the field name is wrong, the map stays empty
+and the run behaves exactly as before (event-side only). Encoded in
+`generate_actuals.dg`, `generate_forecast.dg`, and
+`event_types.py` (`effective_trip_charge_count()`); the fetch layer merges
+the potential-side value onto the event as `Potential_Trip_Charge` for the
+Python mirror. The Deals-side API name `Trip_Charge` is an assumption —
+verify with `deluge/inspectors/inspect_deal_trip_charge.dg` before deploy
+(open item 8).
+
+Dustin's "We may need to streamline that somehow" is the upstream fix: the
+CRM automations that create service potentials from meetings (and finish-out
+meetings from potentials) should copy the trip-charge field across. That
+kills the drift at the source; the report-side max() stays as a safety net
+(open item 9, Dustin owns the CRM automation side).
+
+### Week boundary is now Sun-Sat (supersedes Henry 2026-08-25)
+
+> "Also yours is still doing Monday to Sunday instead of Sunday to Saturday"
+
+The 2026-08-25 revisit condition was effectively met: the actuals OT split
+caps iSolved hours at 40 over OUR window, so a window offset from the
+Sun-Sat payroll week skews OT and Actual Hours Paid, and every parallel-run
+comparison against Dustin's Sun-Sat sheet carried Sunday-edge noise. Both
+reports now use Sun-Sat: the Monday actuals run reports the Sun-Sat ending
+9 days prior (`subDay(15)`/`subDay(9)`), the Friday forecast run targets the
+upcoming Sun-Sat (`days_to_sunday = 2`). Email subjects and labels derive
+from the dates, so they follow automatically. History rows keep their field
+names (`Lag_Week_Start` etc.) — only the dates they carry shift.
+
+## 2026-09-10 — Henry (distribution cutover + forecast day)
+
+Henry: "forecast & utilization reports going to all@getlivewire.com
+effective immediately" and "change delivery time of forecast to thursdays
+at 4 p.m. et."
+
+- **Distribution**: both `send_forecast_email.dg` and
+  `send_actuals_email.dg` now send to `all@getlivewire.com`. Supersedes
+  the Henry-only parallel-run address and Dustin's 8/28 group-list
+  suggestion (PM/Leadership/Logistics, + Production for utilization).
+  Failure alerts stay Henry-only.
+- **Forecast day**: back to Thursday 4 PM ET (`days_to_sunday = 3`; the
+  Creator schedule day flips Friday→Thursday in the schedule UI at the
+  same moment). Supersedes Dustin's 2026-08-13 Friday preference; noted
+  trade-off: PM scheduling may be slightly less complete on Thursdays.
+- Actuals stay Monday 4 PM ET.
+
+## 2026-09-11 — Multi-day scheduling blocks excluded and flagged
+
+The first manual forecast for Sun 9/13-9/19 went to all@ showing 618
+scheduled billable hours (Patrick 248, Thomas 270, "OT" 460). Root cause
+via inspect_forecast_events: ONE event — a Rough-In ($$$) block from
+9/15 8pm to 9/25 8pm, exactly 240 hours, Patrick + Thomas — a whole
+project entered as a single calendar event. generate_forecast counts an
+event's entire Duration_Hrs when it merely overlaps the window (pro-
+rating was deliberately deferred; day-sized events never tripped it),
+and helpers count too, so the block landed twice.
+
+Rule: no real field event exceeds a double shift, so counted-type events
+with Duration_Hrs > 16 (BLOCK_EVENT_MAX_HOURS) are treated as scheduling
+blocks — excluded from every hour figure, trip charges, and the drive
+adder, in BOTH generators and the Python mirror (is_block_event), and
+listed in rollup.block_events. Both emails render a "Not counted" banner
+naming each block (owner, type, span, hours) so the schedule gets fixed
+at the source: these jobs need day-by-day events to count. Deliberately
+NOT pro-rated or capped instead — any derived number would invent data;
+under-reporting with a loud flag is honest and matches the repo's
+whitelist-and-flag philosophy (Retrofit, unknown types).
+
+Also of note: bad rows for the blown run are in Utilization Forecast
+History under a run id containing "-manual-" dated 2026-09-11 — delete
+them if the history feeds anything downstream.
+
+## 2026-09-11 — Dustin (9/13-9/19 forecast review): trip credit out of Hours Scheduled
+
+Dustin's review of the corrected 9/13-9/19 forecast: "Once that slight
+bug is fixed the rest of it looks exactly the same as what I reported."
+Only Jim's row diverged. Reconciliation against the window's events:
+Jim's Billable 45.00 MATCHED Dustin (39 wall + 6 trip-charge credit —
+the dual-field trip merge is confirmed working), but our Hours
+Scheduled 53.5 / OT 13.5 vs his ~47.5-48 / 8 differed by exactly the
+6 trip hours. Rule: trip charges are billable CREDIT, not time on the
+schedule — they stay in Billable Hrs Sched and the utilization
+numerator, and are excluded from Hours Scheduled / Forecast OT /
+Forecast Hours (`billable_wall_hrs` in generate_forecast.dg,
+`billable_wall_hours` in forecast_math.py). Consequence: utilization
+can exceed 100% when trip credit outpaces clock time — real, not a
+bug. Actuals are unaffected (Hours Worked comes from iSolved, not the
+schedule; Hours Billed keeps trip credit per the SOP).
+
+Accepted delta, no code change: Dustin's manual drive time for Jim was
+5.5 vs our 6.0 — he called it rounding; our convention is a flat 0.5
+per qualifying on-site no-trip event (12 events that week).
+
+## 2026-09-18 — Henry (forecast time 4pm to 5pm; Thursday deploy gap found)
+
+### Forecast run time moves to Thursday 5:00 PM ET
+
+Henry's call. The day was already Thursday per his 2026-09-10 decision
+above; this only shifts the hour from 4pm to 5pm. `days_to_sunday` stays
+3 (the hour never affects the date math).
+
+**Deploy gap found while making this change**: the 2026-09-18 forecast
+email fired Friday 4:00 PM ET with a Mon-Sun subject, proving the
+2026-09-10 Thursday + Sun-Sat changes to `scheduled_forecast.dg` and the
+Creator schedule entry were never deployed. Production was still running
+the pre-9/10 Friday code. Both must land together: paste current
+`scheduled_forecast.dg` into Creator AND edit the schedule entry
+(Settings > Schedules > "Weekly Utilization Forecast") to Thursday
+17:00 ET in the same sitting, or the report covers the wrong week.
 
 ## Open verification items (not blocking, surface during build)
 
@@ -435,3 +571,29 @@ less complete schedule. Two things must always move together:
 5. **Event_Type categorization** (NEW) — see CRM Inspector Run above.
 6. **Cancellation tracking** (NEW) — see CRM Inspector Run above.
 7. **Technician identification** (NEW) — see CRM Inspector Run above.
+8. **Deals-side trip-charge field API name** — ROUND 1 RUN (Henry,
+   2026-09-05, week 8/30-9/5): `Deals.Trip_Charge` EXISTS (picklist) but
+   holds travel bands, not counts — "Travel Band 1: 35-60 Miles from
+   Livewire" through "Travel Band 4: 112-137" plus a typo variant "Travel
+   Band4". Band parsing added to both generators and event_types.py (band
+   N = N trip charges — CONFIRMED by Dustin 2026-09-13: "Travel band
+   1-4 does equal trip charge 1-4", closing the last assumption).
+   ROUNDS 2-3 (2026-09-07): `What_Id` DOES point at Deals ($se_module
+   "Deals" on every sample; Events and Deals are the only modules with
+   trip-charge fields), and the empty reads were OAUTH_SCOPE_MISMATCH —
+   "user does not have a scope permission to access the module: Deals".
+   The original refresh token was minted without a Deals read scope. Fix:
+   mint a new refresh token via the existing Self Client with scopes
+   ZohoCRM.modules.READ, ZohoCRM.users.READ, ZohoCRM.coql.READ,
+   ZohoCRM.settings.READ (helper: inspectors/mint_refresh_token.dg) and
+   update the ZOHO_REFRESH_TOKEN Creator variable; the generators are
+   correct as written.
+   RESOLVED 2026-09-07: Henry re-minted the token and swapped the
+   variable; inspector round 3 re-run returns Deals records (names +
+   Trip_Charge) through both the REST GET and the generators' COQL shape.
+   Remaining assumption: Travel Band N = N trip charges — confirm with
+   Dustin.
+9. **Upstream trip-charge sync** — Dustin to make the CRM automations copy
+   the trip-charge field when creating service potentials from meetings and
+   finish-out meetings from potentials ("We may need to streamline that
+   somehow", 2026-08-31).

@@ -1,0 +1,277 @@
+Map inspect_raving_fan()
+{
+    // Dry-run of the Raving Fan snapshot block in send_actuals_email.dg.
+    // Runs the SAME header-aware CSV parsing the email uses (ported from
+    // the dashboard, hfscdogg/raving-fan index.html parseScorecard, after
+    // the fixed-position version matched nothing on the live sheet —
+    // verified 2026-09-10) and returns what the block would render,
+    // without sending anything. Keep the parsing here in lockstep with
+    // send_actuals_email.dg.
+    RAVING_FAN_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRsQaH6Q29LCTAkbX_t8_yB3cTXLcXt9EUU9OEn8xE8vzla4j8ijx7Wb1exPNAuDUw79_EBil_N2Gfc/pub?output=csv";
+
+    result = Map();
+    result.put("would_render", false);
+    try
+    {
+        rf_resp = invokeurl
+        [
+            url: RAVING_FAN_CSV_URL
+            type: GET
+        ];
+        rf_text = rf_resp + "";
+        if(rf_text == null || rf_text == "")
+        {
+            result.put("failure", "CSV fetch returned empty");
+            info result;
+            return result;
+        }
+        // Deluge toList drops empty tokens — pad a space after every
+        // comma (and one in front) so every cell survives the split.
+        rf_lines = rf_text.toList("\n");
+        result.put("csv_line_count", rf_lines.size());
+        rf_rows = List();
+        for each line in rf_lines
+        {
+            padded = " " + line.replaceAll(",", ", ");
+            raw_cells = padded.toList(",");
+            row = List();
+            for each c in raw_cells
+            {
+                row.add(c.trim());
+            }
+            rf_rows.add(row);
+        }
+        header_idx = -1;
+        ri = 0;
+        for each row in rf_rows
+        {
+            has_we = false;
+            has_fs = false;
+            has_wb = false;
+            for each c in row
+            {
+                lc = c.toLowerCase();
+                if(lc.contains("week ending"))
+                {
+                    has_we = true;
+                }
+                if(lc.contains("total fan score"))
+                {
+                    has_fs = true;
+                }
+                if(lc.contains("week beginning"))
+                {
+                    has_wb = true;
+                }
+            }
+            if(header_idx < 0 && ((has_we && has_fs) || has_wb))
+            {
+                header_idx = ri;
+            }
+            ri = ri + 1;
+        }
+        result.put("header_row_index", header_idx);
+        col_wb = -1;
+        col_we = -1;
+        col_rev = -1;
+        col_men = -1;
+        col_ref = -1;
+        col_rep = -1;
+        col_fs = -1;
+        if(header_idx >= 0)
+        {
+            hrow = rf_rows.get(header_idx);
+            result.put("header_row", hrow);
+            ci = 0;
+            for each c in hrow
+            {
+                lc = c.toLowerCase();
+                if(col_wb < 0 && lc.contains("week beginning"))
+                {
+                    col_wb = ci;
+                }
+                if(col_we < 0 && lc.contains("week ending"))
+                {
+                    col_we = ci;
+                }
+                if(col_rev < 0 && lc.contains("5-star"))
+                {
+                    col_rev = ci;
+                }
+                if(col_men < 0 && lc.contains("mentioning staff"))
+                {
+                    col_men = ci;
+                }
+                if(col_ref < 0 && lc.contains("referred leads"))
+                {
+                    col_ref = ci;
+                }
+                if(col_rep < 0 && lc.contains("repeat clients"))
+                {
+                    col_rep = ci;
+                }
+                if(col_fs < 0 && lc.contains("total fan score"))
+                {
+                    col_fs = ci;
+                }
+                ci = ci + 1;
+            }
+            if(col_wb >= 0)
+            {
+                if(col_we < 0)
+                {
+                    col_we = col_wb + 1;
+                }
+                if(col_rev < 0)
+                {
+                    col_rev = col_wb + 2;
+                }
+                if(col_men < 0)
+                {
+                    col_men = col_wb + 3;
+                }
+                if(col_ref < 0)
+                {
+                    col_ref = col_wb + 4;
+                }
+                if(col_rep < 0)
+                {
+                    col_rep = col_wb + 5;
+                }
+                if(col_fs < 0)
+                {
+                    col_fs = col_wb + 6;
+                }
+            }
+        }
+        col_map = Map();
+        col_map.put("week_beginning", col_wb);
+        col_map.put("week_ending", col_we);
+        col_map.put("reviews", col_rev);
+        col_map.put("mentions", col_men);
+        col_map.put("referrals", col_ref);
+        col_map.put("repeat", col_rep);
+        col_map.put("fan_score", col_fs);
+        result.put("column_map", col_map);
+        // Always show the first rows after the header so a non-matching
+        // date or metric format is visible instead of guessed at.
+        sample_rows = List();
+        if(header_idx >= 0)
+        {
+            si = 0;
+            for each row in rf_rows
+            {
+                if(si > header_idx && si <= header_idx + 6)
+                {
+                    sample_rows.add(row);
+                }
+                si = si + 1;
+            }
+        }
+        result.put("sample_rows_after_header", sample_rows);
+        metric_cols = List();
+        metric_cols.add(col_rev);
+        metric_cols.add(col_men);
+        metric_cols.add(col_ref);
+        metric_cols.add(col_rep);
+        rf_target = null;
+        if(header_idx >= 0 && col_we >= 0)
+        {
+            ri = 0;
+            for each row in rf_rows
+            {
+                if(ri > header_idx && row.size() > col_we)
+                {
+                    we_cell = row.get(col_we);
+                    // No regex: Deluge string literals pass backslashes
+                    // verbatim, so "\\d" reached the engine as a literal
+                    // backslash + d and matched nothing (burned inspector
+                    // rounds 1-3). Structural test instead: 2-3 "/"-separated
+                    // all-numeric parts covers "9/7", "7/4/26", "7/4/2026".
+                    is_date = false;
+                    if(we_cell.contains("/"))
+                    {
+                        date_parts = we_cell.toList("/");
+                        if(date_parts.size() >= 2 && date_parts.size() <= 3)
+                        {
+                            is_date = true;
+                            for each dp in date_parts
+                            {
+                                dpt = dp.trim();
+                                if(dpt == "" || !dpt.isNumber() || dpt.contains("."))
+                                {
+                                    is_date = false;
+                                }
+                            }
+                        }
+                    }
+                    if(is_date)
+                    {
+                        has_entry = false;
+                        for each mc in metric_cols
+                        {
+                            if(mc >= 0 && row.size() > mc && row.get(mc) != "")
+                            {
+                                has_entry = true;
+                            }
+                        }
+                        if(has_entry)
+                        {
+                            rf_target = row;
+                        }
+                    }
+                }
+                ri = ri + 1;
+            }
+        }
+        if(rf_target == null)
+        {
+            result.put("failure", "header found but no dated data row with metrics — check column_map and header_row above");
+            info result;
+            return result;
+        }
+        rf_week_end = rf_target.get(col_we);
+        rf_reviews = 0;
+        if(col_rev >= 0 && rf_target.size() > col_rev && rf_target.get(col_rev).trim().isNumber() && !rf_target.get(col_rev).contains("."))
+        {
+            rf_reviews = rf_target.get(col_rev).toLong();
+        }
+        rf_mentions = 0;
+        if(col_men >= 0 && rf_target.size() > col_men && rf_target.get(col_men).trim().isNumber() && !rf_target.get(col_men).contains("."))
+        {
+            rf_mentions = rf_target.get(col_men).toLong();
+        }
+        rf_referrals = 0;
+        if(col_ref >= 0 && rf_target.size() > col_ref && rf_target.get(col_ref).trim().isNumber() && !rf_target.get(col_ref).contains("."))
+        {
+            rf_referrals = rf_target.get(col_ref).toLong();
+        }
+        rf_repeat = 0;
+        if(col_rep >= 0 && rf_target.size() > col_rep && rf_target.get(col_rep).trim().isNumber() && !rf_target.get(col_rep).contains("."))
+        {
+            rf_repeat = rf_target.get(col_rep).toLong();
+        }
+        rf_fan_score = 0;
+        if(col_fs >= 0 && rf_target.size() > col_fs && rf_target.get(col_fs).trim().isNumber() && !rf_target.get(col_fs).contains("."))
+        {
+            rf_fan_score = rf_target.get(col_fs).toLong();
+        }
+        if(rf_fan_score == 0)
+        {
+            rf_fan_score = rf_reviews + rf_mentions + rf_referrals + rf_repeat;
+        }
+        result.put("would_render", true);
+        result.put("week_ending", rf_week_end);
+        result.put("reviews", rf_reviews);
+        result.put("mentions", rf_mentions);
+        result.put("referrals", rf_referrals);
+        result.put("repeat", rf_repeat);
+        result.put("fan_score", rf_fan_score);
+    }
+    catch (e)
+    {
+        result.put("failure", e.toString());
+    }
+    info result;
+    return result;
+}
