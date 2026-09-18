@@ -412,6 +412,20 @@ naming affected techs. Distinct from the whole-run iSolved-pending state.
   2026-08-25: keep Mon-Sun as is for now. Revisit if iSolved's payroll week
   (likely Sun-Sat) makes the OT split drift from payroll.
 
+## 2026-09-18 — Henry (forecast schedule)
+
+### Forecast run moves to Thursday 5:00 PM ET
+
+Henry's call, reversing the Friday 4pm slot Dustin requested 2026-08-13.
+Known trade-off: Dustin moved it to Friday because "most of the data is
+going to be dependent Josh/PM scheduling" — a Thursday run sees a slightly
+less complete schedule. Two things must always move together:
+
+1. The Creator schedule entry (Settings > Schedules > "Weekly Utilization
+   Forecast") — UI state, edited by hand to Thursday 17:00 ET.
+2. `days_to_monday` in `scheduled_forecast.dg` — 4 from Thursday (was 3
+   from Friday). Mismatched, the report covers the wrong week.
+
 ## Open verification items (not blocking, surface during build)
 
 1. **30-min adder scope** — spec Section 5.2 is ambiguous whether it applies to all non-trip events or only non-billable. Ask Dustin during parallel-run reconciliation.
