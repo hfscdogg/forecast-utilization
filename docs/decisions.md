@@ -545,6 +545,23 @@ Accepted delta, no code change: Dustin's manual drive time for Jim was
 5.5 vs our 6.0 — he called it rounding; our convention is a flat 0.5
 per qualifying on-site no-trip event (12 events that week).
 
+## 2026-09-18 — Henry (forecast time 4pm to 5pm; Thursday deploy gap found)
+
+### Forecast run time moves to Thursday 5:00 PM ET
+
+Henry's call. The day was already Thursday per his 2026-09-10 decision
+above; this only shifts the hour from 4pm to 5pm. `days_to_sunday` stays
+3 (the hour never affects the date math).
+
+**Deploy gap found while making this change**: the 2026-09-18 forecast
+email fired Friday 4:00 PM ET with a Mon-Sun subject, proving the
+2026-09-10 Thursday + Sun-Sat changes to `scheduled_forecast.dg` and the
+Creator schedule entry were never deployed. Production was still running
+the pre-9/10 Friday code. Both must land together: paste current
+`scheduled_forecast.dg` into Creator AND edit the schedule entry
+(Settings > Schedules > "Weekly Utilization Forecast") to Thursday
+17:00 ET in the same sitting, or the report covers the wrong week.
+
 ## Open verification items (not blocking, surface during build)
 
 1. **30-min adder scope** — spec Section 5.2 is ambiguous whether it applies to all non-trip events or only non-billable. Ask Dustin during parallel-run reconciliation.
