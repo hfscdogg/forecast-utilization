@@ -13,10 +13,15 @@ void send_actuals_email(Map result)
 
     // Livewire Design System v3.0 tokens for the Raving Fan snapshot block.
     // See docs/Livewire_Design_System.md sections 1.2, 2.3, 2.6.
-    RF_SURFACE = "#1A1A1A";
-    RF_DEEP = "#0D0D0D";
-    RF_TEXT_PRIMARY = "#FFFFFF";
-    RF_TEXT_SECONDARY = "#85857A";
+    // Light card (2026-09-21): the original dark #1A1A1A card rendered
+    // unreadable in Gmail, whose message theming recolors light text on a
+    // dark source background. Email clients' dark-mode transforms assume
+    // dark-text-on-light source, so the card is now warm grey with ink
+    // text and a copper accent, legible under both themes.
+    RF_CARD_BG = "#FAFAF9";
+    RF_CARD_BORDER = "#E5E5E0";
+    RF_INK = "#1A1A1A";
+    RF_TEXT_SECONDARY = "#6B6B60";
     RF_COPPER = "#F7941D";
     RF_SERIF_STACK = "'Fraunces', Georgia, 'Times New Roman', serif";
     RF_SANS_STACK = "'Montserrat', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif";
@@ -399,15 +404,15 @@ void send_actuals_email(Map result)
                 }
 
                 metric_label_style = "margin:0 0 6px;font-family:" + RF_SANS_STACK + ";font-size:10.5px;letter-spacing:0.24em;text-transform:uppercase;font-weight:600;color:" + RF_TEXT_SECONDARY + ";";
-                metric_value_style = "margin:0;font-family:" + RF_SERIF_STACK + ";font-size:32px;line-height:1;font-weight:400;color:" + RF_TEXT_PRIMARY + ";letter-spacing:-0.02em;";
+                metric_value_style = "margin:0;font-family:" + RF_SERIF_STACK + ";font-size:32px;line-height:1;font-weight:400;color:" + RF_INK + ";letter-spacing:-0.02em;";
                 fan_label_style = "margin:0 0 6px;font-family:" + RF_SANS_STACK + ";font-size:10.5px;letter-spacing:0.24em;text-transform:uppercase;font-weight:600;color:" + RF_COPPER + ";";
                 fan_value_style = "margin:0;font-family:" + RF_SERIF_STACK + ";font-size:40px;line-height:1;font-weight:400;color:" + RF_COPPER + ";letter-spacing:-0.02em;";
 
                 raving_fan_block =
-                    "<table role='presentation' cellpadding='0' cellspacing='0' border='0' width='600' align='center' style='max-width:600px;width:100%;background:" + RF_SURFACE + ";margin:0 auto;'>" +
-                    "<tr><td style='padding:40px 32px;'>" +
+                    "<table role='presentation' cellpadding='0' cellspacing='0' border='0' width='600' align='center' style='max-width:600px;width:100%;background:" + RF_CARD_BG + ";border:1px solid " + RF_CARD_BORDER + ";border-top:4px solid " + RF_COPPER + ";margin:0 auto;'>" +
+                    "<tr><td style='padding:32px 32px 36px;'>" +
                     "<p style='margin:0 0 12px;font-family:" + RF_SANS_STACK + ";font-size:10.5px;letter-spacing:0.24em;text-transform:uppercase;font-weight:600;color:" + RF_COPPER + ";'>Raving Fan Snapshot</p>" +
-                    "<h3 style='margin:0 0 28px;font-family:" + RF_SERIF_STACK + ";font-size:28px;line-height:1.05;letter-spacing:-0.02em;font-weight:400;color:" + RF_TEXT_PRIMARY + ";'>Week ending " + rf_week_end + "</h3>" +
+                    "<h3 style='margin:0 0 28px;font-family:" + RF_SERIF_STACK + ";font-size:28px;line-height:1.05;letter-spacing:-0.02em;font-weight:400;color:" + RF_INK + ";'>Week ending " + rf_week_end + "</h3>" +
                     "<table role='presentation' cellpadding='0' cellspacing='0' border='0' width='100%' style='border-collapse:collapse;'>" +
                     "<tr>" +
                     "<td style='padding:8px 4px;text-align:center;vertical-align:top;'>" +
@@ -434,7 +439,7 @@ void send_actuals_email(Map result)
                     "</table>" +
                     "<table role='presentation' cellpadding='0' cellspacing='0' border='0' align='center' style='margin:32px auto 0;'>" +
                     "<tr><td style='background:" + RF_COPPER + ";border:2px solid " + RF_COPPER + ";border-radius:30px;'>" +
-                    "<a href='" + RAVING_FAN_URL + "' style='display:block;padding:14px 32px;color:" + RF_TEXT_PRIMARY + " !important;text-decoration:none !important;font-family:" + RF_SANS_STACK + ";font-size:14px;font-weight:600;letter-spacing:0.02em;'>Open the Scorecard</a>" +
+                    "<a href='" + RAVING_FAN_URL + "' style='display:block;padding:14px 32px;color:#FFFFFF !important;text-decoration:none !important;font-family:" + RF_SANS_STACK + ";font-size:14px;font-weight:600;letter-spacing:0.02em;'>Open the Scorecard</a>" +
                     "</td></tr>" +
                     "</table>" +
                     "<p style='margin:12px 0 0;font-family:" + RF_SANS_STACK + ";font-size:11px;text-align:center;color:" + RF_TEXT_SECONDARY + ";'>Updated weekly by the Raving Fan team.</p>" +
