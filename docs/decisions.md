@@ -577,9 +577,9 @@ Fixes:
   splits the date-bearing lines below it.
 
 Deploy: paste BOTH functions into Creator, then re-run `scheduled_actuals`
-manually to send this week's report. `generate_forecast.dg` has the same
-techs x events loop and is the next candidate if the forecast ever trips
-the limit.
+manually to send this week's report. `generate_forecast.dg` had the same
+techs x events loop; it got the same single-pass rewrite in a follow-up
+(paste it into Creator before the next Thursday run).
 
 ## Open verification items (not blocking, surface during build)
 
