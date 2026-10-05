@@ -273,6 +273,12 @@ Map generate_forecast(String week_start, String week_end)
     // and helper. An event whose owner and helper are the same person
     // counts once, as before.
     acc_by_tech = Map();
+    // Unknown event types are kept as "tech||type" keys in a typed List
+    // rather than as a List inside acc: Creator can't tell that a List
+    // read back out of a Map is a List, so calling .contains() on it fails
+    // to save ("argument at index '1' of the function 'contains' did not
+    // match the required data type of '[TEXT]'").
+    unknown_keys = List();
     for each tn in tech_set
     {
         acc = Map();
@@ -281,7 +287,6 @@ Map generate_forecast(String week_start, String week_end)
         acc.put("non_billable", 0.0);
         acc.put("training", 0.0);
         acc.put("adder_count", 0);
-        acc.put("unknown_types", List());
         acc.put("source_events", 0);
         acc_by_tech.put(tn, acc);
     }
@@ -420,12 +425,11 @@ Map generate_forecast(String week_start, String week_end)
                 acc.put("source_events", acc.get("source_events") + 1);
                 if(evt_has_unknown)
                 {
-                    unknown_list = acc.get("unknown_types");
-                    if(!unknown_list.contains(evt_unknown_type))
+                    unknown_key = tn + "||" + evt_unknown_type;
+                    if(!unknown_keys.contains(unknown_key))
                     {
-                        unknown_list.add(evt_unknown_type);
+                        unknown_keys.add(unknown_key);
                     }
-                    acc.put("unknown_types", unknown_list);
                 }
                 acc_by_tech.put(tn, acc);
             }
@@ -446,7 +450,15 @@ Map generate_forecast(String week_start, String week_end)
         non_billable_hrs = acc.get("non_billable");
         training_hrs = acc.get("training");
         adder_count = acc.get("adder_count");
-        unknown_types = acc.get("unknown_types");
+        unknown_types = List();
+        for each uk in unknown_keys
+        {
+            uk_text = uk.toString();
+            if(uk_text.startsWith(tech_name + "||"))
+            {
+                unknown_types.add(uk_text.getSuffix("||"));
+            }
+        }
         source_events = acc.get("source_events");
 
         drive_adder = DRIVE_TIME_ADDER_HRS * adder_count;
