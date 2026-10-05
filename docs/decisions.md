@@ -562,6 +562,25 @@ the pre-9/10 Friday code. Both must land together: paste current
 (Settings > Schedules > "Weekly Utilization Forecast") to Thursday
 17:00 ET in the same sitting, or the report covers the wrong week.
 
+## 2026-10-05 — Actuals run hit Creator's statement-execution limit
+
+The Monday 4pm actuals run failed: "Error at line : 394, Number of
+statement execution limit exceed". Line 394 of `generate_actuals.dg` was
+the rollup loop right after the per-tech hours loop, which re-scanned
+every event for every tech (techs x events, ~30 statements per pass).
+Fixes:
+- `generate_actuals.dg`: per-tech totals now come from ONE pass over the
+  events; each event's billed / non-billable hours are computed once and
+  credited to its owner and helper. Same math, roughly 1/N the statements.
+- `send_actuals_email.dg`: the Raving Fan block no longer splits and trims
+  every cell of the whole sheet; it finds the header by line text and only
+  splits the date-bearing lines below it.
+
+Deploy: paste BOTH functions into Creator, then re-run `scheduled_actuals`
+manually to send this week's report. `generate_forecast.dg` has the same
+techs x events loop and is the next candidate if the forecast ever trips
+the limit.
+
 ## Open verification items (not blocking, surface during build)
 
 1. **30-min adder scope** — spec Section 5.2 is ambiguous whether it applies to all non-trip events or only non-billable. Ask Dustin during parallel-run reconciliation.

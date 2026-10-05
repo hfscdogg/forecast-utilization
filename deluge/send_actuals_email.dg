@@ -191,49 +191,36 @@ void send_actuals_email(Map result)
             // Deluge's toList drops empty tokens, which would silently
             // shift sparse rows — pad a space after every comma (and one
             // in front for a leading empty cell) so every cell survives.
-            rf_lines = rf_text.toList("\n");
-            rf_rows = List();
-            for each line in rf_lines
-            {
-                padded = " " + line.replaceAll(",", ", ");
-                raw_cells = padded.toList(",");
-                row = List();
-                for each c in raw_cells
-                {
-                    row.add(c.trim());
-                }
-                rf_rows.add(row);
-            }
+            // Only the header line and the date-bearing lines below it
+            // are split into cells: splitting and trimming every cell of
+            // the whole sheet (decorative rows, pre-filled quarters) cost
+            // thousands of statements and helped push the 2026-10-05 run
+            // past Creator's statement-execution limit.
             // Header row: "Week Ending" + "Total Fan Score" together (or
             // "Week Beginning" as fallback), matching the dashboard.
+            rf_lines = rf_text.toList("\n");
             header_idx = -1;
-            ri = 0;
-            for each row in rf_rows
+            hrow = List();
+            candidate_lines = List();
+            for each line in rf_lines
             {
-                has_we = false;
-                has_fs = false;
-                has_wb = false;
-                for each c in row
+                if(header_idx < 0)
                 {
-                    lc = c.toLowerCase();
-                    if(lc.contains("week ending"))
+                    ll = line.toLowerCase();
+                    if((ll.contains("week ending") && ll.contains("total fan score")) || ll.contains("week beginning"))
                     {
-                        has_we = true;
-                    }
-                    if(lc.contains("total fan score"))
-                    {
-                        has_fs = true;
-                    }
-                    if(lc.contains("week beginning"))
-                    {
-                        has_wb = true;
+                        header_idx = 0;
+                        raw_cells = (" " + line.replaceAll(",", ", ")).toList(",");
+                        for each c in raw_cells
+                        {
+                            hrow.add(c.trim());
+                        }
                     }
                 }
-                if(header_idx < 0 && ((has_we && has_fs) || has_wb))
+                else if(line.contains("/"))
                 {
-                    header_idx = ri;
+                    candidate_lines.add(line);
                 }
-                ri = ri + 1;
             }
             // Map columns by header name; backfill any missing from the
             // sheet's fixed order relative to Week Beginning.
@@ -246,7 +233,6 @@ void send_actuals_email(Map result)
             col_fs = -1;
             if(header_idx >= 0)
             {
-                hrow = rf_rows.get(header_idx);
                 ci = 0;
                 for each c in hrow
                 {
@@ -321,10 +307,15 @@ void send_actuals_email(Map result)
             rf_target = null;
             if(header_idx >= 0 && col_we >= 0)
             {
-                ri = 0;
-                for each row in rf_rows
+                for each line in candidate_lines
                 {
-                    if(ri > header_idx && row.size() > col_we)
+                    row = List();
+                    raw_cells = (" " + line.replaceAll(",", ", ")).toList(",");
+                    for each c in raw_cells
+                    {
+                        row.add(c.trim());
+                    }
+                    if(row.size() > col_we)
                     {
                         we_cell = row.get(col_we);
                         // No regex: Deluge string literals pass backslashes
@@ -365,7 +356,6 @@ void send_actuals_email(Map result)
                             }
                         }
                     }
-                    ri = ri + 1;
                 }
             }
             if(rf_target != null)
