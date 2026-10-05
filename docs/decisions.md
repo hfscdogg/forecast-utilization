@@ -581,6 +581,26 @@ manually to send this week's report. `generate_forecast.dg` had the same
 techs x events loop; it got the same single-pass rewrite in a follow-up
 (paste it into Creator before the next Thursday run).
 
+## 2026-10-05 — Raving Fan Snapshot redesign
+
+`send_actuals_email.dg`: the Raving Fan block is now a compact card
+(about 180px tall): one-line header, a stat row of Reviews / Mentions /
+Referrals / Repeat with an "=" glyph into Fan Score in orange, and a
+bulletproof table/td "Open the Scorecard" button beside the footer line.
+Root cause of the old tall card and default-blue link: `RF_SANS_STACK`
+and `RF_SERIF_STACK` contained single-quoted font names ('Montserrat',
+'Segoe UI', 'Fraunces') inside single-quoted `style` attributes, which
+closed the attribute early so clients dropped most of the block's
+inline styling. The stack is now unquoted system fonts and the serif
+stack is gone.
+
+Fan Score still prefers the sheet's "Total Fan Score" cell and only
+falls back to summing the four metrics when that cell is blank or 0, so
+the "=" row can show a total that differs from the visible sum if the
+sheet's formula disagrees.
+
+Deploy: paste `send_actuals_email.dg` into Creator.
+
 ## Open verification items (not blocking, surface during build)
 
 1. **30-min adder scope** — spec Section 5.2 is ambiguous whether it applies to all non-trip events or only non-billable. Ask Dustin during parallel-run reconciliation.
