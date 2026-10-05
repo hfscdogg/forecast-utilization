@@ -265,136 +265,189 @@ Map generate_forecast(String week_start, String week_end)
     // ============================================================
     // 5. Per-tech aggregation.
     // ============================================================
+    // Per-tech totals in ONE pass over the events. The previous shape
+    // re-scanned every event for every tech (techs x events, ~40 statements
+    // each) — the same pattern that put the 2026-10-05 actuals run over
+    // Creator's statement-execution limit. Each event's contribution is
+    // tech-independent, so it is computed once and credited to its owner
+    // and helper. An event whose owner and helper are the same person
+    // counts once, as before.
+    acc_by_tech = Map();
+    for each tn in tech_set
+    {
+        acc = Map();
+        acc.put("billable", 0.0);
+        acc.put("billable_wall", 0.0);
+        acc.put("non_billable", 0.0);
+        acc.put("training", 0.0);
+        acc.put("adder_count", 0);
+        acc.put("unknown_types", List());
+        acc.put("source_events", 0);
+        acc_by_tech.put(tn, acc);
+    }
+    for each evt in all_events
+    {
+        owner_name = users_by_id.get(evt.get("Owner").get("id").toString());
+        helper = evt.get("Helper1");
+        credit_to = List();
+        if(owner_name != null && tech_set.contains(owner_name))
+        {
+            credit_to.add(owner_name);
+        }
+        if(helper != null && helper != owner_name && tech_set.contains(helper))
+        {
+            credit_to.add(helper);
+        }
+        if(credit_to.size() > 0)
+        {
+            evt_billable = 0.0;
+            evt_billable_wall = 0.0;
+            evt_non_billable = 0.0;
+            evt_training = 0.0;
+            evt_adder = 0;
+            evt_has_unknown = false;
+            evt_unknown_type = null;
+
+            // Use Duration_Hrs directly (authoritative per-tech wall-clock
+            // from CRM). Pro-rating across the window boundary is deferred
+            // because Deluge datetime subtraction is inconsistent across
+            // versions; multi-day off-time markers may over-count.
+            hrs = evt.get("Duration_Hrs");
+            if(hrs == null)
+            {
+                hrs = 0.0;
+            }
+            // Scheduling blocks contribute nothing anywhere (hours,
+            // trip charges, adder); they are listed in
+            // rollup.block_events instead.
+            is_block = (hrs > BLOCK_EVENT_MAX_HOURS);
+
+            et = evt.get("Event_Type");
+            // Merged trip-charge count across the event-side and
+            // potential-side fields (Dustin 2026-08-31: equal values
+            // collapse to one, differing values keep the positive one —
+            // both cases are a max, never a sum). A trip charge from
+            // EITHER source also suppresses the drive-time adder.
+            tc = evt.get("Trip_Charge");
+            event_trip = 0.0;
+            if(!TRIP_CHARGE_NONE_VALUES.contains(tc))
+            {
+                event_trip = tc.toDecimal();
+            }
+            deal_trip = 0.0;
+            w = evt.get("What_Id");
+            if(w != null)
+            {
+                dv = deal_trip_by_id.get(w.get("id").toString());
+                if(!TRIP_CHARGE_NONE_VALUES.contains(dv))
+                {
+                    // Potential-side values are travel bands, not counts
+                    // ("Travel Band 2: 61-85 Miles from Livewire" —
+                    // inspector 2026-09-05). CONFIRMED by Dustin
+                    // 2026-09-13: band N = N trip charges. The endsWith check on the
+                    // part before the colon also covers plain numeric
+                    // values ("2").
+                    dv_str = dv + "";
+                    if(dv_str.contains(":"))
+                    {
+                        dv_str = dv_str.getPrefix(":");
+                    }
+                    dv_str = dv_str.trim();
+                    for each band_n in {"1", "2", "3", "4"}
+                    {
+                        if(dv_str.endsWith(band_n))
+                        {
+                            deal_trip = band_n.toDecimal();
+                        }
+                    }
+                }
+            }
+            trip_count = event_trip;
+            if(deal_trip > trip_count)
+            {
+                trip_count = deal_trip;
+            }
+            no_trip = (trip_count == 0);
+
+            if(EVENT_TYPES_BILLABLE.contains(et) && !is_block)
+            {
+                trip_hrs = 0.0;
+                is_cancelled = (evt.get("Event_Status") == EVENT_STATUS_NOT_READY && hrs <= CANCELLED_EVENT_MAX_HOURS);
+                if(!no_trip && !is_cancelled)
+                {
+                    if(helper != null && helper != "No Helper" && helper != "-None-" && helper != "")
+                    {
+                        trip_hrs = trip_count * TRIP_CHARGE_HOURS_PAIRED_PER_TECH;
+                    }
+                    else
+                    {
+                        trip_hrs = trip_count * TRIP_CHARGE_HOURS_SOLO;
+                    }
+                }
+                evt_billable = hrs + trip_hrs;
+                evt_billable_wall = hrs;
+                if(no_trip && EVENT_TYPES_ONSITE.contains(et))
+                {
+                    evt_adder = 1;
+                }
+            }
+            else if(et == EVENT_TYPE_TRAINING && !is_block)
+            {
+                evt_training = hrs;
+            }
+            else if(EVENT_TYPES_NON_BILLABLE.contains(et) && !is_block)
+            {
+                evt_non_billable = hrs;
+                if(no_trip && EVENT_TYPES_ONSITE.contains(et))
+                {
+                    evt_adder = 1;
+                }
+            }
+            else if(!EVENT_TYPES_EXCLUDED.contains(et) && !is_block)
+            {
+                evt_has_unknown = true;
+                evt_unknown_type = et;
+            }
+
+            for each tn in credit_to
+            {
+                acc = acc_by_tech.get(tn);
+                acc.put("billable", acc.get("billable") + evt_billable);
+                acc.put("billable_wall", acc.get("billable_wall") + evt_billable_wall);
+                acc.put("non_billable", acc.get("non_billable") + evt_non_billable);
+                acc.put("training", acc.get("training") + evt_training);
+                acc.put("adder_count", acc.get("adder_count") + evt_adder);
+                acc.put("source_events", acc.get("source_events") + 1);
+                if(evt_has_unknown)
+                {
+                    unknown_list = acc.get("unknown_types");
+                    if(!unknown_list.contains(evt_unknown_type))
+                    {
+                        unknown_list.add(evt_unknown_type);
+                    }
+                    acc.put("unknown_types", unknown_list);
+                }
+                acc_by_tech.put(tn, acc);
+            }
+        }
+    }
+
     techs = List();
     for each tech_name in tech_set
     {
-        billable_hrs = 0.0;
+        acc = acc_by_tech.get(tech_name);
+        billable_hrs = acc.get("billable");
         // Wall-clock-only billable, without trip-charge credit — feeds
         // Hours Scheduled and OT (Dustin 2026-09-11: trip charges are
         // billable CREDIT, not time on the schedule; counting them in
         // Hours Scheduled inflated Jim's 47.5 scheduled / 7.5 OT to
         // 53.5 / 13.5).
-        billable_wall_hrs = 0.0;
-        non_billable_hrs = 0.0;
-        training_hrs = 0.0;
-        adder_count = 0;
-        unknown_types = List();
-        source_events = 0;
-
-        for each evt in all_events
-        {
-            owner_id = evt.get("Owner").get("id").toString();
-            owner_name = users_by_id.get(owner_id);
-            helper = evt.get("Helper1");
-            is_assigned = (owner_name == tech_name) || (helper == tech_name);
-            if(is_assigned)
-            {
-                source_events = source_events + 1;
-
-                // Use Duration_Hrs directly (authoritative per-tech wall-clock
-                // from CRM). Pro-rating across the window boundary is deferred
-                // because Deluge datetime subtraction is inconsistent across
-                // versions; multi-day off-time markers may over-count.
-                hrs = evt.get("Duration_Hrs");
-                if(hrs == null)
-                {
-                    hrs = 0.0;
-                }
-                // Scheduling blocks contribute nothing anywhere (hours,
-                // trip charges, adder); they are listed in
-                // rollup.block_events instead.
-                is_block = (hrs > BLOCK_EVENT_MAX_HOURS);
-
-                et = evt.get("Event_Type");
-                // Merged trip-charge count across the event-side and
-                // potential-side fields (Dustin 2026-08-31: equal values
-                // collapse to one, differing values keep the positive one —
-                // both cases are a max, never a sum). A trip charge from
-                // EITHER source also suppresses the drive-time adder.
-                tc = evt.get("Trip_Charge");
-                event_trip = 0.0;
-                if(!TRIP_CHARGE_NONE_VALUES.contains(tc))
-                {
-                    event_trip = tc.toDecimal();
-                }
-                deal_trip = 0.0;
-                w = evt.get("What_Id");
-                if(w != null)
-                {
-                    dv = deal_trip_by_id.get(w.get("id").toString());
-                    if(!TRIP_CHARGE_NONE_VALUES.contains(dv))
-                    {
-                        // Potential-side values are travel bands, not counts
-                        // ("Travel Band 2: 61-85 Miles from Livewire" —
-                        // inspector 2026-09-05). CONFIRMED by Dustin
-                        // 2026-09-13: band N = N trip charges. The endsWith check on the
-                        // part before the colon also covers plain numeric
-                        // values ("2").
-                        dv_str = dv + "";
-                        if(dv_str.contains(":"))
-                        {
-                            dv_str = dv_str.getPrefix(":");
-                        }
-                        dv_str = dv_str.trim();
-                        for each band_n in {"1", "2", "3", "4"}
-                        {
-                            if(dv_str.endsWith(band_n))
-                            {
-                                deal_trip = band_n.toDecimal();
-                            }
-                        }
-                    }
-                }
-                trip_count = event_trip;
-                if(deal_trip > trip_count)
-                {
-                    trip_count = deal_trip;
-                }
-                no_trip = (trip_count == 0);
-
-                if(EVENT_TYPES_BILLABLE.contains(et) && !is_block)
-                {
-                    trip_hrs = 0.0;
-                    is_cancelled = (evt.get("Event_Status") == EVENT_STATUS_NOT_READY && hrs <= CANCELLED_EVENT_MAX_HOURS);
-                    if(!no_trip && !is_cancelled)
-                    {
-                        if(helper != null && helper != "No Helper" && helper != "-None-" && helper != "")
-                        {
-                            trip_hrs = trip_count * TRIP_CHARGE_HOURS_PAIRED_PER_TECH;
-                        }
-                        else
-                        {
-                            trip_hrs = trip_count * TRIP_CHARGE_HOURS_SOLO;
-                        }
-                    }
-                    billable_hrs = billable_hrs + hrs + trip_hrs;
-                    billable_wall_hrs = billable_wall_hrs + hrs;
-                    if(no_trip && EVENT_TYPES_ONSITE.contains(et))
-                    {
-                        adder_count = adder_count + 1;
-                    }
-                }
-                else if(et == EVENT_TYPE_TRAINING && !is_block)
-                {
-                    training_hrs = training_hrs + hrs;
-                }
-                else if(EVENT_TYPES_NON_BILLABLE.contains(et) && !is_block)
-                {
-                    non_billable_hrs = non_billable_hrs + hrs;
-                    if(no_trip && EVENT_TYPES_ONSITE.contains(et))
-                    {
-                        adder_count = adder_count + 1;
-                    }
-                }
-                else if(!EVENT_TYPES_EXCLUDED.contains(et) && !is_block)
-                {
-                    if(!unknown_types.contains(et))
-                    {
-                        unknown_types.add(et);
-                    }
-                }
-            }
-        }
+        billable_wall_hrs = acc.get("billable_wall");
+        non_billable_hrs = acc.get("non_billable");
+        training_hrs = acc.get("training");
+        adder_count = acc.get("adder_count");
+        unknown_types = acc.get("unknown_types");
+        source_events = acc.get("source_events");
 
         drive_adder = DRIVE_TIME_ADDER_HRS * adder_count;
         // Hours Scheduled is CLOCK time only: trip-charge credit stays in
