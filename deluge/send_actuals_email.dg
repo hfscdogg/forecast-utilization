@@ -23,8 +23,11 @@ void send_actuals_email(Map result)
     RF_INK = "#1A1A1A";
     RF_TEXT_SECONDARY = "#6B6B60";
     RF_COPPER = "#F7941D";
-    RF_SERIF_STACK = "'Fraunces', Georgia, 'Times New Roman', serif";
-    RF_SANS_STACK = "'Montserrat', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif";
+    // No quotes in this stack: it goes inside single-quoted style
+    // attributes, and the old 'Montserrat' / 'Segoe UI' quotes closed the
+    // attribute early, so clients dropped the block's styling (tall
+    // default-margin card, default-blue CTA link). System fonts only.
+    RF_SANS_STACK = "-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Helvetica, Arial, sans-serif";
     RAVING_FAN_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRsQaH6Q29LCTAkbX_t8_yB3cTXLcXt9EUU9OEn8xE8vzla4j8ijx7Wb1exPNAuDUw79_EBil_N2Gfc/pub?output=csv";
     RAVING_FAN_URL = "https://hfscdogg.github.io/raving-fan/";
 
@@ -393,46 +396,64 @@ void send_actuals_email(Map result)
                     rf_fan_score = rf_reviews + rf_mentions + rf_referrals + rf_repeat;
                 }
 
-                metric_label_style = "margin:0 0 6px;font-family:" + RF_SANS_STACK + ";font-size:10.5px;letter-spacing:0.24em;text-transform:uppercase;font-weight:600;color:" + RF_TEXT_SECONDARY + ";";
-                metric_value_style = "margin:0;font-family:" + RF_SERIF_STACK + ";font-size:32px;line-height:1;font-weight:400;color:" + RF_INK + ";letter-spacing:-0.02em;";
-                fan_label_style = "margin:0 0 6px;font-family:" + RF_SANS_STACK + ";font-size:10.5px;letter-spacing:0.24em;text-transform:uppercase;font-weight:600;color:" + RF_COPPER + ";";
-                fan_value_style = "margin:0;font-family:" + RF_SERIF_STACK + ";font-size:40px;line-height:1;font-weight:400;color:" + RF_COPPER + ";letter-spacing:-0.02em;";
+                // Compact stat-row layout (2026-10-05): four inputs, an "="
+                // glyph, then Fan Score in orange so the row reads as a sum.
+                // Email-safe: nested tables, inline styles, no media query
+                // (the email has none), so one row that fits at 600px.
+                // Orange only on Fan Score and the button.
+                rf_cell_style = "padding:8px 4px;text-align:center;vertical-align:middle;";
+                rf_divided_cell_style = rf_cell_style + "border-left:1px solid " + RF_CARD_BORDER + ";";
+                metric_value_style = "margin:0;font-family:" + RF_SANS_STACK + ";font-size:24px;line-height:28px;font-weight:700;color:" + RF_INK + ";";
+                metric_label_style = "margin:4px 0 0;font-family:" + RF_SANS_STACK + ";font-size:10px;line-height:12px;letter-spacing:0.08em;text-transform:uppercase;font-weight:600;color:" + RF_TEXT_SECONDARY + ";";
+                fan_value_style = "margin:0;font-family:" + RF_SANS_STACK + ";font-size:34px;line-height:38px;font-weight:700;color:" + RF_COPPER + ";";
+                fan_label_style = "margin:2px 0 0;font-family:" + RF_SANS_STACK + ";font-size:10px;line-height:12px;letter-spacing:0.08em;text-transform:uppercase;font-weight:700;color:" + RF_INK + ";";
 
                 raving_fan_block =
-                    "<table role='presentation' cellpadding='0' cellspacing='0' border='0' width='600' align='center' style='max-width:600px;width:100%;background:" + RF_CARD_BG + ";border:1px solid " + RF_CARD_BORDER + ";border-top:4px solid " + RF_COPPER + ";margin:0 auto;'>" +
-                    "<tr><td style='padding:32px 32px 36px;'>" +
-                    "<p style='margin:0 0 12px;font-family:" + RF_SANS_STACK + ";font-size:10.5px;letter-spacing:0.24em;text-transform:uppercase;font-weight:600;color:" + RF_COPPER + ";'>Raving Fan Snapshot</p>" +
-                    "<h3 style='margin:0 0 28px;font-family:" + RF_SERIF_STACK + ";font-size:28px;line-height:1.05;letter-spacing:-0.02em;font-weight:400;color:" + RF_INK + ";'>Week ending " + rf_week_end + "</h3>" +
-                    "<table role='presentation' cellpadding='0' cellspacing='0' border='0' width='100%' style='border-collapse:collapse;'>" +
+                    "<table role='presentation' cellpadding='0' cellspacing='0' border='0' width='100%' style='width:100%;background:" + RF_CARD_BG + ";border:1px solid " + RF_CARD_BORDER + ";border-collapse:separate;margin:0 0 16px;'>" +
+                    "<tr><td style='padding:14px 20px 12px;'>" +
+                    "<table role='presentation' cellpadding='0' cellspacing='0' border='0' width='100%'>" +
                     "<tr>" +
-                    "<td style='padding:8px 4px;text-align:center;vertical-align:top;'>" +
-                    "<p style='" + metric_label_style + "'>Reviews</p>" +
+                    "<td style='font-family:" + RF_SANS_STACK + ";font-size:16px;line-height:20px;font-weight:700;color:" + RF_INK + ";text-align:left;vertical-align:baseline;'>Raving Fan Snapshot</td>" +
+                    "<td style='font-family:" + RF_SANS_STACK + ";font-size:12px;line-height:20px;color:" + RF_TEXT_SECONDARY + ";text-align:right;vertical-align:baseline;white-space:nowrap;'>Week ending " + rf_week_end + "</td>" +
+                    "</tr>" +
+                    "</table>" +
+                    "<table role='presentation' cellpadding='0' cellspacing='0' border='0' width='100%' style='margin:10px 0 0;border-top:1px solid " + RF_CARD_BORDER + ";border-bottom:1px solid " + RF_CARD_BORDER + ";'>" +
+                    "<tr>" +
+                    "<td width='17%' style='" + rf_cell_style + "'>" +
                     "<p style='" + metric_value_style + "'>" + rf_reviews + "</p>" +
+                    "<p style='" + metric_label_style + "'>Reviews</p>" +
                     "</td>" +
-                    "<td style='padding:8px 4px;text-align:center;vertical-align:top;'>" +
-                    "<p style='" + metric_label_style + "'>Mentions</p>" +
+                    "<td width='17%' style='" + rf_divided_cell_style + "'>" +
                     "<p style='" + metric_value_style + "'>" + rf_mentions + "</p>" +
+                    "<p style='" + metric_label_style + "'>Mentions</p>" +
                     "</td>" +
-                    "<td style='padding:8px 4px;text-align:center;vertical-align:top;'>" +
-                    "<p style='" + metric_label_style + "'>Referrals</p>" +
+                    "<td width='17%' style='" + rf_divided_cell_style + "'>" +
                     "<p style='" + metric_value_style + "'>" + rf_referrals + "</p>" +
+                    "<p style='" + metric_label_style + "'>Referrals</p>" +
                     "</td>" +
-                    "<td style='padding:8px 4px;text-align:center;vertical-align:top;'>" +
-                    "<p style='" + metric_label_style + "'>Repeat</p>" +
+                    "<td width='17%' style='" + rf_divided_cell_style + "'>" +
                     "<p style='" + metric_value_style + "'>" + rf_repeat + "</p>" +
+                    "<p style='" + metric_label_style + "'>Repeat</p>" +
                     "</td>" +
-                    "<td style='padding:8px 4px;text-align:center;vertical-align:top;'>" +
-                    "<p style='" + fan_label_style + "'>Fan Score</p>" +
+                    "<td width='6%' style='padding:8px 0;text-align:center;vertical-align:middle;font-family:" + RF_SANS_STACK + ";font-size:22px;line-height:28px;font-weight:400;color:" + RF_TEXT_SECONDARY + ";border-left:1px solid " + RF_CARD_BORDER + ";'>=</td>" +
+                    "<td width='26%' style='" + rf_cell_style + "'>" +
                     "<p style='" + fan_value_style + "'>" + rf_fan_score + "</p>" +
+                    "<p style='" + fan_label_style + "'>Fan Score</p>" +
                     "</td>" +
                     "</tr>" +
                     "</table>" +
-                    "<table role='presentation' cellpadding='0' cellspacing='0' border='0' align='center' style='margin:32px auto 0;'>" +
-                    "<tr><td style='background:" + RF_COPPER + ";border:2px solid " + RF_COPPER + ";border-radius:30px;'>" +
-                    "<a href='" + RAVING_FAN_URL + "' style='display:block;padding:14px 32px;color:#FFFFFF !important;text-decoration:none !important;font-family:" + RF_SANS_STACK + ";font-size:14px;font-weight:600;letter-spacing:0.02em;'>Open the Scorecard</a>" +
+                    "<table role='presentation' cellpadding='0' cellspacing='0' border='0' width='100%' style='margin:12px 0 0;'>" +
+                    "<tr>" +
+                    "<td style='font-family:" + RF_SANS_STACK + ";font-size:11px;line-height:14px;color:" + RF_TEXT_SECONDARY + ";text-align:left;vertical-align:middle;'>Updated weekly by the Raving Fan team.</td>" +
+                    "<td align='right' style='vertical-align:middle;'>" +
+                    "<table role='presentation' cellpadding='0' cellspacing='0' border='0' align='right'>" +
+                    "<tr><td align='center' bgcolor='" + RF_COPPER + "' style='background:" + RF_COPPER + ";border-radius:6px;mso-padding-alt:10px 20px;'>" +
+                    "<a href='" + RAVING_FAN_URL + "' target='_blank' style='display:inline-block;padding:10px 20px;font-family:" + RF_SANS_STACK + ";font-size:13px;line-height:16px;font-weight:700;color:#FFFFFF;text-decoration:none;border-radius:6px;'><span style='color:#FFFFFF;text-decoration:none;'>Open the Scorecard</span></a>" +
                     "</td></tr>" +
                     "</table>" +
-                    "<p style='margin:12px 0 0;font-family:" + RF_SANS_STACK + ";font-size:11px;text-align:center;color:" + RF_TEXT_SECONDARY + ";'>Updated weekly by the Raving Fan team.</p>" +
+                    "</td>" +
+                    "</tr>" +
+                    "</table>" +
                     "</td></tr></table>";
             }
         }
