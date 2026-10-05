@@ -209,102 +209,131 @@ Map generate_actuals(String week_start, String week_end, Map time_cards)
     // Detect iSolved-pending mode: time_cards map empty or null.
     isolved_pending = (time_cards == null || time_cards.size() == 0);
 
+    // Per-tech totals in ONE pass over the events. The previous shape
+    // re-scanned every event for every tech (techs x events, ~30 statements
+    // each), which blew Creator's statement-execution limit on the
+    // 2026-10-05 run ("Error at line : 394, Number of statement execution
+    // limit exceed"). Each event's contribution is tech-independent, so it
+    // is computed once and credited to its owner and helper. An event whose
+    // owner and helper are the same person counts once, as before.
+    billed_by_tech = Map();
+    non_billable_by_tech = Map();
+    events_by_tech = Map();
+    for each tn in tech_set
+    {
+        billed_by_tech.put(tn, 0.0);
+        non_billable_by_tech.put(tn, 0.0);
+        events_by_tech.put(tn, 0);
+    }
+    for each evt in all_events
+    {
+        owner_name = users_by_id.get(evt.get("Owner").get("id").toString());
+        helper = evt.get("Helper1");
+        owner_in = (owner_name != null && tech_set.contains(owner_name));
+        helper_in = (helper != null && helper != owner_name && tech_set.contains(helper));
+        if(owner_in || helper_in)
+        {
+            evt_billed = 0.0;
+            evt_non_billable = 0.0;
+            hrs = evt.get("Duration_Hrs");
+            if(hrs == null)
+            {
+                hrs = 0.0;
+            }
+            // Scheduling blocks contribute nothing (hours or trip
+            // charges); they are listed in rollup.block_events.
+            is_block = (hrs > BLOCK_EVENT_MAX_HOURS);
+            et = evt.get("Event_Type");
+            if(EVENT_TYPES_BILLABLE.contains(et) && !is_block)
+            {
+                // Merged trip-charge count across the event-side and
+                // potential-side fields (Dustin 2026-08-31: equal values
+                // collapse to one, differing values keep the positive
+                // one — both cases are a max, never a sum).
+                trip_val = evt.get("Trip_Charge");
+                event_trip = 0.0;
+                if(trip_val != null && trip_val != "" && trip_val != "-None-" && trip_val != "0")
+                {
+                    event_trip = trip_val.toDecimal();
+                }
+                deal_trip = 0.0;
+                w = evt.get("What_Id");
+                if(w != null)
+                {
+                    dv = deal_trip_by_id.get(w.get("id").toString());
+                    if(dv != null && dv != "" && dv != "-None-" && dv != "0")
+                    {
+                        // Potential-side values are travel bands, not
+                        // counts ("Travel Band 2: 61-85 Miles from
+                        // Livewire" — inspector 2026-09-05). CONFIRMED
+                        // by Dustin 2026-09-13: band N = N trip charges. The
+                        // endsWith check on the part before the colon
+                        // also covers plain numeric values ("2").
+                        dv_str = dv + "";
+                        if(dv_str.contains(":"))
+                        {
+                            dv_str = dv_str.getPrefix(":");
+                        }
+                        dv_str = dv_str.trim();
+                        for each band_n in {"1", "2", "3", "4"}
+                        {
+                            if(dv_str.endsWith(band_n))
+                            {
+                                deal_trip = band_n.toDecimal();
+                            }
+                        }
+                    }
+                }
+                trip_count = event_trip;
+                if(deal_trip > trip_count)
+                {
+                    trip_count = deal_trip;
+                }
+                trip_hrs = 0.0;
+                // Cancelled events (1-minute duration, status Incomplete -
+                // Job Not Ready) keep their trip charge but bill nothing.
+                is_cancelled = (evt.get("Event_Status") == "Incomplete - Job Not Ready" && hrs <= 0.1);
+                if(!is_cancelled && trip_count > 0)
+                {
+                    if(helper != null && helper != "No Helper" && helper != "-None-" && helper != "")
+                    {
+                        trip_hrs = trip_count * TRIP_CHARGE_HOURS_PAIRED_PER_TECH;
+                    }
+                    else
+                    {
+                        trip_hrs = trip_count * TRIP_CHARGE_HOURS_SOLO;
+                    }
+                }
+                evt_billed = hrs + trip_hrs;
+            }
+            else if(EVENT_TYPES_NON_BILLABLE.contains(et) && !is_block)
+            {
+                evt_non_billable = hrs;
+            }
+            // Training is excluded from actuals hours-billed / non-billable;
+            // it's a forecast-side concept that affects scheduled hours.
+            // Excluded types contribute nothing.
+            if(owner_in)
+            {
+                billed_by_tech.put(owner_name, billed_by_tech.get(owner_name) + evt_billed);
+                non_billable_by_tech.put(owner_name, non_billable_by_tech.get(owner_name) + evt_non_billable);
+                events_by_tech.put(owner_name, events_by_tech.get(owner_name) + 1);
+            }
+            if(helper_in)
+            {
+                billed_by_tech.put(helper, billed_by_tech.get(helper) + evt_billed);
+                non_billable_by_tech.put(helper, non_billable_by_tech.get(helper) + evt_non_billable);
+                events_by_tech.put(helper, events_by_tech.get(helper) + 1);
+            }
+        }
+    }
+
     techs = List();
     for each tech_name in tech_set
     {
-        hours_billed = 0.0;
-        non_billable_hrs = 0.0;
-        source_events = 0;
-
-        for each evt in all_events
-        {
-            owner_id = evt.get("Owner").get("id").toString();
-            owner_name = users_by_id.get(owner_id);
-            helper = evt.get("Helper1");
-            is_assigned = (owner_name == tech_name) || (helper == tech_name);
-            if(is_assigned)
-            {
-                source_events = source_events + 1;
-                hrs = evt.get("Duration_Hrs");
-                if(hrs == null)
-                {
-                    hrs = 0.0;
-                }
-                // Scheduling blocks contribute nothing (hours or trip
-                // charges); they are listed in rollup.block_events.
-                is_block = (hrs > BLOCK_EVENT_MAX_HOURS);
-                et = evt.get("Event_Type");
-                if(EVENT_TYPES_BILLABLE.contains(et) && !is_block)
-                {
-                    // Merged trip-charge count across the event-side and
-                    // potential-side fields (Dustin 2026-08-31: equal values
-                    // collapse to one, differing values keep the positive
-                    // one — both cases are a max, never a sum).
-                    trip_val = evt.get("Trip_Charge");
-                    event_trip = 0.0;
-                    if(trip_val != null && trip_val != "" && trip_val != "-None-" && trip_val != "0")
-                    {
-                        event_trip = trip_val.toDecimal();
-                    }
-                    deal_trip = 0.0;
-                    w = evt.get("What_Id");
-                    if(w != null)
-                    {
-                        dv = deal_trip_by_id.get(w.get("id").toString());
-                        if(dv != null && dv != "" && dv != "-None-" && dv != "0")
-                        {
-                            // Potential-side values are travel bands, not
-                            // counts ("Travel Band 2: 61-85 Miles from
-                            // Livewire" — inspector 2026-09-05). CONFIRMED
-                            // by Dustin 2026-09-13: band N = N trip charges. The
-                            // endsWith check on the part before the colon
-                            // also covers plain numeric values ("2").
-                            dv_str = dv + "";
-                            if(dv_str.contains(":"))
-                            {
-                                dv_str = dv_str.getPrefix(":");
-                            }
-                            dv_str = dv_str.trim();
-                            for each band_n in {"1", "2", "3", "4"}
-                            {
-                                if(dv_str.endsWith(band_n))
-                                {
-                                    deal_trip = band_n.toDecimal();
-                                }
-                            }
-                        }
-                    }
-                    trip_count = event_trip;
-                    if(deal_trip > trip_count)
-                    {
-                        trip_count = deal_trip;
-                    }
-                    trip_hrs = 0.0;
-                    // Cancelled events (1-minute duration, status Incomplete -
-                    // Job Not Ready) keep their trip charge but bill nothing.
-                    is_cancelled = (evt.get("Event_Status") == "Incomplete - Job Not Ready" && hrs <= 0.1);
-                    if(!is_cancelled && trip_count > 0)
-                    {
-                        if(helper != null && helper != "No Helper" && helper != "-None-" && helper != "")
-                        {
-                            trip_hrs = trip_count * TRIP_CHARGE_HOURS_PAIRED_PER_TECH;
-                        }
-                        else
-                        {
-                            trip_hrs = trip_count * TRIP_CHARGE_HOURS_SOLO;
-                        }
-                    }
-                    hours_billed = hours_billed + hrs + trip_hrs;
-                }
-                else if(EVENT_TYPES_NON_BILLABLE.contains(et) && !is_block)
-                {
-                    non_billable_hrs = non_billable_hrs + hrs;
-                }
-                // Training is excluded from actuals hours-billed / non-billable;
-                // it's a forecast-side concept that affects scheduled hours.
-                // Excluded types contribute nothing.
-            }
-        }
+        hours_billed = billed_by_tech.get(tech_name);
+        non_billable_hrs = non_billable_by_tech.get(tech_name);
+        source_events = events_by_tech.get(tech_name);
 
         tech_result = Map();
         tech_result.put("technician", tech_name);
