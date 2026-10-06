@@ -601,6 +601,27 @@ sheet's formula disagrees.
 
 Deploy: paste `send_actuals_email.dg` into Creator.
 
+## 2026-10-06 — Dustin (9/20-9/26 actuals review)
+
+Dustin: "This counted Josh M, Isaiah and Cameron, but shouldnt have.
+Utilization is actually: 71.38%."
+
+- **Josh McDonough — bug, fixed.** He was already meant to be excluded
+  (Project Manager), but the list said "Josh McDonough" while the Helper1
+  picklist says "Joshua McDonough". Both spellings are now excluded in
+  both generators and `config.dg`.
+- **Isaiah Luna, Cameron Lloyd — new hires, ramp-up rule.** Per Stacy's
+  2026-08-18 rule they stay in the table but out of the company mean
+  until hire + 3 months. Henry 2026-10-06: take the hire date from when
+  they first appeared in iSolved. `inspectors/find_hire_dates.dg` pulls
+  the iSolved hire-date fields and first week with hours; the dates go
+  into `RAMP_UP_BILLABLE_FROM` (both generators) once it has been run.
+- **Expected delta vs Dustin.** His 71.38% averages the seven remaining
+  techs INCLUDING Elijah Good (61.51%). Elijah's ramp-up runs to
+  2026-10-01, after this 9/26 week, so the report leaves him out of the
+  mean: 73.02% over the other six. From the 9/27-10/3 week on, Elijah
+  counts and the two methods agree.
+
 ## Open verification items (not blocking, surface during build)
 
 1. **30-min adder scope** — spec Section 5.2 is ambiguous whether it applies to all non-trip events or only non-billable. Ask Dustin during parallel-run reconciliation.

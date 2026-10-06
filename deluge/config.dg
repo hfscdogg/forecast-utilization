@@ -175,6 +175,7 @@ TECHNICIAN_FILTER_STRATEGY = "derive_from_event_ownership";
 EXCLUDED_NON_TECH_NAMES = list();
 EXCLUDED_NON_TECH_NAMES.add("Dustin Roskam");   /* Service Manager */
 EXCLUDED_NON_TECH_NAMES.add("Josh McDonough");  /* Project Manager */
+EXCLUDED_NON_TECH_NAMES.add("Joshua McDonough"); /* same person — Helper1 picklist spelling */
 EXCLUDED_NON_TECH_NAMES.add("David Hicks");     /* Ops — fixes timecards; entered roster via a 1-minute cancelled event. Dustin 2026-08-17, Henry approved */
 
 /* Ramp-up rule — Stacy 2026-08-18: "A new technician is considered

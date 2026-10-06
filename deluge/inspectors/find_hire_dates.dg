@@ -1,0 +1,147 @@
+Map find_hire_dates()
+{
+    // One-off inspector (2026-10-06): Dustin's review of the 9/20-9/26
+    // actuals flagged Isaiah Luna and Cameron Lloyd as new. Under Stacy's
+    // 2026-08-18 ramp-up rule they belong in RAMP_UP_BILLABLE_FROM at
+    // hire + 3 months. Henry: use when they first appeared in iSolved.
+    // Elijah Good is included as a control (known billable_from
+    // 2026-10-01, i.e. hired ~2026-07-01).
+    //
+    // Prints two things per person:
+    //   hire_fields       — top-level keys on the iSolved employee record
+    //                       whose name mentions hire/date/status (values
+    //                       only for those keys; nothing else is dumped)
+    //   first_week_hours  — the earliest of the last 20 rolling weeks in
+    //                       which they had Hourly Regular / Overtime hours
+    // If hire_fields comes back empty, record_keys lists the field names
+    // (names only) so the right one can be picked.
+    TARGETS = {"Isaiah Luna", "Cameron Lloyd", "Elijah Good"};
+    WEEKS_BACK = 20;
+    ISOLVED_CLIENT_PATH_ID = "357";
+    ISOLVED_LEGAL_ID = "417";
+    PAY_ITEMS_WORKED = {"Hourly Regular", "Overtime"};
+
+    base_url = thisapp.Variables.ISOLVED_BASE_URL;
+    if(base_url.endsWith("/"))
+    {
+        base_url = base_url.removeLastOccurence("/");
+    }
+    creds_raw = thisapp.Variables.ISOLVED_CLIENT_ID + ":" + thisapp.Variables.ISOLVED_CLIENT_SECRET;
+    basic_token = zoho.encryption.base64encode(creds_raw);
+    token_resp = invokeurl
+    [
+        url: base_url + "/api/token"
+        type: POST
+        parameters: "grant_type=client_credentials"
+        headers: {"Authorization": "Basic " + basic_token, "Content-Type": "application/x-www-form-urlencoded"}
+    ];
+    isolved_auth = {"Authorization": "Bearer " + token_resp.get("access_token")};
+    legal_base = base_url + "/api/clients/" + ISOLVED_CLIENT_PATH_ID + "/legals/" + ISOLVED_LEGAL_ID;
+
+    // ---- 1. Hire-date fields from the employee records ----
+    hire_fields = Map();
+    record_keys = Map();
+    for each page_num in {0, 1, 2}
+    {
+        emp_resp = invokeurl
+        [
+            url: legal_base + "/employees?page=" + page_num
+            type: GET
+            headers: isolved_auth
+        ];
+        emp_data = emp_resp.get("results");
+        if(emp_data != null)
+        {
+            for each emp in emp_data
+            {
+                name_addr = emp.get("nameAddress");
+                if(name_addr != null)
+                {
+                    emp_name = name_addr.get("firstName").trim() + " " + name_addr.get("lastName").trim();
+                    if(TARGETS.contains(emp_name) && !hire_fields.containKey(emp_name))
+                    {
+                        found = Map();
+                        for each k in emp.keys()
+                        {
+                            lk = k.toLowerCase();
+                            if(lk.contains("hire") || lk.contains("date") || lk.contains("status"))
+                            {
+                                found.put(k, emp.get(k));
+                            }
+                        }
+                        hire_fields.put(emp_name, found);
+                        record_keys.put(emp_name, emp.keys());
+                    }
+                }
+            }
+        }
+    }
+
+    // ---- 2. First rolling week with worked hours ----
+    // Walk oldest -> newest so the first hit is the earliest week.
+    today = zoho.currenttime.toDate();
+    first_week_hours = Map();
+    // Keep in step with WEEKS_BACK.
+    week_offsets = {20, 19, 18, 17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1};
+    for each wk in week_offsets
+    {
+        week_end_d = today.subDay(1 + 7 * (wk - 1));
+        week_start_d = week_end_d.subDay(6);
+        ws = week_start_d.toString("yyyy-MM-dd");
+        we = week_end_d.toString("yyyy-MM-dd");
+        tc_base = legal_base + "/timecardData?startDate=" + ws + "T00:00:00&endDate=" + we + "T23:59:59";
+        for each page_num in {0, 1, 2}
+        {
+            tc_resp = invokeurl
+            [
+                url: tc_base + "&page=" + page_num
+                type: GET
+                headers: isolved_auth
+            ];
+            tc_data = tc_resp.get("results");
+            if(tc_data != null)
+            {
+                for each emp_rec in tc_data
+                {
+                    emp_name = emp_rec.get("employeeFirstName").trim() + " " + emp_rec.get("employeeLastName").trim();
+                    // Only the targets get their day records walked, to
+                    // stay far below the statement-execution limit.
+                    if(TARGETS.contains(emp_name) && !first_week_hours.containKey(emp_name))
+                    {
+                        hrs = 0.0;
+                        day_records = emp_rec.get("timecardData");
+                        if(day_records != null)
+                        {
+                            for each day_rec in day_records
+                            {
+                                pay_items = day_rec.get("payItems");
+                                if(pay_items != null)
+                                {
+                                    for each pay_item in pay_items
+                                    {
+                                        if(PAY_ITEMS_WORKED.contains(pay_item.get("payItemName")))
+                                        {
+                                            hrs = hrs + pay_item.get("payItemHours");
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        if(hrs > 0)
+                        {
+                            first_week_hours.put(emp_name, ws + " to " + we + " (" + hrs + " hrs)");
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    result = Map();
+    result.put("hire_fields", hire_fields);
+    result.put("first_week_hours", first_week_hours);
+    result.put("record_keys", record_keys);
+    result.put("weeks_scanned", WEEKS_BACK);
+    info result;
+    return result;
+}
