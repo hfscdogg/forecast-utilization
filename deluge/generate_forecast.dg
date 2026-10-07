@@ -65,6 +65,11 @@ Map generate_forecast(String week_start, String week_end)
     // with hire date + 3 months.
     RAMP_UP_BILLABLE_FROM = Map();
     RAMP_UP_BILLABLE_FROM.put("Elijah Good", "2026-10-01");
+    // Start dates per Henry 2026-10-06 (first appearance in iSolved): Cameron
+    // first clocked hours the week of 9/16; Isaiah has no iSolved hours yet,
+    // so his start is taken as the week he first appeared (9/20).
+    RAMP_UP_BILLABLE_FROM.put("Cameron Lloyd", "2026-12-16");
+    RAMP_UP_BILLABLE_FROM.put("Isaiah Luna", "2026-12-20");
     // Non-field roles to keep out of the utilization roster entirely.
     // These people occasionally own non-billable events (meetings,
     // project management) which would otherwise pull them into the

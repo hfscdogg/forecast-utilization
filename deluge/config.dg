@@ -191,6 +191,8 @@ EXCLUDED_NON_TECH_NAMES.add("David Hicks");     /* Ops — fixes timecards; ente
  * fully and visibly drags the number — the conservative failure mode. */
 RAMP_UP_BILLABLE_FROM = map();
 RAMP_UP_BILLABLE_FROM.put("Elijah Good", "2026-10-01");  /* hired 2026-07-01 */
+RAMP_UP_BILLABLE_FROM.put("Cameron Lloyd", "2026-12-16"); /* first iSolved hours week of 2026-09-16 */
+RAMP_UP_BILLABLE_FROM.put("Isaiah Luna", "2026-12-20");   /* no iSolved hours yet; first report week 2026-09-20 */
 
 /* iSolved linkage — to be added once McKenzie/Dustin confirm tenant access */
 FIELD_USER_ISOLVED_ID      = "iSolved_Employee_ID"; /* Phase 4b: custom field on Users, one-time backfill */

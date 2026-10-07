@@ -616,6 +616,14 @@ Utilization is actually: 71.38%."
   they first appeared in iSolved. `inspectors/find_hire_dates.dg` pulls
   the iSolved hire-date fields and first week with hours; the dates go
   into `RAMP_UP_BILLABLE_FROM` (both generators) once it has been run.
+  RAN 2026-10-07: Cameron's first iSolved hours were the week of
+  2026-09-16 -> billable_from 2026-12-16. Isaiah has no iSolved hours in
+  the last 20 weeks; Henry chose his first report week (2026-09-20) ->
+  billable_from 2026-12-20. Control: Elijah's first iSolved hours were
+  the week of 7/15, ~2 weeks after his recorded 7/1 start, so first-hours
+  dates can trail the true hire date slightly. The employee-record hire
+  fields came back empty (the /employees lookup matched no one) — not
+  pursued since first-hours was the agreed source.
 - **Expected delta vs Dustin.** His 71.38% averages the seven remaining
   techs INCLUDING Elijah Good (61.51%). Elijah's ramp-up runs to
   2026-10-01, after this 9/26 week, so the report leaves him out of the
