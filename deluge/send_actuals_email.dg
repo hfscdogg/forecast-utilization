@@ -5,10 +5,13 @@ void send_actuals_email(Map result)
     BRAND_TABLE_HEADER_BG = "#f4f4f4";
     BRAND_PENDING_BG = "#fff8e1";
     BRAND_FONT_STACK = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif";
-    // Raised from 62.50% per Stacy via Dustin 2026-08-17, Henry approved.
-    // Service techs carry a 67.50% target once SERVICE_TECH_NAMES is
-    // populated in generate_actuals.dg; until then everyone is at 80%.
-    TARGET_PCT_DISPLAY = "80.00%";
+    // Raised from 62.50% per Stacy via Dustin 2026-08-17, Henry approved:
+    // 80% for techs, 67.50% for service techs (SERVICE_TECH_NAMES in
+    // generate_actuals.dg). The congrats line names both: it used to say
+    // "above our 80.00% target" while congratulating Jim at 68.17%
+    // against his 67.50% service target (9/20-9/26 actuals, 2026-10-07).
+    // Keep in sync with the targets in generate_actuals.dg.
+    TARGET_PCT_DISPLAY = "80.00% for techs, 67.50% for service techs";
     PLACEHOLDER = "&mdash;";
 
     // Livewire Design System v3.0 tokens for the Raving Fan snapshot block.
@@ -533,7 +536,7 @@ void send_actuals_email(Map result)
         above_target = rollup.get("techs_above_target");
         if(above_target.size() == 0)
         {
-            congrats_line = "<p>No technician landed above the " + TARGET_PCT_DISPLAY + " target last week.</p>";
+            congrats_line = "<p>No technician landed above their utilization target last week (" + TARGET_PCT_DISPLAY + ").</p>";
         }
         else
         {
@@ -556,7 +559,7 @@ void send_actuals_email(Map result)
                 }
                 i = i + 1;
             }
-            congrats_line = "<p>Congrats to <strong>" + joined + "</strong> for being above our " + TARGET_PCT_DISPLAY + " utilization target.</p>";
+            congrats_line = "<p>Congrats to <strong>" + joined + "</strong> for being above their utilization target (" + TARGET_PCT_DISPLAY + ").</p>";
         }
     }
 
