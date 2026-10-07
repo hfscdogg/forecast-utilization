@@ -14,14 +14,21 @@ void scheduled_actuals()
         // Henry's 2026-08-25 keep-Mon-Sun call — the OT split caps iSolved
         // hours at 40 over this window, so a window offset from the
         // payroll week skews OT and Actual Hours Paid).
-        // From today (Monday): lag_week_start = today - 15 (Sunday),
-        // lag_week_end = today - 9 (Saturday).
+        // On the scheduled Monday: lag_week_start = today - 15 (Sunday),
+        // lag_week_end = today - 9 (Saturday). A manual re-run on any
+        // other day snaps back to the most recent Saturday on or before
+        // today - 9, so it still reports the same Sun-Sat week (a
+        // Wednesday 2026-10-07 re-run went out as "Tue Sep 22 to Mon Sep
+        // 28" under the old fixed offsets).
+        // getDayOfWeek: 1 = Sunday ... 7 = Saturday, so dow % 7 is the
+        // number of days back to Saturday.
         // The UTC offset is computed per boundary date via eastern_offset
         // so a lag week straddling a DST transition (e.g. Sun Oct 25 to
         // Sat Oct 31) gets the right offset on each edge.
         today = zoho.currenttime.toDate();
-        week_start_date = today.subDay(15);
-        week_end_date = today.subDay(9);
+        lag_anchor = today.subDay(9);
+        week_end_date = lag_anchor.subDay(lag_anchor.getDayOfWeek() % 7);
+        week_start_date = week_end_date.subDay(6);
         week_start_str = week_start_date.toString("yyyy-MM-dd");
         week_end_str = week_end_date.toString("yyyy-MM-dd");
         week_start_iso = week_start_str + "T00:00:00" + thisapp.eastern_offset(week_start_str);
