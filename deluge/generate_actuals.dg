@@ -54,6 +54,11 @@ Map generate_actuals(String week_start, String week_end, Map time_cards)
     // Graduation is automatic. Keep in sync with generate_forecast.dg.
     RAMP_UP_BILLABLE_FROM = Map();
     RAMP_UP_BILLABLE_FROM.put("Elijah Good", "2026-10-01");
+    // Start dates per Henry 2026-10-06 (first appearance in iSolved): Cameron
+    // first clocked hours the week of 9/16; Isaiah has no iSolved hours yet,
+    // so his start is taken as the week he first appeared (9/20).
+    RAMP_UP_BILLABLE_FROM.put("Cameron Lloyd", "2026-12-16");
+    RAMP_UP_BILLABLE_FROM.put("Isaiah Luna", "2026-12-20");
     // Non-field roles kept out of the roster entirely. Role-based, not
     // zero-billable: a real tech with no billable work still counts.
     // Elijah Good stays IN despite being a non-billable apprentice —
