@@ -60,7 +60,10 @@ Map generate_actuals(String week_start, String week_end, Map time_cards)
     // Henry 2026-08-17: "Keep Elijah on there and let him burden the
     // number. If we're shelling out, that should drag the number down."
     // Keep this list in sync with generate_forecast.dg.
-    EXCLUDED_NON_TECH_NAMES = {"Dustin Roskam", "Josh McDonough", "David Hicks"};
+    // Josh McDonough is listed under both spellings: CRM users say "Josh"
+    // but the Helper1 picklist says "Joshua", which let him into the
+    // 9/20-9/26 actuals (Dustin 2026-10-06).
+    EXCLUDED_NON_TECH_NAMES = {"Dustin Roskam", "Josh McDonough", "Joshua McDonough", "David Hicks"};
 
     all_events = List();
     offsets = {0, 200, 400};
