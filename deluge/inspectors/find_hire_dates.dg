@@ -41,7 +41,8 @@ Map find_hire_dates()
     // ---- 1. Hire-date fields from the employee records ----
     hire_fields = Map();
     record_keys = Map();
-    for each page_num in {0, 1, 2}
+    pages = {0, 1, 2};
+    for each page_num in pages
     {
         emp_resp = invokeurl
         [
@@ -61,7 +62,8 @@ Map find_hire_dates()
                     if(TARGETS.contains(emp_name) && !hire_fields.containKey(emp_name))
                     {
                         found = Map();
-                        for each k in emp.keys()
+                        emp_keys = emp.keys();
+                        for each k in emp_keys
                         {
                             lk = k.toLowerCase();
                             if(lk.contains("hire") || lk.contains("date") || lk.contains("status"))
@@ -70,7 +72,7 @@ Map find_hire_dates()
                             }
                         }
                         hire_fields.put(emp_name, found);
-                        record_keys.put(emp_name, emp.keys());
+                        record_keys.put(emp_name, emp_keys);
                     }
                 }
             }
@@ -90,7 +92,7 @@ Map find_hire_dates()
         ws = week_start_d.toString("yyyy-MM-dd");
         we = week_end_d.toString("yyyy-MM-dd");
         tc_base = legal_base + "/timecardData?startDate=" + ws + "T00:00:00&endDate=" + we + "T23:59:59";
-        for each page_num in {0, 1, 2}
+        for each page_num in pages
         {
             tc_resp = invokeurl
             [
