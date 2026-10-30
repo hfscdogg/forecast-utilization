@@ -630,6 +630,30 @@ Utilization is actually: 71.38%."
   mean: 73.02% over the other six. From the 9/27-10/3 week on, Elijah
   counts and the two methods agree.
 
+## 2026-10-29 — Dustin (11/1-11/7 forecast): exclude all sales reps
+
+Dustin, forwarding the forecast: "You'll want to make a rule that excludes
+all sales reps from this reading." New sales rep Morgan Johnston (CRM user
+created 2026-10-26) owned 2 non-billable hours and entered the roster at
+0%, pulling the company figure from 94.67% to 78.89%.
+
+- **Rule, keyed on CRM role.** Both generators now add every active user
+  whose `role.name` is `Sales` to `EXCLUDED_NON_TECH_NAMES` at runtime,
+  so future reps drop out without a code change. `SALES_ROLE_NAME` in
+  `config.dg`.
+- **Role, not profile.** Checked the live users list 2026-10-30. Sales
+  role: Josh McDonough (already excluded), Dillon McKay, Altus Venter,
+  Jonathan Logan, Morgan Johnston, Engineering Livewire. No technician
+  holds it. The Sales *profile* is broader (Marshall Lupejkis has it with
+  the CEO role), so the role is the tighter test.
+- **Not a positive Technician-role whitelist.** Jim Zimmerman and Patrick
+  Jones are real techs whose CRM role is still `CEO`, so requiring the
+  `Technician` role would drop them. Event-ownership inference plus
+  exclusions stays the roster strategy.
+- **Expected 11/1-11/7 figure without Morgan:** 6 techs, 32.33 billable
+  hrs/tech, company utilization 94.67% (mean of the five non-ramp-up
+  techs). Macro billable hours (194.00, yellow) are unchanged.
+
 ## Open verification items (not blocking, surface during build)
 
 1. **30-min adder scope** — spec Section 5.2 is ambiguous whether it applies to all non-trip events or only non-billable. Ask Dustin during parallel-run reconciliation.

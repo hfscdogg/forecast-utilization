@@ -85,6 +85,9 @@ Map generate_forecast(String week_start, String week_end)
     // but the Helper1 picklist says "Joshua", which let him into the
     // 9/20-9/26 actuals (Dustin 2026-10-06).
     EXCLUDED_NON_TECH_NAMES = {"Dustin Roskam", "Josh McDonough", "Joshua McDonough", "David Hicks"};
+    // Every active CRM user whose role.name is this is added to the
+    // exclusion list at runtime (see the users pull below).
+    SALES_ROLE_NAME = "Sales";
 
     // ============================================================
     // 0. OAuth: exchange refresh token for access token.
@@ -207,6 +210,16 @@ Map generate_forecast(String week_start, String week_end)
     for each u in users_resp.get("users")
     {
         users_by_id.put(u.get("id").toString(), u.get("full_name"));
+        // Sales reps never count toward utilization (Dustin 2026-10-29,
+        // after new rep Morgan Johnston showed up at 0% on the 11/1-11/7
+        // forecast). Rule is keyed on the CRM role, not a name list, so
+        // future reps are excluded automatically. No technician holds
+        // the Sales role (verified against the users list 2026-10-30).
+        u_role = u.get("role");
+        if(u_role != null && u_role.get("name") == SALES_ROLE_NAME && !EXCLUDED_NON_TECH_NAMES.contains(u.get("full_name")))
+        {
+            EXCLUDED_NON_TECH_NAMES.add(u.get("full_name"));
+        }
     }
 
     // ============================================================
@@ -240,8 +253,9 @@ Map generate_forecast(String week_start, String week_end)
     // 3. Build the tech roster by inference: distinct names appearing as
     //    Owner or Helper1 on counted (field-work) events. Office staff
     //    do not own field events, so this naturally excludes them.
-    //    Named non-field roles (see EXCLUDED_NON_TECH_NAMES) are filtered
-    //    out explicitly since they can own non-billable events.
+    //    Named non-field roles and every Sales-role user (see
+    //    EXCLUDED_NON_TECH_NAMES) are filtered out explicitly since they
+    //    can own non-billable events.
     // ============================================================
     tech_set = List();
     for each evt in all_events

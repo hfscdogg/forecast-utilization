@@ -178,6 +178,17 @@ EXCLUDED_NON_TECH_NAMES.add("Josh McDonough");  /* Project Manager */
 EXCLUDED_NON_TECH_NAMES.add("Joshua McDonough"); /* same person — Helper1 picklist spelling */
 EXCLUDED_NON_TECH_NAMES.add("David Hicks");     /* Ops — fixes timecards; entered roster via a 1-minute cancelled event. Dustin 2026-08-17, Henry approved */
 
+/* Sales-role exclusion — Dustin 2026-10-29: "make a rule that excludes all
+ * sales reps from this reading," after new rep Morgan Johnston entered the
+ * 11/1-11/7 forecast at 0% via 2 non-billable hours. Rule, not a name list:
+ * generate_forecast.dg and generate_actuals.dg add every active user whose
+ * role.name equals this to EXCLUDED_NON_TECH_NAMES at runtime. Verified
+ * 2026-10-30 against the live users list: Sales role = Josh McDonough,
+ * Dillon McKay, Altus Venter, Jonathan Logan, Morgan Johnston, and the
+ * Engineering Livewire service account; no technician holds it. (Role, not
+ * profile: Marshall Lupejkis has the Sales profile but the CEO role.) */
+SALES_ROLE_NAME            = "Sales";
+
 /* Ramp-up rule — Stacy 2026-08-18: "A new technician is considered
  * non-billable for the first 3 months... 3 months from the time of
  * hire." Supersedes Henry's 2026-08-17 keep-Elijah-in ruling with a
