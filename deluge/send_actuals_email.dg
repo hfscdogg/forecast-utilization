@@ -41,12 +41,14 @@ void send_actuals_email(Map result)
     // (Nailed_It_Photos, Status "Picked"), else Sunday's "Suggested"
     // top vision-scored photo (only written when it cleared the bar), else
     // no photo. Failed: a staged gag image, never a real customer
-    // job, rotated by week from FAILED_IT_IMAGE_IDS (Drive file ids in a
-    // folder shared "anyone with the link"). An empty list means a missed
-    // week shows no card. Keep in sync with config.dg.
+    // job, rotated by week from FAILED_IT_IMAGE_IDS: Drive file ids of the
+    // assets/failed_it/ illustrations, uploaded to the asset library
+    // (private shared drive) 2026-11-04. The week's image goes through
+    // nailed_it_share at send time (link share, or a copy into the public
+    // folder) so email clients can load it. Keep in sync with config.dg.
     // Henry 2026-11-04: 75%, separate from the per-tech congrats targets.
     TEAM_VERDICT_TARGET = 0.75;
-    FAILED_IT_IMAGE_IDS = List();
+    FAILED_IT_IMAGE_IDS = {"1Iz4-Bh74XCmvG0ou-4YDW7D7qrcUyHw0", "1LlopF51yyIEasLi3GYLYcCm_Odg3Fmoo", "1Tfjevoc2tWYWGgoyN-nhCKI5GGAoGQTj", "1gfpGb8XYMrXSfWcKOXl7e6BCQ1t3iuy4", "1sOnXcl-N2FTwRtqpr0Mv0HmYS163icK4", "1PfMx_U3-AYtfIssxN0KiGw3drgKj_G5u"};
 
     // Full distribution — Henry 2026-09-10: "forecast & utilization
     // reports going to all@getlivewire.com effective immediately."
@@ -663,7 +665,8 @@ void send_actuals_email(Map result)
             {
                 // Rotation only, so Deluge's week numbering need not match
                 // Python's ISO week exactly.
-                image_id = FAILED_IT_IMAGE_IDS.get(ws.getWeekOfYear() % FAILED_IT_IMAGE_IDS.size());
+                // Private library file: make it loadable first ("" skips the card).
+                image_id = thisapp.nailed_it_share(FAILED_IT_IMAGE_IDS.get(ws.getWeekOfYear() % FAILED_IT_IMAGE_IDS.size()));
                 headline = "Failed it... this week.";
                 line_text = cu_pct + " team utilization vs our " + tgt_pct + " target. Next week we nail it.";
                 credit = "Staged photo. No customer jobs were harmed.";

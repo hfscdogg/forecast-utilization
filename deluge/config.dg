@@ -367,9 +367,18 @@ NAILED_IT_PICKER_DAY       = "Sunday";
 NAILED_IT_PICKER_TIME      = "16:00";              /* America/New_York, 24h before actuals */
 NAILED_IT_FORM             = "Nailed_It_Photos";   /* see docs/nailed_it_photos_form_schema.md */
 
-/* Staged "Failed it" images: Drive file ids in a folder shared "anyone
- * with the link". Never real customer jobs. Empty = no card on a miss. */
+/* Staged "Failed it" images (assets/failed_it/, never real customer
+ * jobs), uploaded to the asset library 2026-11-04. The library is a
+ * private shared drive, so send_actuals_email runs the week's image
+ * through nailed_it_share before using it. The images have no upload-form
+ * description, so they never pass the Nailed It candidate filter. */
 FAILED_IT_IMAGE_IDS        = list();
+FAILED_IT_IMAGE_IDS.add("1Iz4-Bh74XCmvG0ou-4YDW7D7qrcUyHw0");   /* 01 rats nest */
+FAILED_IT_IMAGE_IDS.add("1LlopF51yyIEasLi3GYLYcCm_Odg3Fmoo");   /* 02 crooked tv */
+FAILED_IT_IMAGE_IDS.add("1Tfjevoc2tWYWGgoyN-nhCKI5GGAoGQTj");   /* 03 switch plates */
+FAILED_IT_IMAGE_IDS.add("1gfpGb8XYMrXSfWcKOXl7e6BCQ1t3iuy4");   /* 04 ceiling holes */
+FAILED_IT_IMAGE_IDS.add("1sOnXcl-N2FTwRtqpr0Mv0HmYS163icK4");   /* 05 daisy chain */
+FAILED_IT_IMAGE_IDS.add("1PfMx_U3-AYtfIssxN0KiGw3drgKj_G5u");   /* 06 bad labels */
 
 /* Creator App Variables (not in this repo):
  *   NAILED_IT_PICK_API_URL            pick_nailed_photo Custom API URL incl. key

@@ -45,9 +45,11 @@ One record per pick.
 7. **Plan B (only if link sharing is blocked on the shared drive):** create
    a My Drive folder, share it "anyone with the link: viewer", and put its
    id in the App Variable `NAILED_IT_EMAIL_ASSETS_FOLDER_ID`.
-8. **Failed It images:** upload the staged images to a folder shared
-   "anyone with the link" and list their file ids in `FAILED_IT_IMAGE_IDS`
-   in `send_actuals_email.dg`. Until then a missed week shows no card.
+8. **Failed It images:** done 2026-11-04. The six `assets/failed_it/`
+   illustrations are in the asset library and their ids are in
+   `FAILED_IT_IMAGE_IDS`. On a missed week the email shares that week's
+   image at send time through `nailed_it_share`, which needs the
+   `google_drive` connection from step 2.
 
 ## Weekly flow
 
