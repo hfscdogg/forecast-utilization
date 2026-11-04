@@ -122,8 +122,63 @@ def pick_failed_image(failed_image_ids, week_start):
 
 
 def drive_image_url(file_id):
-    """Public render URL for a Drive file shared 'anyone with the link'."""
+    """Public render URL for a photo id.
+
+    A Drive file id (shared 'anyone with the link') goes through Drive's
+    thumbnail endpoint; an http(s) URL (website photos) is already public
+    and is used as is.
+    """
+    if file_id.startswith("http"):
+        return file_id
     return f"https://drive.google.com/thumbnail?id={file_id}&sz=w1200"
+
+
+# Interim Nailed It source (Henry 2026-11-04: "grab some finished photos
+# from our website to use for now"), until the Zoho CRM photo sync lands.
+# Hand-picked from getlivewire.com: real finished installs, no faces, no
+# stock or rendered images. Already public, so no Drive sharing step. The
+# URL doubles as the photo id. Mirrors WEBSITE_PHOTOS in
+# deluge/nailed_it_candidates.dg.
+WEBSITE_PHOTOS = [
+    ("https://www.getlivewire.com/wp-content/uploads/2023/05/CommercialAV-1.jpg",
+     "Boardroom display and conferencing", "Commercial AV"),
+    ("https://www.getlivewire.com/wp-content/uploads/2023/05/CommercialAV.jpg",
+     "Office lounge display", "Commercial AV"),
+    ("https://www.getlivewire.com/wp-content/uploads/2023/06/Commercial_Technology_Spaces_38.jpg",
+     "Conference room display", "Commercial AV"),
+    ("https://www.getlivewire.com/wp-content/uploads/2023/07/CommonHouseLandingThumb-e1761073657367.jpg",
+     "Common House Richmond screening room", "Projection and audio"),
+    ("https://www.getlivewire.com/wp-content/uploads/2023/05/DistributedAVinOffice.jpg",
+     "Office conference room", "Distributed AV"),
+    ("https://www.getlivewire.com/wp-content/uploads/2022/02/ExteriorLighting2.jpg",
+     "Exterior home lighting", "Lighting"),
+    ("https://www.getlivewire.com/wp-content/uploads/2023/05/Home-Theater-Solutions.jpg",
+     "Custom home theater", "Home theater"),
+    ("https://www.getlivewire.com/wp-content/uploads/2023/05/SmartKitchen_Web.jpg",
+     "Kitchen pendant and recessed lighting", "Lighting"),
+    ("https://www.getlivewire.com/wp-content/uploads/2022/12/WiringCloset.jpg",
+     "Labeled network and AV terminations", "Structured wiring"),
+    ("https://www.getlivewire.com/wp-content/uploads/2023/05/commercial-av-systems1.jpg",
+     "Meeting hall projection", "Commercial AV"),
+    ("https://www.getlivewire.com/wp-content/uploads/2026/06/livewire-how-room.jpg",
+     "Sanctuary speaker arrays and projection", "House of worship AV"),
+]
+
+
+def website_candidates(used_ids=()):
+    """Unused website photos in candidate shape (fields already parsed)."""
+    used = set(used_ids)
+    out = []
+    for url, job, installed in WEBSITE_PHOTOS:
+        if url in used:
+            continue
+        out.append({
+            "id": url, "thumb_url": url, "view_url": url,
+            "name": url.rsplit("/", 1)[-1],
+            "fields": {"job_name": job, "installed": installed,
+                       "sent_by": "getlivewire.com"},
+        })
+    return out
 
 
 def _pct(x):

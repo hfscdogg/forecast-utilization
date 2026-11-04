@@ -746,3 +746,28 @@ great photo from a sideways, washed-out one. Decisions:
   photos. A Block Party event collage of guests would be disqualified for
   faces. A sideways, overexposed work-in-progress ceiling light is already
   excluded as WIP and would also score low. Nothing qualifies today.
+
+### Same day — website photos as the interim Nailed It source
+
+Henry: "Just grab some finished photos from our website to use for now,
+I'm building a deluge function to sync photos from Zoho CRM. Second Phase."
+
+- **11 photos picked by eye** from getlivewire.com: boardrooms, conference
+  rooms, the Common House screening room, a home theater, exterior and
+  kitchen lighting, a labeled wiring closet, a meeting hall and a sanctuary
+  array.
+- **Left out:** stock photos, logos, photos of customers' products (bread,
+  greenhouse), people's faces, and the 2026 MicroLED and man-cave images,
+  which look like renders.
+- **No Drive step.** The photos are listed as `WEBSITE_PHOTOS` in
+  `nailed_it_candidates.dg` (mirrored in `nailed_it.py`). They are already
+  public, so the URL is the photo id. `nailed_it_share` passes it through
+  and the email uses it as the `<img src>`.
+- **Order and limits.** Website photos come after any Drive library photos,
+  are exempt from the 30-day age limit, go through the same vision scoring,
+  and are retired once used.
+- **No Drive connection needed yet.** If the library listing fails (for
+  example before the `google_drive` connection exists), the website photos
+  still run.
+- **Phase 2:** Henry's Zoho CRM photo sync replaces this list. Only
+  `nailed_it_candidates.dg` needs to change.

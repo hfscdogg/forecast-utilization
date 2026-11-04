@@ -14,6 +14,11 @@ String nailed_it_share(String file_id)
     //
     // Creator App Variable NAILED_IT_EMAIL_ASSETS_FOLDER_ID holds the
     // Plan B folder id. Leave it blank to run Plan A only.
+    // Website photos (interim source) are already public: the URL is the id.
+    if(file_id.startsWith("http"))
+    {
+        return file_id;
+    }
     perm = Map();
     perm.put("role", "reader");
     perm.put("type", "anyone");

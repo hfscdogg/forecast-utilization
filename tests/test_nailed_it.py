@@ -222,3 +222,30 @@ def test_unusable_response_falls_back_to_unscored_newest():
 def test_scores_are_clamped_and_missing_entries_dropped():
     ranked, _ = apply_scores(CANDS, api_response([entry(1, 14)]))
     assert [(c["id"], c["score"]) for c in ranked] == [("a", 10)]
+
+
+# --- website photos (interim source) ----------------------------------------
+
+from nailed_it import WEBSITE_PHOTOS, drive_image_url, website_candidates  # noqa: E402
+
+
+def test_website_photo_urls_pass_through_and_drive_ids_use_thumbnail():
+    url = WEBSITE_PHOTOS[0][0]
+    assert drive_image_url(url) == url
+    assert drive_image_url("abc") == "https://drive.google.com/thumbnail?id=abc&sz=w1200"
+
+
+def test_website_candidates_skip_used_and_feed_scoring():
+    first, second = WEBSITE_PHOTOS[0][0], WEBSITE_PHOTOS[1][0]
+    cands = website_candidates(used_ids={first})
+    assert len(cands) == len(WEBSITE_PHOTOS) - 1
+    assert cands[0]["id"] == second and cands[0]["fields"]["sent_by"] == "getlivewire.com"
+    req = build_scoring_request(cands[:2])
+    assert [b["source"]["url"] for b in req["messages"][0]["content"] if b["type"] == "image"] == [
+        second, WEBSITE_PHOTOS[2][0]]
+
+
+def test_website_photo_renders_directly_in_nailed_card():
+    url = WEBSITE_PHOTOS[0][0]
+    html = render_verdict_block(0.9, photo={"id": url, "job_name": "Boardroom"})
+    assert f"src='{url}'" in html

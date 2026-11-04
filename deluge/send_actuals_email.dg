@@ -671,10 +671,16 @@ void send_actuals_email(Map result)
             }
             if(image_id != null && image_id != "")
             {
+                img_src = "https://drive.google.com/thumbnail?id=" + image_id + "&sz=w1200";
+                if(image_id.startsWith("http"))
+                {
+                    // Website photo (interim source): already a public URL.
+                    img_src = image_id;
+                }
                 verdict_block =
                     "<table role='presentation' cellpadding='0' cellspacing='0' border='0' width='100%' style='width:100%;max-width:600px;background:" + RF_CARD_BG + ";border:1px solid " + RF_CARD_BORDER + ";border-collapse:separate;margin:0 0 16px;'>" +
                     "<tr><td style='padding:0;'>" +
-                    "<img src='https://drive.google.com/thumbnail?id=" + image_id + "&sz=w1200' width='600' alt='" + alt_text + "' style='display:block;width:100%;max-width:600px;height:auto;border:0;'>" +
+                    "<img src='" + img_src + "' width='600' alt='" + alt_text + "' style='display:block;width:100%;max-width:600px;height:auto;border:0;'>" +
                     "</td></tr>" +
                     "<tr><td style='padding:12px 20px 14px;'>" +
                     "<p style='margin:0;font-family:" + RF_SANS_STACK + ";font-size:20px;line-height:24px;font-weight:700;color:" + accent + ";'>" + headline + "</p>" +

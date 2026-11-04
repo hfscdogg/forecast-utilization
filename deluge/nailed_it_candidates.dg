@@ -25,6 +25,26 @@ List nailed_it_candidates(int max_count)
     PHOTO_MAX_AGE_DAYS = 30;
     // Deluge has no while loop: iterate a fixed page budget instead.
     PAGE_BUDGET = {1, 2, 3, 4, 5};
+    // Interim source (Henry 2026-11-04: "grab some finished photos from
+    // our website to use for now") until the Zoho CRM photo sync lands.
+    // Hand-picked finished installs from getlivewire.com: no faces, no
+    // stock or rendered images. Already public, so nailed_it_share passes
+    // them through; the URL doubles as the photo id. They come after the
+    // library photos and are exempt from the 30-day age limit. Mirrors
+    // WEBSITE_PHOTOS in nailed_it.py.
+    WEBSITE_PHOTOS = {
+        {"url": "https://www.getlivewire.com/wp-content/uploads/2023/05/CommercialAV-1.jpg", "job_name": "Boardroom display and conferencing", "installed": "Commercial AV"},
+        {"url": "https://www.getlivewire.com/wp-content/uploads/2023/05/CommercialAV.jpg", "job_name": "Office lounge display", "installed": "Commercial AV"},
+        {"url": "https://www.getlivewire.com/wp-content/uploads/2023/06/Commercial_Technology_Spaces_38.jpg", "job_name": "Conference room display", "installed": "Commercial AV"},
+        {"url": "https://www.getlivewire.com/wp-content/uploads/2023/07/CommonHouseLandingThumb-e1761073657367.jpg", "job_name": "Common House Richmond screening room", "installed": "Projection and audio"},
+        {"url": "https://www.getlivewire.com/wp-content/uploads/2023/05/DistributedAVinOffice.jpg", "job_name": "Office conference room", "installed": "Distributed AV"},
+        {"url": "https://www.getlivewire.com/wp-content/uploads/2022/02/ExteriorLighting2.jpg", "job_name": "Exterior home lighting", "installed": "Lighting"},
+        {"url": "https://www.getlivewire.com/wp-content/uploads/2023/05/Home-Theater-Solutions.jpg", "job_name": "Custom home theater", "installed": "Home theater"},
+        {"url": "https://www.getlivewire.com/wp-content/uploads/2023/05/SmartKitchen_Web.jpg", "job_name": "Kitchen pendant and recessed lighting", "installed": "Lighting"},
+        {"url": "https://www.getlivewire.com/wp-content/uploads/2022/12/WiringCloset.jpg", "job_name": "Labeled network and AV terminations", "installed": "Structured wiring"},
+        {"url": "https://www.getlivewire.com/wp-content/uploads/2023/05/commercial-av-systems1.jpg", "job_name": "Meeting hall projection", "installed": "Commercial AV"},
+        {"url": "https://www.getlivewire.com/wp-content/uploads/2026/06/livewire-how-room.jpg", "job_name": "Sanctuary speaker arrays and projection", "installed": "House of worship AV"}
+    };
 
     used_ids = List();
     used_recs = Nailed_It_Photos[Status == "Used"];
@@ -39,6 +59,10 @@ List nailed_it_candidates(int max_count)
     candidates = List();
     page_token = "";
     keep_going = true;
+    // The Drive library is optional while the google_drive connection is
+    // being set up: a failed listing falls through to the website photos.
+    try
+    {
     for each pg in PAGE_BUDGET
     {
         if(keep_going)
@@ -139,6 +163,28 @@ List nailed_it_candidates(int max_count)
             {
                 page_token = next_token;
             }
+        }
+    }
+    }
+    catch (drive_err)
+    {
+        info "nailed_it_candidates: Drive library skipped: " + drive_err;
+    }
+
+    for each w in WEBSITE_PHOTOS
+    {
+        if(candidates.size() < max_count && !used_ids.contains(w.get("url")))
+        {
+            c = Map();
+            c.put("id", w.get("url"));
+            c.put("name", w.get("url").getSuffix("/uploads/"));
+            c.put("job_name", w.get("job_name"));
+            c.put("sent_by", "getlivewire.com");
+            c.put("installed", w.get("installed"));
+            c.put("created", "");
+            c.put("view_url", w.get("url"));
+            c.put("thumb_url", w.get("url"));
+            candidates.add(c);
         }
     }
     return candidates;
