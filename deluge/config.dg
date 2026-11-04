@@ -338,7 +338,7 @@ MACRO_GOAL_YELLOW_AT            = 0.75;
 /* ============================================================
  * Nailed It / Failed It verdict card — ACTUALS email (Henry 2026-11-04)
  * Python reference: nailed_it.py. Functions: nailed_it_candidates,
- * nailed_it_share, scheduled_photo_picker (Sunday 16:00 ET),
+ * nailed_it_share, nailed_it_score, scheduled_photo_picker (Sunday 16:00 ET),
  * pick_nailed_photo (Custom API), send_actuals_email.
  * ============================================================ */
 
@@ -351,7 +351,17 @@ TEAM_VERDICT_TARGET        = 0.80;
  * photos marked Finished with a customer OK to share are offered. */
 NAILED_IT_PHOTO_FOLDER_ID  = "17vdHcT-3YYMsQ7o0zH0OGf_uht5XsgtJ";
 NAILED_IT_PHOTO_MAX_AGE_DAYS = 30;
-NAILED_IT_MAX_CANDIDATES   = 6;
+NAILED_IT_MAX_CANDIDATES   = 6;                     /* shown in the picker email */
+
+/* Vision scoring (nailed_it_score.dg, Henry 2026-11-04: "Nailed it has
+ * more to do with how the picture looks"). One Claude API call per Sunday
+ * scores the newest NAILED_IT_SCORING_POOL eligible photos on how well
+ * they show off finished work. Ranks the picker email; the top photo is
+ * the no-pick fallback only if it scores >= NAILED_IT_MIN_SCORE. About
+ * $0.10 a week. */
+NAILED_IT_SCORING_MODEL    = "claude-opus-5-5";
+NAILED_IT_SCORING_POOL     = 15;
+NAILED_IT_MIN_SCORE        = 7;
 NAILED_IT_PICKER_TO        = "henry@getlivewire.com";
 NAILED_IT_PICKER_DAY       = "Sunday";
 NAILED_IT_PICKER_TIME      = "16:00";              /* America/New_York, 24h before actuals */
@@ -363,6 +373,7 @@ FAILED_IT_IMAGE_IDS        = list();
 
 /* Creator App Variables (not in this repo):
  *   NAILED_IT_PICK_API_URL            pick_nailed_photo Custom API URL incl. key
+ *   ANTHROPIC_API_KEY                 Claude API key for nailed_it_score (blank = unscored)
  *   NAILED_IT_EMAIL_ASSETS_FOLDER_ID  Plan B public folder for copies (optional)
  * Creator connection: "google_drive" (Google Drive, drive scope). */
 

@@ -181,3 +181,138 @@ def render_verdict_block(company_utilization, photo=None, failed_image_id=None,
         f"color:{RF_TEXT_SECONDARY};'>{credit}</p>"
         "</td></tr></table>"
     )
+
+
+# --- Vision scoring (Henry 2026-11-04: "Nailed it has more to do with how
+# the picture looks") ------------------------------------------------------
+# One Claude API call per Sunday picker run scores every candidate. Mirrors
+# deluge/nailed_it_score.dg. Henry still makes the final pick; the score
+# ranks the picker email and decides the no-pick fallback.
+
+SCORING_MODEL = "claude-opus-5-5"
+SCORING_ANTHROPIC_VERSION = "2026-10-21"
+NAILED_IT_MIN_SCORE = 7
+
+SCORING_RUBRIC = (
+    "You are picking a photo for the 'Nailed it' banner in Livewire's weekly "
+    "team email. Livewire installs AV, networking, lighting control and "
+    "electrical systems. Score each photo 1-10 on how well it shows off "
+    "excellent finished work:\n"
+    "- The finished install is the clear subject (racks, mounted TVs, "
+    "speakers, keypads, lighting, panels).\n"
+    "- Craftsmanship reads at a glance: straight lines, level and centered "
+    "mounts, hidden or neatly dressed cabling, clean labels.\n"
+    "- Photo quality: in focus, well lit, no heavy glare or blown highlights, "
+    "upright (not sideways or upside down).\n"
+    "- Uncluttered: no ladders, boxes, tools, packaging or debris.\n"
+    "- Works as a wide banner (roughly 2:1 crop).\n"
+    "Set disqualified=true for a photo with identifiable faces, house "
+    "numbers or street signs, screens showing personal information, or "
+    "anything a customer would not want sent to the whole company. Set "
+    "nailed_it=true only when score >= 7 and not disqualified. Keep each "
+    "reason under 15 words, naming what makes it good or bad. Return one "
+    "entry per photo, using the photo numbers given."
+)
+
+SCORING_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "photos": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "index": {"type": "integer"},
+                    "score": {"type": "integer"},
+                    "nailed_it": {"type": "boolean"},
+                    "disqualified": {"type": "boolean"},
+                    "reason": {"type": "string"},
+                },
+                "required": ["index", "score", "nailed_it", "disqualified", "reason"],
+                "additionalProperties": False,
+            },
+        }
+    },
+    "required": ["photos"],
+    "additionalProperties": False,
+}
+
+
+def scoring_image_url(thumb_url):
+    """Drive thumbnailLink at a size big enough to judge craftsmanship."""
+    return (thumb_url or "").replace("=s220", "=s1600")
+
+
+def build_scoring_request(candidates):
+    """Messages API request body scoring every candidate in one call."""
+    content = []
+    for i, c in enumerate(candidates, start=1):
+        fields = c.get("fields") or {}
+        label = " · ".join(
+            b for b in (fields.get("job_name") or c.get("job_name"),
+                        fields.get("installed") or c.get("installed")) if b
+        )
+        content.append({"type": "text", "text": f"Photo {i}: {label}".rstrip(": ")})
+        content.append({"type": "image",
+                        "source": {"type": "url", "url": scoring_image_url(c.get("thumb_url"))}})
+    content.append({"type": "text", "text": SCORING_RUBRIC})
+    return {
+        "model": SCORING_MODEL,
+        "max_tokens": 4000,
+        "output_config": {
+            "effort": "low",
+            "format": {"type": "json_schema", "schema": SCORING_SCHEMA},
+        },
+        "messages": [{"role": "user", "content": content}],
+    }
+
+
+def _response_scores(response):
+    """{index: score entry} from a Messages API response dict, or None."""
+    import json
+
+    if not isinstance(response, dict) or response.get("stop_reason") != "end_turn":
+        return None
+    text = "".join(b.get("text", "") for b in response.get("content", [])
+                   if b.get("type") == "text")
+    try:
+        photos = json.loads(text)["photos"]
+    except (ValueError, KeyError, TypeError):
+        return None
+    return {p["index"]: p for p in photos if isinstance(p, dict) and "index" in p}
+
+
+def apply_scores(candidates, response, min_score=NAILED_IT_MIN_SCORE):
+    """Merge scores into candidates and rank them.
+
+    Returns (ranked, scored). ranked drops disqualified photos and sorts by
+    score desc (ties keep newest-first order). When the response is
+    unusable (refusal, truncation, bad JSON) every candidate comes back
+    unscored in its original order and scored is False.
+    """
+    scores = _response_scores(response)
+    if scores is None:
+        return [dict(c, score=None, reason="", above_bar=None) for c in candidates], False
+    ranked = []
+    for i, c in enumerate(candidates, start=1):
+        s = scores.get(i)
+        if s is None or s.get("disqualified"):
+            continue
+        score = max(1, min(10, int(s.get("score", 0))))
+        ranked.append(dict(c, score=score, reason=s.get("reason", ""),
+                           above_bar=score >= min_score))
+    ranked.sort(key=lambda c: c["score"], reverse=True)  # stable: newest wins ties
+    return ranked, True
+
+
+def suggested_pick(ranked, scored):
+    """Photo to use Monday if Henry doesn't pick, or None.
+
+    Scored: the top photo only if it clears the bar. Unscored (API down):
+    the newest photo, as before vision scoring existed.
+    """
+    if not ranked:
+        return None
+    if not scored:
+        return ranked[0]
+    return ranked[0] if ranked[0]["above_bar"] else None

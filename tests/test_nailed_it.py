@@ -149,3 +149,76 @@ def test_no_block_when_utilization_unknown_or_image_missing():
 def test_caption_escapes_html():
     html = render_verdict_block(0.9, photo={"id": "x", "job_name": "Smith's <Den>"})
     assert "Smith&#x27;s &lt;Den&gt;" in html
+
+
+# --- vision scoring ----------------------------------------------------------
+
+import json  # noqa: E402
+
+from nailed_it import (  # noqa: E402
+    SCORING_MODEL,
+    apply_scores,
+    build_scoring_request,
+    suggested_pick,
+)
+
+CANDS = [
+    {"id": "a", "thumb_url": "https://lh3.example/a=s220", "fields": {"job_name": "Rack", "installed": "Network"}},
+    {"id": "b", "thumb_url": "https://lh3.example/b=s220", "fields": {"job_name": "Theater"}},
+    {"id": "c", "thumb_url": "https://lh3.example/c=s220", "fields": {}},
+]
+
+
+def api_response(photos, stop_reason="end_turn"):
+    return {"stop_reason": stop_reason,
+            "content": [{"type": "text", "text": json.dumps({"photos": photos})}]}
+
+
+def entry(i, score, dq=False):
+    return {"index": i, "score": score, "nailed_it": score >= 7 and not dq,
+            "disqualified": dq, "reason": f"r{i}"}
+
+
+def test_scoring_request_shape():
+    req = build_scoring_request(CANDS)
+    assert req["model"] == SCORING_MODEL
+    assert req["output_config"]["format"]["type"] == "json_schema"
+    blocks = req["messages"][0]["content"]
+    images = [b for b in blocks if b["type"] == "image"]
+    assert [b["source"]["url"] for b in images] == [
+        "https://lh3.example/a=s1600", "https://lh3.example/b=s1600", "https://lh3.example/c=s1600"]
+    assert blocks[0]["text"] == "Photo 1: Rack · Network"
+    assert blocks[4]["text"] == "Photo 3"
+    assert blocks[-1]["type"] == "text" and "Nailed it" in blocks[-1]["text"]
+
+
+def test_apply_scores_ranks_and_drops_disqualified():
+    ranked, scored = apply_scores(CANDS, api_response([entry(1, 6), entry(2, 9), entry(3, 10, dq=True)]))
+    assert scored
+    assert [c["id"] for c in ranked] == ["b", "a"]
+    assert ranked[0]["above_bar"] and not ranked[1]["above_bar"]
+    assert ranked[0]["reason"] == "r2"
+    assert suggested_pick(ranked, scored)["id"] == "b"
+
+
+def test_no_suggestion_when_nothing_clears_the_bar():
+    ranked, scored = apply_scores(CANDS, api_response([entry(1, 5), entry(2, 6), entry(3, 3)]))
+    assert scored and len(ranked) == 3
+    assert suggested_pick(ranked, scored) is None
+
+
+def test_unusable_response_falls_back_to_unscored_newest():
+    for bad in (api_response([entry(1, 9)], stop_reason="refusal"),
+                api_response([entry(1, 9)], stop_reason="max_tokens"),
+                {"stop_reason": "end_turn", "content": [{"type": "text", "text": "not json"}]},
+                None):
+        ranked, scored = apply_scores(CANDS, bad)
+        assert not scored
+        assert [c["id"] for c in ranked] == ["a", "b", "c"]
+        assert ranked[0]["score"] is None
+        assert suggested_pick(ranked, scored)["id"] == "a"
+
+
+def test_scores_are_clamped_and_missing_entries_dropped():
+    ranked, _ = apply_scores(CANDS, api_response([entry(1, 14)]))
+    assert [(c["id"], c["score"]) for c in ranked] == [("a", 10)]

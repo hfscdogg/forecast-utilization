@@ -38,8 +38,9 @@ void send_actuals_email(Map result)
     // mirror: nailed_it.py. Team number only: company utilization vs
     // TEAM_VERDICT_TARGET, never a per-tech "failed it".
     // Nailed: the photo Henry picked from Sunday's picker email
-    // (Nailed_It_Photos, Status "Picked"), else the newest eligible
-    // library photo. Failed: a staged gag image, never a real customer
+    // (Nailed_It_Photos, Status "Picked"), else Sunday's "Suggested"
+    // top vision-scored photo (only written when it cleared the bar), else
+    // no photo. Failed: a staged gag image, never a real customer
     // job, rotated by week from FAILED_IT_IMAGE_IDS (Drive file ids in a
     // folder shared "anyone with the link"). An empty list means a missed
     // week shows no card. Keep in sync with config.dg.
@@ -605,26 +606,24 @@ void send_actuals_email(Map result)
                 }
                 if(nailed_rec_id == null)
                 {
-                    // No pick: newest eligible photo, recorded as a pick so
-                    // it is marked Used after the send like any other.
-                    newest = thisapp.nailed_it_candidates(1);
-                    if(newest.size() > 0)
+                    // No pick: Sunday's "Suggested" record, the top
+                    // vision-scored photo, written only when it cleared the
+                    // score bar (scheduled_photo_picker.dg). It is made
+                    // public only now, at send time. No suggestion means no
+                    // photo this week rather than a mediocre one.
+                    // Only this week's suggestion: an older one belongs to a week
+                    // that missed target and was never re-scored.
+                    suggestions = Nailed_It_Photos[Status == "Suggested" && Send_Date <= today && Send_Date > today.subDay(7)] sort by Send_Date desc;
+                    for each sg in suggestions
                     {
-                        c = newest.get(0);
-                        public_id = thisapp.nailed_it_share(c.get("id"));
-                        if(public_id != "")
+                        if(nailed_rec_id == null)
                         {
-                            nailed_rec_id = insert into Nailed_It_Photos
-                            [
-                                File_ID = c.get("id")
-                                Public_File_ID = public_id
-                                Job_Name = c.get("job_name")
-                                Sent_By = c.get("sent_by")
-                                Installed = c.get("installed")
-                                Send_Date = today
-                                Status = "Picked"
-                                Picked_By = "Auto (no pick by send time)"
-                            ];
+                            public_id = thisapp.nailed_it_share(sg.File_ID);
+                            if(public_id != "")
+                            {
+                                sg.Public_File_ID = public_id;
+                                nailed_rec_id = sg.ID;
+                            }
                         }
                     }
                 }

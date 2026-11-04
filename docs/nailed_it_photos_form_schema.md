@@ -17,9 +17,11 @@ One record per pick.
 | Sent By | `Sent_By` | Single Line | No | Uploader email, shown as the photo credit. |
 | Installed | `Installed` | Single Line | No | "What did we install?" answer. |
 | Send Date | `Send_Date` | Date | Yes | The Monday the photo is meant for. |
-| Status | `Status` | Dropdown: `Picked`, `Used` | Yes | `Picked` until the email sends with it, then `Used`. |
-| Picked By | `Picked_By` | Single Line | No | "Henry (picker email)" or "Auto (no pick by send time)". |
+| Status | `Status` | Dropdown: `Suggested`, `Picked`, `Used` | Yes | `Suggested` = Sunday's top-scored photo (no-pick fallback). `Picked` = Henry's choice. Whichever goes out becomes `Used`. |
+| Picked By | `Picked_By` | Single Line | No | "Henry (picker email)" or "Auto (top score)". |
 | Company Utilization | `Company_Utilization` | Decimal | No | Filled when the photo is used. |
+| Score | `Score` | Number | No | Vision score 1-10 (Suggested records). Blank when scoring was unavailable. |
+| Score Reason | `Score_Reason` | Single Line | No | Claude's one-line reason for the score. |
 
 ## One-time setup in Creator
 
@@ -29,28 +31,34 @@ One record per pick.
    it with a Google account that can read the asset-library shared drive.
    It must also be able to share files there, or to write into the Plan B
    folder.
-3. **Functions:** paste in `nailed_it_candidates`, `nailed_it_share`,
+3. **Functions:** paste in `nailed_it_candidates`, `nailed_it_share`, `nailed_it_score`,
    `pick_nailed_photo` and `scheduled_photo_picker` from `deluge/`, plus the
    updated `send_actuals_email`.
 4. **Custom API:** publish `pick_nailed_photo` as a GET Custom API with
    API-key auth and a `file_id` parameter. Store the full URL, including the
    key, in the App Variable `NAILED_IT_PICK_API_URL`.
-5. **Schedule:** run `scheduled_photo_picker` every Sunday at 16:00
+5. **Claude API key:** put an Anthropic API key in the App Variable
+   `ANTHROPIC_API_KEY`. Without it the picker still works, unscored and
+   newest first. One call a week, about $0.10.
+6. **Schedule:** run `scheduled_photo_picker` every Sunday at 16:00
    America/New_York.
-6. **Plan B (only if link sharing is blocked on the shared drive):** create
+7. **Plan B (only if link sharing is blocked on the shared drive):** create
    a My Drive folder, share it "anyone with the link: viewer", and put its
    id in the App Variable `NAILED_IT_EMAIL_ASSETS_FOLDER_ID`.
-7. **Failed It images:** upload the staged images to a folder shared
+8. **Failed It images:** upload the staged images to a folder shared
    "anyone with the link" and list their file ids in `FAILED_IT_IMAGE_IDS`
    in `send_actuals_email.dg`. Until then a missed week shows no card.
 
 ## Weekly flow
 
-- **Sunday 4pm:** Henry gets "Pick tomorrow's Nailed It photo" with up to 6
-  candidates and clicks **Use this one**. That creates or replaces the
-  `Picked` record for Monday.
+- **Sunday 4pm:** Claude scores up to 15 eligible photos on how well they
+  show off the work. Henry gets "Pick tomorrow's Nailed It photo" with the
+  best 6, each with a score and a one-line reason, and photos under the bar
+  listed separately. The top photo is saved as `Suggested` if it scores 7
+  or higher. Clicking **Use this one** creates or replaces the `Picked`
+  record for Monday.
 - **Monday 4pm:** if company utilization is at or above `TEAM_VERDICT_TARGET`,
-  the email shows the picked photo, or the newest eligible photo if nothing
-  was picked. After the send, the record flips to `Used`.
+  the email shows the picked photo, else this week's `Suggested` photo,
+  else no photo. After the send, the record flips to `Used`.
 - **Missed week:** the email shows a staged Failed It image. Any pick stays
   `Picked` and the photo comes back as a candidate next Sunday.

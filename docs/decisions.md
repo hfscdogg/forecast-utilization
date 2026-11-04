@@ -719,3 +719,30 @@ Files: `nailed_it.py` (reference + tests), `deluge/nailed_it_candidates.dg`,
 `deluge/nailed_it_share.dg`, `deluge/pick_nailed_photo.dg`,
 `deluge/scheduled_photo_picker.dg`, `deluge/send_actuals_email.dg`, and the
 `deluge/config.dg` constants. Setup: `docs/nailed_it_photos_form_schema.md`.
+
+### Same day — vision scoring for Nailed It
+
+Henry: "Nailed it has more to do with how the picture looks. So it requires
+some discernment." Metadata alone (Finished, customer OK) can't tell a
+great photo from a sideways, washed-out one. Decisions:
+
+- **Claude scores the photos.** On Sunday, one Claude API call
+  (`nailed_it_score.dg`, `claude-opus-5-5`, structured JSON output) scores
+  up to 15 eligible photos 1-10. The rubric covers: the install is the
+  subject, clean and level work, tidy cabling, in focus, well lit, upright,
+  uncluttered, and crops well to a banner.
+- **Disqualified photos are dropped.** That covers identifiable faces,
+  house numbers, and screens showing personal info.
+- **Score ranks, Henry picks.** The picker email is ranked and shows each
+  score and reason. Photos under 7 sit in a "Below the bar" section that
+  Henry can still pick from.
+- **The no-pick fallback changed.** It is now this week's top photo only if
+  it scores 7 or higher. Otherwise there is no photo, where before it was
+  the newest photo. If scoring is unavailable (no key, API error), the
+  newest photo is used as before.
+- **Failed It stays staged.** Vision is never used to find "failed" real
+  jobs (Henry).
+- **Rubric check on the live library (2026-11-04):** the folder held two
+  photos. A Block Party event collage of guests would be disqualified for
+  faces. A sideways, overexposed work-in-progress ceiling light is already
+  excluded as WIP and would also score low. Nothing qualifies today.
