@@ -1,0 +1,66 @@
+Map pick_nailed_photo(String file_id)
+{
+    // Target of the "Use this one" links in the Sunday picker email
+    // (scheduled_photo_picker.dg). Exposed as a Creator Custom API
+    // (GET, API-key auth); its full URL including the key lives in the
+    // Creator App Variable NAILED_IT_PICK_API_URL, never in this repo.
+    //
+    // Locks the chosen library photo in for the next Monday actuals
+    // email: re-checks it is still eligible, makes it loadable by email
+    // clients (nailed_it_share), and records it in Nailed_It_Photos with
+    // Status "Picked". Clicking a different photo later replaces the pick.
+    // The photo only shows if the team hits TEAM_VERDICT_TARGET; on a
+    // miss it stays unused and can be offered again next week.
+    out = Map();
+    if(file_id == null || file_id == "")
+    {
+        out.put("message", "No photo id in the link.");
+        return out;
+    }
+
+    chosen = null;
+    for each c in thisapp.nailed_it_candidates(50)
+    {
+        if(chosen == null && c.get("id") == file_id)
+        {
+            chosen = c;
+        }
+    }
+    if(chosen == null)
+    {
+        out.put("message", "That photo is no longer eligible (already used, too old, not marked Finished, or no customer OK). Pick another one from the email.");
+        return out;
+    }
+
+    public_id = thisapp.nailed_it_share(file_id);
+    if(public_id == "")
+    {
+        out.put("message", "Could not make that photo viewable by email. Check the google_drive connection and NAILED_IT_EMAIL_ASSETS_FOLDER_ID.");
+        return out;
+    }
+
+    // Next Monday on or after today (getDayOfWeek: 1 = Sunday, 2 = Monday).
+    today = zoho.currentdate;
+    send_date = today.addDay((9 - today.getDayOfWeek()) % 7);
+
+    delete from Nailed_It_Photos[Status == "Picked" && Send_Date == send_date];
+    insert into Nailed_It_Photos
+    [
+        File_ID = file_id
+        Public_File_ID = public_id
+        Job_Name = chosen.get("job_name")
+        Sent_By = chosen.get("sent_by")
+        Installed = chosen.get("installed")
+        Send_Date = send_date
+        Status = "Picked"
+        Picked_By = "Henry (picker email)"
+    ];
+
+    label = chosen.get("job_name");
+    if(label == null || label == "")
+    {
+        label = chosen.get("name");
+    }
+    out.put("message", "Locked in: " + label + " for the " + send_date.toString("EEE MMM d") + " actuals email. It shows only if the team hits target.");
+    return out;
+}

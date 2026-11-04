@@ -689,3 +689,33 @@ created 2026-10-26) owned 2 non-billable hours and entered the roster at
    the trip-charge field when creating service potentials from meetings and
    finish-out meetings from potentials ("We may need to streamline that
    somehow", 2026-08-31).
+
+## 2026-11-04 — Henry: Nailed It / Failed It card in the actuals email
+
+Henry wanted a "nailed it" vs "failed it" image in the weekly utilization
+email. Decisions:
+
+- **Actuals email only.** The forecast is a projection, so a verdict there
+  would be premature.
+- **Team number only.** The card compares company utilization to
+  `TEAM_VERDICT_TARGET`. No per-tech "failed it". Named techs still appear
+  only in the congrats line.
+- **Nailed It = a real job photo** from the asset-library Drive folder
+  (`17vdHcT-3YYMsQ7o0zH0OGf_uht5XsgtJ`). A photo must be marked Finished,
+  have the customer's OK to share, be from the last 30 days, and not have
+  been used before.
+- **Failed It = a staged gag image.** Never a real customer job.
+- **Henry picks.** A picker email goes out Sunday 4pm, 24 hours before the
+  send. If nothing is picked, the email uses the newest eligible photo.
+- **Hosting.** The library is a private shared drive, so a photo is made
+  public only once it's picked: an "anyone with the link" share (Plan A),
+  or a copy into a public folder (Plan B). The email loads it through
+  `drive.google.com/thumbnail`.
+- **Target: OPEN.** `TEAM_VERDICT_TARGET` is set to 0.80, the tech target.
+  The company mean includes the service tech (67.5% target), so this is the
+  strict reading. Henry to confirm.
+
+Files: `nailed_it.py` (reference + tests), `deluge/nailed_it_candidates.dg`,
+`deluge/nailed_it_share.dg`, `deluge/pick_nailed_photo.dg`,
+`deluge/scheduled_photo_picker.dg`, `deluge/send_actuals_email.dg`, and the
+`deluge/config.dg` constants. Setup: `docs/nailed_it_photos_form_schema.md`.

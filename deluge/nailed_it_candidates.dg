@@ -1,0 +1,145 @@
+List nailed_it_candidates(int max_count)
+{
+    // "Nailed It" photo candidates for the Monday actuals email, newest
+    // first. Python mirror: nailed_it.py (parse_photo_description,
+    // is_candidate, select_candidates). Keep in sync.
+    //
+    // Source: the Livewire asset library on Google Drive. The upload form
+    // writes its answers into each photo's description, one per line:
+    //   Job: Block Party
+    //   Sent by: brianredden@getlivewire.com
+    //   What did we install? Event
+    //   Where is the job at? Finished
+    //   Is the customer OK with us sharing these? Yes, they said OK
+    // Some labels have no separator at all ("Job or event name Clifford"),
+    // so lines are matched by label prefix, not split on ":".
+    //
+    // Eligible (Henry 2026-11-04): an image, uploaded within the last
+    // PHOTO_MAX_AGE_DAYS, marked Finished, customer OK'd sharing, and
+    // never used in a sent email (Nailed_It_Photos, Status "Used").
+    //
+    // Needs the Creator connection "google_drive" (Google Drive service,
+    // scope https://www.googleapis.com/auth/drive), authorized by a
+    // Google account that can read the asset-library shared drive.
+    PHOTO_FOLDER_ID = "17vdHcT-3YYMsQ7o0zH0OGf_uht5XsgtJ";
+    PHOTO_MAX_AGE_DAYS = 30;
+    // Deluge has no while loop: iterate a fixed page budget instead.
+    PAGE_BUDGET = {1, 2, 3, 4, 5};
+
+    used_ids = List();
+    used_recs = Nailed_It_Photos[Status == "Used"];
+    for each u in used_recs
+    {
+        used_ids.add(u.File_ID);
+    }
+
+    cutoff = zoho.currenttime.subDay(PHOTO_MAX_AGE_DAYS).toString("yyyy-MM-dd'T'HH:mm:ss");
+    q = "'" + PHOTO_FOLDER_ID + "' in parents and trashed = false and mimeType contains 'image/' and createdTime > '" + cutoff + "'";
+
+    candidates = List();
+    page_token = "";
+    keep_going = true;
+    for each pg in PAGE_BUDGET
+    {
+        if(keep_going)
+        {
+            params = Map();
+            params.put("q", q);
+            params.put("orderBy", "createdTime desc");
+            params.put("pageSize", "100");
+            params.put("supportsAllDrives", "true");
+            params.put("includeItemsFromAllDrives", "true");
+            params.put("fields", "nextPageToken,files(id,name,description,createdTime,webViewLink,thumbnailLink)");
+            if(page_token != "")
+            {
+                params.put("pageToken", page_token);
+            }
+            resp = invokeurl
+            [
+                url: "https://www.googleapis.com/drive/v3/files"
+                type: GET
+                parameters: params
+                connection: "google_drive"
+            ];
+            files = resp.get("files");
+            if(files != null)
+            {
+                for each f in files
+                {
+                    if(candidates.size() < max_count && !used_ids.contains(f.get("id")))
+                    {
+                        desc = f.get("description");
+                        if(desc == null)
+                        {
+                            desc = "";
+                        }
+                        job = "";
+                        event_name = "";
+                        sent_by = "";
+                        installed = "";
+                        stage = "";
+                        consent = "";
+                        for each raw in desc.toList("\n")
+                        {
+                            line = raw.trim();
+                            // Longest labels first so "Job or event name" is
+                            // not swallowed by "Job:".
+                            if(line.startsWith("Is the customer OK with us sharing these?"))
+                            {
+                                consent = line.subString(41, line.length()).trim();
+                            }
+                            else if(line.startsWith("What did we install?"))
+                            {
+                                installed = line.subString(20, line.length()).trim();
+                            }
+                            else if(line.startsWith("Where is the job at?"))
+                            {
+                                stage = line.subString(20, line.length()).trim();
+                            }
+                            else if(line.startsWith("Job or event name"))
+                            {
+                                event_name = line.subString(17, line.length()).trim();
+                            }
+                            else if(line.startsWith("Sent by:"))
+                            {
+                                sent_by = line.subString(8, line.length()).trim();
+                            }
+                            else if(line.startsWith("Job:"))
+                            {
+                                job = line.subString(4, line.length()).trim();
+                            }
+                        }
+                        job_name = event_name;
+                        if(job_name == "" && job.toLowerCase() != "job" && job.toLowerCase() != "event")
+                        {
+                            job_name = job;
+                        }
+                        if(stage.toLowerCase().startsWith("finished") && consent.toLowerCase().startsWith("yes"))
+                        {
+                            c = Map();
+                            c.put("id", f.get("id"));
+                            c.put("name", f.get("name"));
+                            c.put("job_name", job_name);
+                            c.put("sent_by", sent_by);
+                            c.put("installed", installed);
+                            c.put("created", f.get("createdTime"));
+                            c.put("view_url", f.get("webViewLink"));
+                            c.put("thumb_url", f.get("thumbnailLink"));
+                            candidates.add(c);
+                        }
+                    }
+                }
+            }
+            next_token = resp.get("nextPageToken");
+            if(candidates.size() >= max_count || next_token == null || next_token == "")
+            {
+                keep_going = false;
+            }
+            else
+            {
+                page_token = next_token;
+            }
+        }
+    }
+    return candidates;
+}

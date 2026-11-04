@@ -336,6 +336,37 @@ MACRO_GOAL_GREEN_AT             = 1.0;
 MACRO_GOAL_YELLOW_AT            = 0.75;
 
 /* ============================================================
+ * Nailed It / Failed It verdict card — ACTUALS email (Henry 2026-11-04)
+ * Python reference: nailed_it.py. Functions: nailed_it_candidates,
+ * nailed_it_share, scheduled_photo_picker (Sunday 16:00 ET),
+ * pick_nailed_photo (Custom API), send_actuals_email.
+ * ============================================================ */
+
+/* Team number only: company utilization >= this is "Nailed it". Set to
+ * the tech target; the company mean includes the service tech, whose own
+ * target is 67.5%, so this is the stricter reading. TODO Henry confirm. */
+TEAM_VERDICT_TARGET        = 0.80;
+
+/* Livewire asset library (shared drive, fed by the upload form). Only
+ * photos marked Finished with a customer OK to share are offered. */
+NAILED_IT_PHOTO_FOLDER_ID  = "17vdHcT-3YYMsQ7o0zH0OGf_uht5XsgtJ";
+NAILED_IT_PHOTO_MAX_AGE_DAYS = 30;
+NAILED_IT_MAX_CANDIDATES   = 6;
+NAILED_IT_PICKER_TO        = "henry@getlivewire.com";
+NAILED_IT_PICKER_DAY       = "Sunday";
+NAILED_IT_PICKER_TIME      = "16:00";              /* America/New_York, 24h before actuals */
+NAILED_IT_FORM             = "Nailed_It_Photos";   /* see docs/nailed_it_photos_form_schema.md */
+
+/* Staged "Failed it" images: Drive file ids in a folder shared "anyone
+ * with the link". Never real customer jobs. Empty = no card on a miss. */
+FAILED_IT_IMAGE_IDS        = list();
+
+/* Creator App Variables (not in this repo):
+ *   NAILED_IT_PICK_API_URL            pick_nailed_photo Custom API URL incl. key
+ *   NAILED_IT_EMAIL_ASSETS_FOLDER_ID  Plan B public folder for copies (optional)
+ * Creator connection: "google_drive" (Google Drive, drive scope). */
+
+/* ============================================================
  * Placeholder routing (spec Section 6)
  * ============================================================ */
 

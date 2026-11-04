@@ -34,6 +34,18 @@ void send_actuals_email(Map result)
     RAVING_FAN_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRsQaH6Q29LCTAkbX_t8_yB3cTXLcXt9EUU9OEn8xE8vzla4j8ijx7Wb1exPNAuDUw79_EBil_N2Gfc/pub?output=csv";
     RAVING_FAN_URL = "https://hfscdogg.github.io/raving-fan/";
 
+    // Nailed It / Failed It verdict card (Henry 2026-11-04). Python
+    // mirror: nailed_it.py. Team number only: company utilization vs
+    // TEAM_VERDICT_TARGET, never a per-tech "failed it".
+    // Nailed: the photo Henry picked from Sunday's picker email
+    // (Nailed_It_Photos, Status "Picked"), else the newest eligible
+    // library photo. Failed: a staged gag image, never a real customer
+    // job, rotated by week from FAILED_IT_IMAGE_IDS (Drive file ids in a
+    // folder shared "anyone with the link"). An empty list means a missed
+    // week shows no card. Keep in sync with config.dg.
+    TEAM_VERDICT_TARGET = 0.80;
+    FAILED_IT_IMAGE_IDS = List();
+
     // Full distribution — Henry 2026-09-10: "forecast & utilization
     // reports going to all@getlivewire.com effective immediately."
     // Supersedes the Henry-only parallel-run address and Dustin's 8/28
@@ -563,6 +575,122 @@ void send_actuals_email(Map result)
         }
     }
 
+    // Nailed It / Failed It verdict card. Silent on any error, like the
+    // Raving Fan block: the email must never fail over a photo.
+    verdict_block = "";
+    nailed_rec_id = null;
+    if(!isolved_pending && rollup.get("company_utilization") != null)
+    {
+        try
+        {
+            cu = rollup.get("company_utilization");
+            cu_pct = (cu * 100).round(2) + "%";
+            tgt_pct = (TEAM_VERDICT_TARGET * 100).round(2) + "%";
+            image_id = "";
+            headline = "";
+            line_text = "";
+            credit = "";
+            alt_text = "";
+            accent = RF_INK;
+            if(cu >= TEAM_VERDICT_TARGET)
+            {
+                today = zoho.currentdate;
+                picks = Nailed_It_Photos[Status == "Picked" && Send_Date <= today] sort by Send_Date desc;
+                for each p in picks
+                {
+                    if(nailed_rec_id == null)
+                    {
+                        nailed_rec_id = p.ID;
+                    }
+                }
+                if(nailed_rec_id == null)
+                {
+                    // No pick: newest eligible photo, recorded as a pick so
+                    // it is marked Used after the send like any other.
+                    newest = thisapp.nailed_it_candidates(1);
+                    if(newest.size() > 0)
+                    {
+                        c = newest.get(0);
+                        public_id = thisapp.nailed_it_share(c.get("id"));
+                        if(public_id != "")
+                        {
+                            nailed_rec_id = insert into Nailed_It_Photos
+                            [
+                                File_ID = c.get("id")
+                                Public_File_ID = public_id
+                                Job_Name = c.get("job_name")
+                                Sent_By = c.get("sent_by")
+                                Installed = c.get("installed")
+                                Send_Date = today
+                                Status = "Picked"
+                                Picked_By = "Auto (no pick by send time)"
+                            ];
+                        }
+                    }
+                }
+                if(nailed_rec_id != null)
+                {
+                    rec = Nailed_It_Photos[ID == nailed_rec_id];
+                    image_id = rec.Public_File_ID;
+                    headline = "Nailed it.";
+                    line_text = cu_pct + " team utilization vs our " + tgt_pct + " target.";
+                    credit_parts = List();
+                    if(rec.Job_Name != null && rec.Job_Name != "")
+                    {
+                        credit_parts.add(rec.Job_Name);
+                    }
+                    if(rec.Installed != null && rec.Installed != "")
+                    {
+                        credit_parts.add(rec.Installed);
+                    }
+                    if(rec.Sent_By != null && rec.Sent_By != "")
+                    {
+                        credit_parts.add("photo by " + rec.Sent_By);
+                    }
+                    for each cp in credit_parts
+                    {
+                        if(credit != "")
+                        {
+                            credit = credit + " &middot; ";
+                        }
+                        credit = credit + cp.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
+                    }
+                    alt_text = "Nailed it: " + cu_pct + " team utilization vs " + tgt_pct + " target. Photo of recent Livewire work.";
+                    accent = RF_COPPER;
+                }
+            }
+            else if(FAILED_IT_IMAGE_IDS.size() > 0)
+            {
+                // Rotation only, so Deluge's week numbering need not match
+                // Python's ISO week exactly.
+                image_id = FAILED_IT_IMAGE_IDS.get(ws.getWeekOfYear() % FAILED_IT_IMAGE_IDS.size());
+                headline = "Failed it... this week.";
+                line_text = cu_pct + " team utilization vs our " + tgt_pct + " target. Next week we nail it.";
+                credit = "Staged photo. No customer jobs were harmed.";
+                alt_text = "Failed it this week: " + cu_pct + " team utilization vs " + tgt_pct + " target.";
+            }
+            if(image_id != null && image_id != "")
+            {
+                verdict_block =
+                    "<table role='presentation' cellpadding='0' cellspacing='0' border='0' width='100%' style='width:100%;max-width:600px;background:" + RF_CARD_BG + ";border:1px solid " + RF_CARD_BORDER + ";border-collapse:separate;margin:0 0 16px;'>" +
+                    "<tr><td style='padding:0;'>" +
+                    "<img src='https://drive.google.com/thumbnail?id=" + image_id + "&sz=w1200' width='600' alt='" + alt_text + "' style='display:block;width:100%;max-width:600px;height:auto;border:0;'>" +
+                    "</td></tr>" +
+                    "<tr><td style='padding:12px 20px 14px;'>" +
+                    "<p style='margin:0;font-family:" + RF_SANS_STACK + ";font-size:20px;line-height:24px;font-weight:700;color:" + accent + ";'>" + headline + "</p>" +
+                    "<p style='margin:4px 0 0;font-family:" + RF_SANS_STACK + ";font-size:14px;line-height:20px;color:" + RF_INK + ";'>" + line_text + "</p>" +
+                    "<p style='margin:6px 0 0;font-family:" + RF_SANS_STACK + ";font-size:11px;line-height:14px;color:" + RF_TEXT_SECONDARY + ";'>" + credit + "</p>" +
+                    "</td></tr></table>";
+            }
+        }
+        catch (verdict_err)
+        {
+            info "verdict block skipped: " + verdict_err;
+            verdict_block = "";
+            nailed_rec_id = null;
+        }
+    }
+
     // Footer totals.
     total_hw_disp = PLACEHOLDER;
     total_ot_disp = PLACEHOLDER;
@@ -592,6 +720,7 @@ void send_actuals_email(Map result)
         raving_fan_block +
         banner +
         lead_in +
+        verdict_block +
         congrats_line +
         "<table class='actuals'><thead><tr>" +
         "<th>Technician</th>" +
@@ -621,4 +750,12 @@ void send_actuals_email(Map result)
         subject: "Utilization Actuals for " + week_label
         message: html
     ];
+
+    // Only a photo that actually went out is retired from the pool.
+    if(nailed_rec_id != null && verdict_block != "")
+    {
+        used = Nailed_It_Photos[ID == nailed_rec_id];
+        used.Status = "Used";
+        used.Company_Utilization = rollup.get("company_utilization");
+    }
 }
