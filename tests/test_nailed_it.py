@@ -127,7 +127,7 @@ def test_nailed_block_shows_photo_and_credit():
     assert "thumbnail?id=abc123" in html
     assert "fail1" not in html
     assert "Block Party" in html and "photo by brianredden@getlivewire.com" in html
-    assert "84.00% team utilization vs our 80.00% target" in html
+    assert "84.00% team utilization vs our 75.00% target" in html
     # Alt text carries the verdict when images are blocked
     assert "alt='Nailed it: 84.00%" in html
 

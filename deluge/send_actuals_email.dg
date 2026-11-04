@@ -44,7 +44,8 @@ void send_actuals_email(Map result)
     // job, rotated by week from FAILED_IT_IMAGE_IDS (Drive file ids in a
     // folder shared "anyone with the link"). An empty list means a missed
     // week shows no card. Keep in sync with config.dg.
-    TEAM_VERDICT_TARGET = 0.80;
+    // Henry 2026-11-04: 75%, separate from the per-tech congrats targets.
+    TEAM_VERDICT_TARGET = 0.75;
     FAILED_IT_IMAGE_IDS = List();
 
     // Full distribution — Henry 2026-09-10: "forecast & utilization

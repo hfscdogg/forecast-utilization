@@ -711,9 +711,9 @@ email. Decisions:
   public only once it's picked: an "anyone with the link" share (Plan A),
   or a copy into a public folder (Plan B). The email loads it through
   `drive.google.com/thumbnail`.
-- **Target: OPEN.** `TEAM_VERDICT_TARGET` is set to 0.80, the tech target.
-  The company mean includes the service tech (67.5% target), so this is the
-  strict reading. Henry to confirm.
+- **Target: 75%.** Henry set `TEAM_VERDICT_TARGET` to 0.75 for the
+  team number. It is separate from the per-tech congrats targets (80% for
+  techs, 67.5% for service techs).
 
 Files: `nailed_it.py` (reference + tests), `deluge/nailed_it_candidates.dg`,
 `deluge/nailed_it_share.dg`, `deluge/pick_nailed_photo.dg`,

@@ -342,10 +342,10 @@ MACRO_GOAL_YELLOW_AT            = 0.75;
  * pick_nailed_photo (Custom API), send_actuals_email.
  * ============================================================ */
 
-/* Team number only: company utilization >= this is "Nailed it". Set to
- * the tech target; the company mean includes the service tech, whose own
- * target is 67.5%, so this is the stricter reading. TODO Henry confirm. */
-TEAM_VERDICT_TARGET        = 0.80;
+/* Team number only: company utilization >= this is "Nailed it".
+ * Henry 2026-11-04: 75%. Separate from the per-tech congrats targets
+ * (80% techs, 67.5% service techs). */
+TEAM_VERDICT_TARGET        = 0.75;
 
 /* Livewire asset library (shared drive, fed by the upload form). Only
  * photos marked Finished with a customer OK to share are offered. */

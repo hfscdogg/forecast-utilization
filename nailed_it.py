@@ -22,7 +22,7 @@ from datetime import datetime, timedelta
 
 # Company utilization at or above this is "Nailed it". Mirrors
 # TEAM_VERDICT_TARGET in deluge/config.dg and send_actuals_email.dg.
-TEAM_VERDICT_TARGET = 0.80
+TEAM_VERDICT_TARGET = 0.75  # Henry 2026-11-04
 
 PHOTO_MAX_AGE_DAYS = 30
 MAX_CANDIDATES = 6
