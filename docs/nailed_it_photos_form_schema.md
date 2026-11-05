@@ -12,7 +12,7 @@ One record per pick.
 | Field name | Link name | Type | Required | Notes |
 |---|---|---|---|---|
 | File ID | `File_ID` | Single Line | Yes | Drive file id in the asset library. Used to keep a photo from repeating. |
-| Public File ID | `Public_File_ID` | Single Line | Yes | Id the email loads. Same as File ID under Plan A (link share), or the copy's id under Plan B. |
+| Public File ID | `Public_File_ID` | Single Line | No | Id the email loads. Same as File ID under Plan A (link share), the copy's id under Plan B, or the URL for a website photo. Empty on `Suggested` records until the send makes the photo public, so it must **not** be required. |
 | Job Name | `Job_Name` | Single Line | No | From the upload form ("Job or event name", else "Job:"). |
 | Sent By | `Sent_By` | Single Line | No | Uploader email, shown as the photo credit. |
 | Installed | `Installed` | Single Line | No | "What did we install?" answer. |
@@ -50,6 +50,13 @@ One record per pick.
    `FAILED_IT_IMAGE_IDS`. On a missed week the email shares that week's
    image at send time through `nailed_it_share`, which needs the
    `google_drive` connection from step 2.
+
+## Testing without emailing everyone
+
+`send_actuals_email` sends to `EMAIL_TO = "all@getlivewire.com"`. To test the
+card by hand, temporarily change `EMAIL_TO` to `henry@getlivewire.com`, run
+the actuals send, check the email, then change it back. Running
+`scheduled_photo_picker` by hand is always safe: it only emails Henry.
 
 ## Weekly flow
 
