@@ -1,0 +1,75 @@
+String nailed_it_share(String file_id)
+{
+    // Make a Nailed It photo loadable by email clients and return the
+    // Drive file id to put in the <img> URL
+    // (https://drive.google.com/thumbnail?id=<id>&sz=w1200), or "" when
+    // neither route works (the caller then skips the verdict block).
+    //
+    // Plan A: grant "anyone with the link: viewer" on the library file.
+    // Plan B: the asset-library shared drive may forbid link sharing
+    // (admin policy). Then copy the file into EMAIL_ASSETS_FOLDER_ID, a
+    // My Drive folder already shared "anyone with the link", and use the
+    // copy, which inherits the folder's link access.
+    // Needs the "google_drive" connection (see nailed_it_candidates.dg).
+    //
+    // Creator App Variable NAILED_IT_EMAIL_ASSETS_FOLDER_ID holds the
+    // Plan B folder id. Leave it blank to run Plan A only.
+    // Website photos (interim source) are already public: the URL is the id.
+    if(file_id.startsWith("http"))
+    {
+        return file_id;
+    }
+    perm = Map();
+    perm.put("role", "reader");
+    perm.put("type", "anyone");
+    try
+    {
+        perm_resp = invokeurl
+        [
+            url: "https://www.googleapis.com/drive/v3/files/" + file_id + "/permissions?supportsAllDrives=true"
+            type: POST
+            parameters: perm.toString()
+            headers: {"Content-Type": "application/json"}
+            connection: "google_drive"
+        ];
+        if(perm_resp.get("id") != null)
+        {
+            return file_id;
+        }
+        info "nailed_it_share: link share refused for " + file_id + ": " + perm_resp;
+    }
+    catch (share_err)
+    {
+        info "nailed_it_share: link share errored for " + file_id + ": " + share_err;
+    }
+
+    assets_folder = thisapp.Variables.NAILED_IT_EMAIL_ASSETS_FOLDER_ID;
+    if(assets_folder == null || assets_folder == "")
+    {
+        return "";
+    }
+    try
+    {
+        copy_body = Map();
+        copy_body.put("parents", {assets_folder});
+        copy_resp = invokeurl
+        [
+            url: "https://www.googleapis.com/drive/v3/files/" + file_id + "/copy?supportsAllDrives=true"
+            type: POST
+            parameters: copy_body.toString()
+            headers: {"Content-Type": "application/json"}
+            connection: "google_drive"
+        ];
+        copy_id = copy_resp.get("id");
+        if(copy_id != null)
+        {
+            return copy_id;
+        }
+        info "nailed_it_share: copy refused for " + file_id + ": " + copy_resp;
+    }
+    catch (copy_err)
+    {
+        info "nailed_it_share: copy errored for " + file_id + ": " + copy_err;
+    }
+    return "";
+}

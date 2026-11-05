@@ -1,0 +1,218 @@
+Map nailed_it_score(List candidates)
+{
+    // Vision-score Nailed It candidates with one Claude API call (Henry
+    // 2026-11-04: "Nailed it has more to do with how the picture looks").
+    // Python mirror: nailed_it.py (build_scoring_request, apply_scores,
+    // suggested_pick). Keep the rubric text in sync.
+    //
+    // Returns {"scored": bool, "ranked": List}. Ranked candidates carry
+    // "score" (1-10), "reason" and "above_bar"; disqualified photos are
+    // dropped and the rest sorted by score desc (ties keep newest first).
+    // On any failure (no key, HTTP error, refusal, truncation, bad JSON)
+    // returns the candidates unscored in their original newest-first
+    // order with scored=false, so the picker email still goes out.
+    //
+    // Needs the Creator App Variable ANTHROPIC_API_KEY (never in this
+    // repo). Images are sent as Drive thumbnailLink URLs, short-lived signed
+    // URLs that the API fetches server-side.
+    SCORING_MODEL = "claude-opus-5-5";
+    ANTHROPIC_VERSION = "2026-10-21";
+    NAILED_IT_MIN_SCORE = 7;
+    RUBRIC = "You are picking a photo for the 'Nailed it' banner in Livewire's weekly team email. Livewire installs AV, networking, lighting control and electrical systems. Score each photo 1-10 on how well it shows off excellent finished work:\n- The finished install is the clear subject (racks, mounted TVs, speakers, keypads, lighting, panels).\n- Craftsmanship reads at a glance: straight lines, level and centered mounts, hidden or neatly dressed cabling, clean labels.\n- Photo quality: in focus, well lit, no heavy glare or blown highlights, upright (not sideways or upside down).\n- Uncluttered: no ladders, boxes, tools, packaging or debris.\n- Works as a wide banner (roughly 2:1 crop).\nSet disqualified=true for a photo with identifiable faces, house numbers or street signs, screens showing personal information, or anything a customer would not want sent to the whole company. Set nailed_it=true only when score >= 7 and not disqualified. Keep each reason under 15 words, naming what makes it good or bad. Return one entry per photo, using the photo numbers given.";
+
+    unscored = List();
+    for each c in candidates
+    {
+        u = c;
+        u.put("score", null);
+        u.put("reason", "");
+        u.put("above_bar", null);
+        unscored.add(u);
+    }
+    fallback = Map();
+    fallback.put("scored", false);
+    fallback.put("ranked", unscored);
+
+    api_key = thisapp.Variables.ANTHROPIC_API_KEY;
+    if(candidates.size() == 0 || api_key == null || api_key == "")
+    {
+        return fallback;
+    }
+
+    try
+    {
+        content = List();
+        i = 1;
+        for each c in candidates
+        {
+            label = "Photo " + i;
+            label_bits = List();
+            if(c.get("job_name") != null && c.get("job_name") != "")
+            {
+                label_bits.add(c.get("job_name"));
+            }
+            if(c.get("installed") != null && c.get("installed") != "")
+            {
+                label_bits.add(c.get("installed"));
+            }
+            if(label_bits.size() > 0)
+            {
+                label = label + ": " + label_bits.get(0);
+                if(label_bits.size() > 1)
+                {
+                    label = label + " · " + label_bits.get(1);
+                }
+            }
+            t = Map();
+            t.put("type", "text");
+            t.put("text", label);
+            content.add(t);
+
+            src = Map();
+            src.put("type", "url");
+            src.put("url", c.get("thumb_url").replaceAll("=s220", "=s1600"));
+            img = Map();
+            img.put("type", "image");
+            img.put("source", src);
+            content.add(img);
+            i = i + 1;
+        }
+        rubric_block = Map();
+        rubric_block.put("type", "text");
+        rubric_block.put("text", RUBRIC);
+        content.add(rubric_block);
+
+        // JSON schema for structured output.
+        int_t = {"type": "integer"};
+        bool_t = {"type": "boolean"};
+        str_t = {"type": "string"};
+        item_props = Map();
+        item_props.put("index", int_t);
+        item_props.put("score", int_t);
+        item_props.put("nailed_it", bool_t);
+        item_props.put("disqualified", bool_t);
+        item_props.put("reason", str_t);
+        item_schema = Map();
+        item_schema.put("type", "object");
+        item_schema.put("properties", item_props);
+        item_schema.put("required", {"index", "score", "nailed_it", "disqualified", "reason"});
+        item_schema.put("additionalProperties", false);
+        photos_schema = Map();
+        photos_schema.put("type", "array");
+        photos_schema.put("items", item_schema);
+        root_props = Map();
+        root_props.put("photos", photos_schema);
+        schema = Map();
+        schema.put("type", "object");
+        schema.put("properties", root_props);
+        schema.put("required", {"photos"});
+        schema.put("additionalProperties", false);
+
+        fmt = Map();
+        fmt.put("type", "json_schema");
+        fmt.put("schema", schema);
+        output_config = Map();
+        output_config.put("effort", "low");
+        output_config.put("format", fmt);
+
+        msg = Map();
+        msg.put("role", "user");
+        msg.put("content", content);
+        body = Map();
+        body.put("model", SCORING_MODEL);
+        body.put("max_tokens", 4000);
+        body.put("output_config", output_config);
+        body.put("messages", {msg});
+
+        headers = Map();
+        headers.put("x-api-key", api_key);
+        headers.put("anthropic-version", ANTHROPIC_VERSION);
+        headers.put("content-type", "application/json");
+
+        resp = invokeurl
+        [
+            url: "https://api.anthropic.com/v1/messages"
+            type: POST
+            parameters: body.toString()
+            headers: headers
+        ];
+
+        // Check why the model stopped before reading content: refusal or
+        // max_tokens means the JSON is missing or cut off.
+        if(resp.get("stop_reason") != "end_turn")
+        {
+            info "nailed_it_score: unusable response: " + resp;
+            return fallback;
+        }
+        text = "";
+        for each blk in resp.get("content")
+        {
+            if(blk.get("type") == "text")
+            {
+                text = text + blk.get("text");
+            }
+        }
+        photos = text.toMap().get("photos");
+        if(photos == null)
+        {
+            info "nailed_it_score: no photos in response: " + text;
+            return fallback;
+        }
+        by_index = Map();
+        for each p in photos
+        {
+            by_index.put(p.get("index").toString(), p);
+        }
+
+        // Merge, drop disqualified, then insertion-sort by score desc.
+        // Strict ">" keeps newest-first order among equal scores.
+        ranked = List();
+        i = 1;
+        for each c in candidates
+        {
+            s = by_index.get(i.toString());
+            if(s != null && s.get("disqualified") != true)
+            {
+                score = s.get("score").toLong();
+                if(score < 1)
+                {
+                    score = 1;
+                }
+                if(score > 10)
+                {
+                    score = 10;
+                }
+                r = c;
+                r.put("score", score);
+                r.put("reason", s.get("reason"));
+                r.put("above_bar", score >= NAILED_IT_MIN_SCORE);
+                inserted = false;
+                new_ranked = List();
+                for each e in ranked
+                {
+                    if(!inserted && score > e.get("score"))
+                    {
+                        new_ranked.add(r);
+                        inserted = true;
+                    }
+                    new_ranked.add(e);
+                }
+                if(!inserted)
+                {
+                    new_ranked.add(r);
+                }
+                ranked = new_ranked;
+            }
+            i = i + 1;
+        }
+        out = Map();
+        out.put("scored", true);
+        out.put("ranked", ranked);
+        return out;
+    }
+    catch (score_err)
+    {
+        info "nailed_it_score: errored: " + score_err;
+        return fallback;
+    }
+}

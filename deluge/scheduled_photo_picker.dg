@@ -1,0 +1,183 @@
+void scheduled_photo_picker()
+{
+    // Sunday 4pm ET, 24 hours before scheduled_actuals (Monday 4pm ET).
+    // Pulls eligible "Nailed It" photos from the asset library
+    // (nailed_it_candidates.dg), has Claude score how good each one looks
+    // (nailed_it_score.dg), and emails Henry the best ones with a score,
+    // a one-line reason and a "Use this one" link to the
+    // pick_nailed_photo Custom API.
+    //
+    // No pick by Monday: the top-scored photo is stored here as a
+    // "Suggested" record and used, but only if it clears the score bar.
+    // If nothing clears the bar, Monday goes out without a Nailed It photo.
+    // If scoring itself fails, the newest photo is suggested.
+    PICKER_TO = "henry@getlivewire.com";
+    PICKER_FROM = "henry@getlivewire.com";
+    POOL_SIZE = 15;
+    MAX_SHOWN = 6;
+    INK = "#1A1A1A";
+    TEXT_SECONDARY = "#6B6B60";
+    COPPER = "#F7941D";
+    CARD_BORDER = "#E5E5E0";
+    SANS = "-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Helvetica, Arial, sans-serif";
+
+    try
+    {
+        candidates = thisapp.nailed_it_candidates(POOL_SIZE);
+        scoring = thisapp.nailed_it_score(candidates);
+        scored = scoring.get("scored");
+        ranked = scoring.get("ranked");
+
+        // Next Monday (getDayOfWeek: 1 = Sunday, 2 = Monday).
+        today = zoho.currentdate;
+        send_date = today.addDay((9 - today.getDayOfWeek()) % 7);
+
+        // Suggested fallback for Monday. Replaces any earlier suggestion
+        // for the same send date; a "Picked" record always wins over it.
+        delete from Nailed_It_Photos[Status == "Suggested" && Send_Date == send_date];
+        suggestion = null;
+        if(ranked.size() > 0)
+        {
+            top = ranked.get(0);
+            if(!scored || top.get("above_bar") == true)
+            {
+                suggestion = top;
+            }
+        }
+        if(suggestion != null)
+        {
+            insert into Nailed_It_Photos
+            [
+                File_ID = suggestion.get("id")
+                Job_Name = suggestion.get("job_name")
+                Sent_By = suggestion.get("sent_by")
+                Installed = suggestion.get("installed")
+                Send_Date = send_date
+                Status = "Suggested"
+                Score = suggestion.get("score")
+                Score_Reason = suggestion.get("reason")
+                Picked_By = "Auto (top score)"
+            ];
+        }
+
+        pick_api = thisapp.Variables.NAILED_IT_PICK_API_URL;
+        joiner = "?";
+        if(pick_api.contains("?"))
+        {
+            joiner = "&";
+        }
+
+        above_cards = "";
+        below_cards = "";
+        shown = 0;
+        for each c in ranked
+        {
+            if(shown < MAX_SHOWN)
+            {
+                label = c.get("job_name");
+                if(label == null || label == "")
+                {
+                    label = c.get("name");
+                }
+                meta = "";
+                if(c.get("installed") != null && c.get("installed") != "")
+                {
+                    meta = c.get("installed");
+                }
+                if(c.get("sent_by") != null && c.get("sent_by") != "")
+                {
+                    if(meta != "")
+                    {
+                        meta = meta + " &middot; ";
+                    }
+                    meta = meta + "sent by " + c.get("sent_by");
+                }
+                score_html = "";
+                if(c.get("score") != null)
+                {
+                    badge_bg = TEXT_SECONDARY;
+                    if(c.get("above_bar") == true)
+                    {
+                        badge_bg = COPPER;
+                    }
+                    score_html = "<p style='margin:6px 0 0;font-size:13px;color:" + INK + ";'><span style='display:inline-block;padding:2px 8px;background:" + badge_bg + ";color:#FFFFFF;font-weight:700;border-radius:10px;'>" + c.get("score") + "/10</span>&nbsp; " + c.get("reason") + "</p>";
+                }
+                // thumbnailLink is a short-lived signed URL (hours), fine
+                // for a same-day pick. Bump its size from the 220px default.
+                thumb = c.get("thumb_url");
+                thumb_html = "";
+                if(thumb != null && thumb != "")
+                {
+                    thumb = thumb.replaceAll("=s220", "=s400");
+                    thumb_html = "<img src='" + thumb + "' width='200' alt='' style='display:block;width:200px;height:auto;border:0;'>";
+                }
+                card = "<tr><td style='padding:12px 0;border-top:1px solid " + CARD_BORDER + ";vertical-align:top;width:212px;'>" + thumb_html + "</td>" +
+                    "<td style='padding:12px 0 12px 12px;border-top:1px solid " + CARD_BORDER + ";vertical-align:top;font-family:" + SANS + ";'>" +
+                    "<p style='margin:0;font-size:15px;font-weight:700;color:" + INK + ";'>" + label + "</p>" +
+                    "<p style='margin:4px 0 0;font-size:12px;color:" + TEXT_SECONDARY + ";'>" + meta + "</p>" +
+                    score_html +
+                    "<p style='margin:10px 0 0;'><a href='" + pick_api + joiner + "file_id=" + encodeUrl(c.get("id")) + "' style='display:inline-block;padding:8px 16px;background:" + COPPER + ";color:#FFFFFF;font-size:13px;font-weight:700;text-decoration:none;border-radius:6px;'>Use this one</a>" +
+                    "&nbsp;&nbsp;<a href='" + c.get("view_url") + "' style='font-size:12px;color:#A85200;'>Open in Drive</a></p>" +
+                    "</td></tr>";
+                if(scored && c.get("above_bar") != true)
+                {
+                    below_cards = below_cards + card;
+                }
+                else
+                {
+                    above_cards = above_cards + card;
+                }
+                shown = shown + 1;
+            }
+        }
+
+        p_style = "font-family:" + SANS + ";font-size:14px;color:" + INK + ";";
+        table_open = "<table role='presentation' cellpadding='0' cellspacing='0' border='0' width='100%' style='max-width:600px;'>";
+        if(ranked.size() == 0)
+        {
+            body = "<p style='" + p_style + "'>No eligible Nailed It photos this week: nothing in the asset library from the last 30 days is marked <strong>Finished</strong> with a customer OK to share (and passes the photo check). If the team hits target on Monday, the email goes out without a photo.</p>";
+        }
+        else
+        {
+            if(!scored)
+            {
+                intro = "Pick tomorrow's <strong>Nailed It</strong> photo for the Utilization Actuals email. It only shows if the team hits target. <em>Photo scoring was unavailable this week</em>, so these are newest first. Skip this and the newest one is used.";
+            }
+            else if(suggestion != null)
+            {
+                intro = "Pick tomorrow's <strong>Nailed It</strong> photo for the Utilization Actuals email. It only shows if the team hits target. Ranked by how well each photo shows off the work. Skip this and the top one is used.";
+            }
+            else
+            {
+                intro = "Pick tomorrow's <strong>Nailed It</strong> photo for the Utilization Actuals email. It only shows if the team hits target. <strong>None of this week's photos cleared the bar</strong>, so if you skip this, Monday goes out without a photo. You can still pick one below.";
+            }
+            body = "<p style='" + p_style + "'>" + intro + "</p>";
+            if(above_cards != "")
+            {
+                body = body + table_open + above_cards + "</table>";
+            }
+            if(below_cards != "")
+            {
+                body = body + "<p style='" + p_style + "margin-top:20px;'><strong>Below the bar</strong> (still yours to pick):</p>" + table_open + below_cards + "</table>";
+            }
+        }
+
+        sendmail
+        [
+            from: PICKER_FROM
+            to: PICKER_TO
+            subject: "Pick tomorrow's Nailed It photo"
+            message: body
+        ];
+    }
+    catch (e)
+    {
+        sendmail
+        [
+            from: PICKER_FROM
+            to: PICKER_TO
+            subject: "Nailed It photo picker FAILED"
+            message: "The Sunday photo picker errored. Monday's actuals email still goes out; it will use your pick if you made one, otherwise no Nailed It photo.\n\n" + e.toString()
+        ];
+    }
+}

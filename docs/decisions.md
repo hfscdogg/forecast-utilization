@@ -689,3 +689,85 @@ created 2026-10-26) owned 2 non-billable hours and entered the roster at
    the trip-charge field when creating service potentials from meetings and
    finish-out meetings from potentials ("We may need to streamline that
    somehow", 2026-08-31).
+
+## 2026-11-04 — Henry: Nailed It / Failed It card in the actuals email
+
+Henry wanted a "nailed it" vs "failed it" image in the weekly utilization
+email. Decisions:
+
+- **Actuals email only.** The forecast is a projection, so a verdict there
+  would be premature.
+- **Team number only.** The card compares company utilization to
+  `TEAM_VERDICT_TARGET`. No per-tech "failed it". Named techs still appear
+  only in the congrats line.
+- **Nailed It = a real job photo** from the asset-library Drive folder
+  (`17vdHcT-3YYMsQ7o0zH0OGf_uht5XsgtJ`). A photo must be marked Finished,
+  have the customer's OK to share, be from the last 30 days, and not have
+  been used before.
+- **Failed It = a staged gag image.** Never a real customer job.
+- **Henry picks.** A picker email goes out Sunday 4pm, 24 hours before the
+  send. If nothing is picked, the email uses the newest eligible photo.
+- **Hosting.** The library is a private shared drive, so a photo is made
+  public only once it's picked: an "anyone with the link" share (Plan A),
+  or a copy into a public folder (Plan B). The email loads it through
+  `drive.google.com/thumbnail`.
+- **Target: 75%.** Henry set `TEAM_VERDICT_TARGET` to 0.75 for the
+  team number. It is separate from the per-tech congrats targets (80% for
+  techs, 67.5% for service techs).
+
+Files: `nailed_it.py` (reference + tests), `deluge/nailed_it_candidates.dg`,
+`deluge/nailed_it_share.dg`, `deluge/pick_nailed_photo.dg`,
+`deluge/scheduled_photo_picker.dg`, `deluge/send_actuals_email.dg`, and the
+`deluge/config.dg` constants. Setup: `docs/nailed_it_photos_form_schema.md`.
+
+### Same day — vision scoring for Nailed It
+
+Henry: "Nailed it has more to do with how the picture looks. So it requires
+some discernment." Metadata alone (Finished, customer OK) can't tell a
+great photo from a sideways, washed-out one. Decisions:
+
+- **Claude scores the photos.** On Sunday, one Claude API call
+  (`nailed_it_score.dg`, `claude-opus-5-5`, structured JSON output) scores
+  up to 15 eligible photos 1-10. The rubric covers: the install is the
+  subject, clean and level work, tidy cabling, in focus, well lit, upright,
+  uncluttered, and crops well to a banner.
+- **Disqualified photos are dropped.** That covers identifiable faces,
+  house numbers, and screens showing personal info.
+- **Score ranks, Henry picks.** The picker email is ranked and shows each
+  score and reason. Photos under 7 sit in a "Below the bar" section that
+  Henry can still pick from.
+- **The no-pick fallback changed.** It is now this week's top photo only if
+  it scores 7 or higher. Otherwise there is no photo, where before it was
+  the newest photo. If scoring is unavailable (no key, API error), the
+  newest photo is used as before.
+- **Failed It stays staged.** Vision is never used to find "failed" real
+  jobs (Henry).
+- **Rubric check on the live library (2026-11-04):** the folder held two
+  photos. A Block Party event collage of guests would be disqualified for
+  faces. A sideways, overexposed work-in-progress ceiling light is already
+  excluded as WIP and would also score low. Nothing qualifies today.
+
+### Same day — website photos as the interim Nailed It source
+
+Henry: "Just grab some finished photos from our website to use for now,
+I'm building a deluge function to sync photos from Zoho CRM. Second Phase."
+
+- **11 photos picked by eye** from getlivewire.com: boardrooms, conference
+  rooms, the Common House screening room, a home theater, exterior and
+  kitchen lighting, a labeled wiring closet, a meeting hall and a sanctuary
+  array.
+- **Left out:** stock photos, logos, photos of customers' products (bread,
+  greenhouse), people's faces, and the 2026 MicroLED and man-cave images,
+  which look like renders.
+- **No Drive step.** The photos are listed as `WEBSITE_PHOTOS` in
+  `nailed_it_candidates.dg` (mirrored in `nailed_it.py`). They are already
+  public, so the URL is the photo id. `nailed_it_share` passes it through
+  and the email uses it as the `<img src>`.
+- **Order and limits.** Website photos come after any Drive library photos,
+  are exempt from the 30-day age limit, go through the same vision scoring,
+  and are retired once used.
+- **No Drive connection needed yet.** If the library listing fails (for
+  example before the `google_drive` connection exists), the website photos
+  still run.
+- **Phase 2:** Henry's Zoho CRM photo sync replaces this list. Only
+  `nailed_it_candidates.dg` needs to change.
