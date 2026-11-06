@@ -18,8 +18,9 @@
 void automation.copyMeetingPhotosToDrive()
 {
 	// ===================== CONFIG =====================
-	zohoConn = "zohocrm";                         // existing CRM connection (Setup > Connections > "Zoho CRM", link name zohocrm)
-	googleConn = "google_drive_sync";             // Google Drive connection, scopes drive + spreadsheets, authorized by henry@
+	// Connections: CRM requires literal link names in invokeurl, so they are
+	// inlined below: "zohocrm" (existing Zoho CRM connection) and
+	// "google_drive_sync" (Google, scopes drive.file + spreadsheets, henry@).
 	// Zoho CRM's built-in Google connection offers only the drive.file scope,
 	// which sees just the files this app created. So the root folder is one
 	// this function creates itself (in henry@'s My Drive) and finds again by
@@ -42,7 +43,7 @@ void automation.copyMeetingPhotosToDrive()
 	[
 		url :"https://sheets.googleapis.com/v4/spreadsheets/" + sheetId + "/values/" + sheetTab + "!I:I"
 		type :GET
-		connection:googleConn
+		connection:"google_drive_sync"
 	];
 	if(logResp.get("values") != null)
 	{
@@ -94,7 +95,7 @@ void automation.copyMeetingPhotosToDrive()
 		url :"https://www.googleapis.com/drive/v3/files"
 		type :GET
 		parameters:rootParams
-		connection:googleConn
+		connection:"google_drive_sync"
 	];
 	if(rootResp.get("files") != null && rootResp.get("files").size() > 0)
 	{
@@ -111,7 +112,7 @@ void automation.copyMeetingPhotosToDrive()
 			type :POST
 			parameters:rootBody.toString()
 			headers:{"Content-Type":"application/json"}
-			connection:googleConn
+			connection:"google_drive_sync"
 		];
 		rootFolderId = rootCreate.get("id");
 	}
@@ -244,7 +245,7 @@ void automation.copyMeetingPhotosToDrive()
 				[
 					url :"https://www.googleapis.com/drive/v3/files?q=" + encodeUrl(q) + "&supportsAllDrives=true&includeItemsFromAllDrives=true&fields=files(id,name)"
 					type :GET
-					connection:googleConn
+					connection:"google_drive_sync"
 				];
 				found = findResp.get("files");
 				if(found != null && found.size() > 0)
@@ -263,7 +264,7 @@ void automation.copyMeetingPhotosToDrive()
 						type :POST
 						parameters:folderBody.toString()
 						headers:{"Content-Type":"application/json"}
-						connection:googleConn
+						connection:"google_drive_sync"
 					];
 					monthFolderId = createResp.get("id");
 				}
@@ -275,7 +276,7 @@ void automation.copyMeetingPhotosToDrive()
 			[
 				url :"https://www.zohoapis.com/crm/v8/Events/" + eventId + "/Attachments/" + attId
 				type :GET
-				connection:zohoConn
+				connection:"zohocrm"
 			];
 			// VERIFY: on the first test, check that fileObj is a file (not an error map).
 			fileObj.setFileName(newName);
@@ -302,7 +303,7 @@ void automation.copyMeetingPhotosToDrive()
 				url :"https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true&fields=id,name,webViewLink"
 				type :POST
 				files:fileParts
-				connection:googleConn
+				connection:"google_drive_sync"
 			];
 			driveId = uploadResp.get("id");
 			if(driveId == null)
@@ -332,7 +333,7 @@ void automation.copyMeetingPhotosToDrive()
 				type :POST
 				parameters:appendBody.toString()
 				headers:{"Content-Type":"application/json"}
-				connection:googleConn
+				connection:"google_drive_sync"
 			];
 			loggedIds.add(attId);
 			uploads = uploads + 1;
