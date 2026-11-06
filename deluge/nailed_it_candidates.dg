@@ -4,24 +4,35 @@ List nailed_it_candidates(int max_count)
     // first. Python mirror: nailed_it.py (parse_photo_description,
     // is_candidate, select_candidates). Keep in sync.
     //
-    // Source: the Livewire asset library on Google Drive. The upload form
-    // writes its answers into each photo's description, one per line:
-    //   Job: Block Party
-    //   Sent by: brianredden@getlivewire.com
-    //   What did we install? Event
-    //   Where is the job at? Finished
-    //   Is the customer OK with us sharing these? Yes, they said OK
-    // Some labels have no separator at all ("Job or event name Clifford"),
-    // so lines are matched by label prefix, not split on ":".
+    // Sources (Henry 2026-11-06: "focus on getting it right now"): two
+    // Drive folders, each read one level deep (the root plus its direct
+    // subfolders), so the YYYY-MM or year layout underneath can change
+    // without touching this code.
+    //   1. "Livewire Job Photos (CRM Sync)" (Henry's My Drive, created by the
+    //      Zoho CRM sync copyMeetingPhotosToDrive. Those files have no
+    //      description; they are eligible on their file name,
+    //        YYYY-MM-DD_Deal####_Client_Crew_Job_xxxxxx.ext
+    //      which also gives the client (job_name), the crew (sent_by) and
+    //      the job (installed).
+    //   2. Brand Library > Job Photos, the older upload form. Its photos
+    //      are eligible only when the description says Finished and the
+    //      customer OK'd sharing:
+    //        Job: Block Party
+    //        Sent by: brianredden@getlivewire.com
+    //        What did we install? Event
+    //        Where is the job at? Finished
+    //        Is the customer OK with us sharing these? Yes, they said OK
+    //      Some labels have no separator at all ("Job or event name
+    //      Clifford"), so lines are matched by label prefix.
     //
-    // Eligible (Henry 2026-11-04): an image, uploaded within the last
-    // PHOTO_MAX_AGE_DAYS, marked Finished, customer OK'd sharing, and
+    // Eligible: an image, created within the last PHOTO_MAX_AGE_DAYS, from
+    // the sync (by name) or marked Finished + consent (by description), and
     // never used in a sent email (Nailed_It_Photos, Status "Used").
     //
     // Needs the Creator connection "google_drive" (Google Drive service,
     // scope https://www.googleapis.com/auth/drive), authorized by a
-    // Google account that can read the asset-library shared drive.
-    PHOTO_FOLDER_ID = "17vdHcT-3YYMsQ7o0zH0OGf_uht5XsgtJ";
+    // Google account that can read both folders.
+    PHOTO_ROOT_FOLDER_IDS = {"143dzFkXWASz9EI2awBfGEWNjdrhEAqP5", "1EgXWaKto9U39GNwNNS7mCkZR0LpBhTFO"};
     PHOTO_MAX_AGE_DAYS = 30;
     // Deluge has no while loop: iterate a fixed page budget instead.
     PAGE_BUDGET = {1, 2, 3, 4, 5};
@@ -54,7 +65,6 @@ List nailed_it_candidates(int max_count)
     }
 
     cutoff = zoho.currenttime.subDay(PHOTO_MAX_AGE_DAYS).toString("yyyy-MM-dd'T'HH:mm:ss");
-    q = "'" + PHOTO_FOLDER_ID + "' in parents and trashed = false and mimeType contains 'image/' and createdTime > '" + cutoff + "'";
 
     candidates = List();
     page_token = "";
@@ -63,6 +73,35 @@ List nailed_it_candidates(int max_count)
     // being set up: a failed listing falls through to the website photos.
     try
     {
+    // Parent clause: each root folder plus its direct subfolders.
+    parent_clause = "";
+    for each root_id in PHOTO_ROOT_FOLDER_IDS
+    {
+        parent_clause = parent_clause + "'" + root_id + "' in parents or ";
+        sub_params = Map();
+        sub_params.put("q", "'" + root_id + "' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false");
+        sub_params.put("pageSize", "200");
+        sub_params.put("supportsAllDrives", "true");
+        sub_params.put("includeItemsFromAllDrives", "true");
+        sub_params.put("fields", "files(id,name)");
+        sub_resp = invokeurl
+        [
+            url: "https://www.googleapis.com/drive/v3/files"
+            type: GET
+            parameters: sub_params
+            connection: "google_drive"
+        ];
+        sub_folders = sub_resp.get("files");
+        if(sub_folders != null)
+        {
+            for each sf in sub_folders
+            {
+                parent_clause = parent_clause + "'" + sf.get("id") + "' in parents or ";
+            }
+        }
+    }
+    parent_clause = parent_clause.subString(0, parent_clause.length() - 4);
+    q = "(" + parent_clause + ") and trashed = false and mimeType contains 'image/' and createdTime > '" + cutoff + "'";
     for each pg in PAGE_BUDGET
     {
         if(keep_going)
@@ -138,7 +177,57 @@ List nailed_it_candidates(int max_count)
                         {
                             job_name = job;
                         }
-                        if(stage.toLowerCase().startsWith("finished") && consent.toLowerCase().startsWith("yes"))
+                        eligible = stage.toLowerCase().startsWith("finished") && consent.toLowerCase().startsWith("yes");
+                        // CRM sync file (deluge/crm/copyMeetingPhotosToDrive.dg):
+                        //   YYYY-MM-DD_Deal32504_NickAbbate_AndreSmith-ThomasPayne_Frame-TV_a1b2c3.jpg
+                        // Crew members joined by "-" (spaces dropped inside a name),
+                        // job words joined by "-". The 5-segment form without a job
+                        // is accepted too. Mirrors parse_sync_filename in nailed_it.py.
+                        // No \\d or \\. here: Deluge passes backslashes through verbatim.
+                        fname = f.get("name");
+                        if(fname == null)
+                        {
+                            fname = "";
+                        }
+                        if(fname.matches("^[0-9]{4}-[0-9]{2}-[0-9]{2}_Deal[A-Za-z0-9]+_[A-Za-z0-9-]*_[A-Za-z0-9-]*(_[A-Za-z0-9-]*)?_[A-Za-z0-9]+[.][A-Za-z0-9]+$"))
+                        {
+                            eligible = true;
+                            name_parts = fname.toList("_");
+                            deal_part = name_parts.get(1);
+                            client_part = name_parts.get(2);
+                            crew_part = name_parts.get(3);
+                            job_part = "";
+                            if(name_parts.size() >= 6)
+                            {
+                                job_part = name_parts.get(4);
+                            }
+                            job_name = "";
+                            if(client_part != "UnknownClient")
+                            {
+                                job_name = client_part.replaceAll("([a-z0-9])([A-Z])", "$1 $2").replaceAll("([A-Z])([A-Z][a-z])", "$1 $2");
+                            }
+                            sent_by = "";
+                            if(crew_part != "UnknownInstaller")
+                            {
+                                for each member in crew_part.toList("-")
+                                {
+                                    if(member != "")
+                                    {
+                                        if(sent_by != "")
+                                        {
+                                            sent_by = sent_by + " and ";
+                                        }
+                                        sent_by = sent_by + member.replaceAll("([a-z0-9])([A-Z])", "$1 $2").replaceAll("([A-Z])([A-Z][a-z])", "$1 $2");
+                                    }
+                                }
+                            }
+                            installed = job_part.replaceAll("-", " ").trim();
+                            if(installed == "" && deal_part != "DealUnknown")
+                            {
+                                installed = "Deal " + deal_part.subString(4, deal_part.length());
+                            }
+                        }
+                        if(eligible)
                         {
                             c = Map();
                             c.put("id", f.get("id"));

@@ -771,3 +771,161 @@ I'm building a deluge function to sync photos from Zoho CRM. Second Phase."
   still run.
 - **Phase 2:** Henry's Zoho CRM photo sync replaces this list. Only
   `nailed_it_candidates.dg` needs to change.
+
+## 2026-11-05/06 — Creator setup done; photo card decoupled from utilization
+
+Setup done in Zoho Creator "Forecast Utilization" (Creator 5 account, US
+DC) by Claude in Chrome with Henry approving each step. Live and tested
+end to end on 2026-11-06 (picker email, Suggested record, "Use this one",
+Picked record).
+
+- **No Custom API on this plan.** Custom APIs are Creator 6 only (plus a
+  Premium or Enterprise support plan). `pick_nailed_photo` is instead
+  called from a published Creator page **Nailed It Pick**
+  (`Nailed_It_Pick`): a Text page variable `file_id` and an HTML snippet
+  that runs `thisapp.pick_nailed_photo(input.file_id)` and shows the
+  message. Its published perma link (carries the access key) is the value
+  of `NAILED_IT_PICK_API_URL`; the picker email appends `?file_id=`.
+  Henry 2026-11-06: keep the page, revisit Creator 6 only when something
+  else needs it.
+- **Two compile fixes** Creator required (commit b754a9b): a trailing
+  `return fallback;` in `nailed_it_score`, and the loop variable `p`
+  renamed `pk` in `send_actuals_email` (Deluge refuses to reuse a string
+  variable as a record).
+- **Connection `google_drive`** is the built-in Google Drive service
+  (Actions list, all 13 checked; BYOC OAuth client; authorized as
+  henry@getlivewire.com, who is an organizer on the Livewire Brand Library
+  shared drive). Link sharing is allowed on that drive ("Anyone with the
+  link" is selectable), so Plan A works. `NAILED_IT_EMAIL_ASSETS_FOLDER_ID`
+  holds a single space because Creator refuses an empty value; the code
+  treats it as empty in effect.
+- **Photo folder path:** shared drive *Livewire Brand Library* > *Job
+  Photos* > *2026* (`17vdHcT-3YYMsQ7o0zH0OGf_uht5XsgtJ`).
+
+### Henry 2026-11-06 — the card is a showcase, not a verdict
+
+"I want the photos. No matter what, it doesn't really have anything to do
+with utilization. It's meant to show off our work and give kudos to our
+team and praise individual installation crews." And: "The bar is more
+about the quality of the photo than the team performance."
+
+- **Every Monday shows the photo:** Henry's pick, else the week's
+  Suggested photo (only written when it scored `NAILED_IT_MIN_SCORE` 7 or
+  better), else no card. The quality bar stays; the 75%
+  `TEAM_VERDICT_TARGET` gate is gone, and the card renders in iSolved
+  pending mode too.
+- **Failed It retired.** The six staged images stay in the library's
+  Failed It folder, unused. `FAILED_IT_IMAGE_IDS` removed from the code.
+- **Card copy:** headline "Nailed it.", line "Finished work from our crews
+  this week. Nice job, team.", credit line unchanged (job, install, photo
+  by). The pick page and picker email no longer say "only if the team hits
+  target".
+- **Crew credit:** today the credit is the uploader ("photo by ..."). To
+  name the install crew, the upload form (or the CRM photo sync) needs to
+  write a "Who installed it?" line into the photo description.
+- **Open:** the 2026-11-06 test email had only website photos. The two
+  real photos in the 2026 folder lack the Finished/consent description
+  lines, or the Drive listing was skipped (check Creator Logs for
+  "nailed_it_candidates: Drive library skipped"). The CRM photo sync
+  targets a "Livewire Job Photos" folder, not this 2026 folder, and may not
+  write the description lines the candidate filter needs.
+
+### Henry 2026-11-06 — picker reads the sync folder; no folder restructure
+
+"Redoing the directory structure right now doesn't matter because nobody
+was using it to begin with, so let's just focus on getting it right now."
+Plus: run the CRM photo sync once and run the picker as a final test.
+
+- **Two root folders, one level deep.** `nailed_it_candidates` lists the
+  direct subfolders of *Livewire Job Photos*
+  (`1lKMpk79F3h69bODbW7bRR0WTvkFwp78L`, Henry's My Drive, the sync's
+  YYYY-MM target) and of *Brand Library > Job Photos*
+  (`1EgXWaKto9U39GNwNNS7mCkZR0LpBhTFO`) and queries images across all of
+  them. The hardwired *2026* folder id is gone. Mirror:
+  `PHOTO_ROOT_FOLDER_IDS` in `nailed_it.py`.
+- **Sync files are eligible by name.** The CRM sync writes no Drive
+  description, so a file named
+  `YYYY-MM-DD_Deal####_Client_Crew_Job_xxxxxx.ext` is eligible as is.
+  Client becomes `job_name` ("NickAbbate" to "Nick Abbate"), crew becomes
+  `sent_by` ("AndreSmith-ThomasPayne" to "Andre Smith and Thomas Payne"),
+  job becomes `installed` ("Frame-TV" to "Frame TV", else "Deal 32504").
+  `UnknownClient` / `UnknownInstaller` / `DealUnknown` come through empty.
+  The spec's original 5-segment name (no job) still parses. Upload-form
+  photos still need Finished + consent.
+- **Crew credit.** A `Sent_By` without "@" or "." renders as "crew: Andre
+  Smith and Thomas Payne" in the email card and the picker email; an
+  address or domain (website photos) still renders as "photo by ...". No
+  form change.
+- **Crew metadata (Henry's question).** The spec took the installer from
+  the event title's third "-" segment, but live Events read
+  "Andre and Thomas - Nick Abbate - #32504 - Frame TV", so that segment
+  is the deal number. The repo copy of the sync
+  (`deluge/crm/copyMeetingPhotosToDrive.dg`) now takes the crew from the
+  event's `Owner` plus `Helper1` (both populated on real events), the
+  client from segment 1, the deal number from the first 3-6 digit run, and
+  the job from the deal's last segment. Check-in city, deal and event link
+  still go to the Job Photo Log sheet. No Finished / consent flag exists in
+  CRM; the crew attaching photos to a job meeting is taken as "finished
+  enough" for an internal email.
+- **Sync status 2026-11-06 10:30 ET:** not built in CRM. No
+  `copyMeetingPhotosToDrive` function, no month subfolders in *Livewire
+  Job Photos*, the Job Photo Log sheet has only its header row. The
+  function is ready to paste from `deluge/crm/copyMeetingPhotosToDrive.dg`
+  (folder, sheet and org ids filled in; the two CRM connection names are
+  placeholders until the connections exist). It looks back 65 minutes with
+  no backfill, so the first run should use `lookbackMinutes = 43200` (30
+  days) once, then go back to 65. Building it in this session was blocked
+  by another Chrome extension that breaks automation on crm.zoho.com.
+
+### 2026-11-06 11:45 ET — CRM photo sync is live
+
+- Built by hand in CRM (Claude in Chrome cannot act on crm.zoho.com in
+  Henry's managed Chrome profile: every click, screenshot and script fails
+  with "Cannot access a chrome-extension:// URL of different extension";
+  Creator pages are fine). Function `copyMeetingPhotosToDrive` (category
+  schedule, API name copymeetingphotostodrive), connections `zohocrm`
+  (existing) and `google_drive_sync` (Zoho's built-in Google service,
+  scopes drive.file + spreadsheets, tagged Deprecated by Zoho but working),
+  CRM schedule "Copy meeting photos to Drive" every 2 hours (Zoho's floor),
+  `lookbackMinutes = 130`.
+- drive.file sees only app-created files, so the sync creates and reuses
+  its own root folder *Livewire Job Photos (CRM Sync)*
+  (`143dzFkXWASz9EI2awBfGEWNjdrhEAqP5`, Henry's My Drive) with YYYY-MM
+  subfolders. The hand-made *Livewire Job Photos* folder is unused. The
+  picker roots are that folder plus Brand Library > Job Photos.
+- Backfill: the first run (30-day lookback) copied 40 photos with bad names
+  (deal name starts with the client, and `\d` never matches in Deluge);
+  those were trashed, the log cleared, and the parser fixed. Later runs
+  copied 80+ correctly named photos (Drew Parker, Andy Stefanovich, Molly
+  Dodd, VA Medical Center, Rob Alexander).
+- Deluge lesson, now twice: never use `\d`, `\s` or `\.` in a regex
+  string; use `[0-9]`, `[ ]`, `[.]`. CRM also requires literal connection
+  link names in `invokeurl` and the function signature on line 1 with the
+  lowercase API name (`void schedule.copymeetingphotostodrive()`).
+- Final test 11:42 ET: picker email to Henry led with real synced photos
+  and crew credits ("VA Medical Center Richmond · Brandy Williams Upgrades
+  2026 · crew: Patrick Jones and Thomas Payne").
+
+### Henry 2026-11-06 11:58 ET — Failed It is back, as a contrast, never a verdict
+
+"There's supposed to be a Nailed It, Failed It contrast. Failed. That
+should be funny but also true, but not call any of our folks out. There
+should be failed images from around the internet."
+
+- Every Monday the card shows two photos side by side: Failed It on the
+  left (a found image of someone else's bad install, funny but real) and
+  Nailed It on the right (our finished work from the CRM sync, with the
+  crew credit). No tie to utilization in either direction.
+- Failed It source: Drive folder *Failed It*
+  (`1befbCvOuzb4bFO9u3sBzVmpxsaW0Lk8W`) under *Livewire Job Photos (CRM
+  Sync)*, so it inherits "anyone with the link". Seeded with the six staged
+  illustrations from assets/failed_it (not real photos; placeholders until
+  real ones are dropped in). Henry or anyone can add found images there and
+  they rotate in. Claude does not scrape photos off the web for this:
+  rights are unclear, so the humans curate the folder.
+- Never a Livewire crew's own work on the Failed It side.
+- Not built yet (handed to Claude Code): send_actuals_email lists images in
+  that folder, picks one by week of year, renders the two-column card;
+  nailed_it.py mirror and tests; nailed_it_candidates must keep ignoring
+  that subfolder (its files have no sync-style name and no description, so
+  they are already ineligible).

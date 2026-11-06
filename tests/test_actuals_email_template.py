@@ -148,7 +148,7 @@ def test_rows_sort_desc_by_hours_billed_in_pending_mode():
     assert html.index("High") < html.index("Mid") < html.index("Low")
 
 
-# --- Nailed It / Failed It card ---------------------------------------------
+# --- Nailed It card -----------------------------------------------------------
 
 NAILED_PHOTO = {"id": "lib123", "job_name": "Block Party", "sent_by": "brian"}
 
@@ -156,25 +156,23 @@ NAILED_PHOTO = {"id": "lib123", "job_name": "Block Party", "sent_by": "brian"}
 def test_verdict_card_sits_between_lead_in_and_congrats():
     techs = [make_tech_full("A", 36, 40), make_tech_full("B", 34, 40)]
     rollup = company_rollup(techs)
-    html = render_actuals_email(techs, WS, WE, rollup, nailed_photo=NAILED_PHOTO,
-                                failed_image_id="staged1")
+    html = render_actuals_email(techs, WS, WE, rollup, nailed_photo=NAILED_PHOTO)
     assert "Nailed it." in html
     assert html.index("company utilization of") < html.index("Nailed it.") < html.index("Congrats to")
 
 
-def test_verdict_card_failed_week_uses_staged_image():
+def test_card_shows_regardless_of_utilization():
+    # Henry 2026-11-06: the photo is a showcase, not a verdict on the number
     techs = [make_tech_full("A", 20, 40), make_tech_full("B", 22, 40)]
     rollup = company_rollup(techs)
-    html = render_actuals_email(techs, WS, WE, rollup, nailed_photo=NAILED_PHOTO,
-                                failed_image_id="staged1")
-    assert "Failed it... this week." in html
-    assert "lib123" not in html
+    html = render_actuals_email(techs, WS, WE, rollup, nailed_photo=NAILED_PHOTO)
+    assert "Nailed it." in html and "lib123" in html
+    assert "Failed it" not in html
 
 
-def test_no_verdict_card_in_pending_mode_or_by_default():
+def test_card_in_pending_mode_and_none_by_default():
     techs = [make_tech_pending("A", 30)]
-    html = render_actuals_email(techs, WS, WE, company_rollup(techs),
-                                nailed_photo=NAILED_PHOTO, failed_image_id="staged1")
-    assert "Nailed it" not in html and "Failed it" not in html
+    html = render_actuals_email(techs, WS, WE, company_rollup(techs), nailed_photo=NAILED_PHOTO)
+    assert "Nailed it." in html
     full = [make_tech_full("A", 36, 40)]
     assert "Nailed it" not in render_actuals_email(full, WS, WE, company_rollup(full))

@@ -4,8 +4,8 @@ void scheduled_photo_picker()
     // Pulls eligible "Nailed It" photos from the asset library
     // (nailed_it_candidates.dg), has Claude score how good each one looks
     // (nailed_it_score.dg), and emails Henry the best ones with a score,
-    // a one-line reason and a "Use this one" link to the
-    // pick_nailed_photo Custom API.
+    // a one-line reason and a "Use this one" link to the published
+    // "Nailed It Pick" page, which runs pick_nailed_photo.
     //
     // No pick by Monday: the top-scored photo is stored here as a
     // "Suggested" record and used, but only if it clears the score bar.
@@ -90,7 +90,14 @@ void scheduled_photo_picker()
                     {
                         meta = meta + " &middot; ";
                     }
-                    meta = meta + "sent by " + c.get("sent_by");
+                    if(c.get("sent_by").contains("@") || c.get("sent_by").contains("."))
+                    {
+                        meta = meta + "sent by " + c.get("sent_by");
+                    }
+                    else
+                    {
+                        meta = meta + "crew: " + c.get("sent_by");
+                    }
                 }
                 score_html = "";
                 if(c.get("score") != null)
@@ -135,21 +142,21 @@ void scheduled_photo_picker()
         table_open = "<table role='presentation' cellpadding='0' cellspacing='0' border='0' width='100%' style='max-width:600px;'>";
         if(ranked.size() == 0)
         {
-            body = "<p style='" + p_style + "'>No eligible Nailed It photos this week: nothing in the asset library from the last 30 days is marked <strong>Finished</strong> with a customer OK to share (and passes the photo check). If the team hits target on Monday, the email goes out without a photo.</p>";
+            body = "<p style='" + p_style + "'>No eligible Nailed It photos this week: nothing in the asset library from the last 30 days is marked <strong>Finished</strong> with a customer OK to share (and passes the photo check). Monday's email goes out without a photo.</p>";
         }
         else
         {
             if(!scored)
             {
-                intro = "Pick tomorrow's <strong>Nailed It</strong> photo for the Utilization Actuals email. It only shows if the team hits target. <em>Photo scoring was unavailable this week</em>, so these are newest first. Skip this and the newest one is used.";
+                intro = "Pick tomorrow's <strong>Nailed It</strong> photo for the Utilization Actuals email. <em>Photo scoring was unavailable this week</em>, so these are newest first. Skip this and the newest one is used.";
             }
             else if(suggestion != null)
             {
-                intro = "Pick tomorrow's <strong>Nailed It</strong> photo for the Utilization Actuals email. It only shows if the team hits target. Ranked by how well each photo shows off the work. Skip this and the top one is used.";
+                intro = "Pick tomorrow's <strong>Nailed It</strong> photo for the Utilization Actuals email. Ranked by how well each photo shows off the work. Skip this and the top one is used.";
             }
             else
             {
-                intro = "Pick tomorrow's <strong>Nailed It</strong> photo for the Utilization Actuals email. It only shows if the team hits target. <strong>None of this week's photos cleared the bar</strong>, so if you skip this, Monday goes out without a photo. You can still pick one below.";
+                intro = "Pick tomorrow's <strong>Nailed It</strong> photo for the Utilization Actuals email. <strong>None of this week's photos cleared the bar</strong>, so if you skip this, Monday goes out without a photo. You can still pick one below.";
             }
             body = "<p style='" + p_style + "'>" + intro + "</p>";
             if(above_cards != "")
