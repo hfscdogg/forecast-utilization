@@ -929,3 +929,43 @@ should be failed images from around the internet."
   nailed_it.py mirror and tests; nailed_it_candidates must keep ignoring
   that subfolder (its files have no sync-style name and no description, so
   they are already ineligible).
+
+### 2026-11-06 — Failed It / Nailed It contrast built (Claude Code)
+
+- **Card.** One light card with two photos side by side. "Failed it." is
+  on the left, with the line "Spotted in the wild. Not one of ours." and
+  no credit. "Nailed it." is on the right, with the existing credit
+  (client, job, crew). It is a two-column table with inline styles, 600px
+  max (282px per photo).
+- **Fallbacks.** No Failed It image (empty folder or a failed listing)
+  means the Nailed It card alone, as before. No Nailed It photo means no
+  card. Utilization plays no part.
+- **Rotation.** `send_actuals_email` lists the Failed It folder
+  (`NAILED_IT_FAILED_FOLDER_ID`) with the `google_drive` connection,
+  `orderBy=name`, and uses index `ws.getWeekOfYear() % count`. The listing
+  has its own try/catch inside the card's, so a Drive error only drops the
+  left side.
+- **Mirror.** `nailed_it.pick_failed_image(files, week_of_year)` and
+  `render_contrast_block(photo, failed_id)`.
+  `actuals_email_template.render_actuals_email(..., failed_image_id=)`.
+  The mirror takes the week number as an input rather than imitating
+  Deluge's week numbering.
+- **Picker isolation.** Failed It files sit in a direct subfolder of the
+  CRM Sync root, so the picker lists them. They never pass the filter,
+  because they have no sync-style name and no description. There is a
+  test for this.
+- **TBD client fix.** An event with no deal and a title like "Livewire -
+  #TBD - Leon and Sony" produced client "TBD". The CRM sync now uses the
+  job segment as the client when the client is empty or TBD. The picker
+  (`nailed_it_candidates`) and `parse_sync_filename` do the same for
+  files already named `_TBD_`, so these show as "Leon and Sony".
+- **`toList("\n")` open item.** No change needed. `send_actuals_email`'s
+  Raving Fan block has split the published CSV with `rf_text.toList("\n")`
+  in production since 2026-09, so the same call in `nailed_it_candidates`
+  splits on real newlines.
+- **Testing rule.** The setup doc's "temporarily point EMAIL_TO at Henry"
+  advice is replaced: never run `send_actuals_email` or
+  `scheduled_actuals`. Preview with the Python mirror instead.
+- **Creator paste still needed:** `send_actuals_email` and
+  `nailed_it_candidates`. The CRM paste of `copyMeetingPhotosToDrive` is
+  by hand.

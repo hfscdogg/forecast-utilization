@@ -264,3 +264,63 @@ def test_synced_photo_is_eligible_without_description_and_credits_the_crew():
 
 def test_picker_reads_sync_folder_first():
     assert PHOTO_ROOT_FOLDER_IDS[0] == "143dzFkXWASz9EI2awBfGEWNjdrhEAqP5"
+
+
+# --- Failed It / Nailed It contrast (Henry 2026-11-06 11:58) ----------------
+
+from nailed_it import (  # noqa: E402
+    NAILED_IT_FAILED_FOLDER_ID,
+    pick_failed_image,
+    render_contrast_block,
+)
+
+SYNCED = {"id": "nail1", "job_name": "Nick Abbate", "installed": "Frame TV",
+          "sent_by": "Andre Smith and Thomas Payne"}
+FAILED_FILES = [{"id": "f-c", "name": "c.jpg"}, {"id": "f-a", "name": "a.jpg"},
+                {"id": "f-b", "name": "b.jpg"}]
+
+
+def test_failed_image_rotates_by_week_over_name_order():
+    assert [pick_failed_image(FAILED_FILES, w) for w in (0, 1, 2, 3)] == ["f-a", "f-b", "f-c", "f-a"]
+    assert pick_failed_image([], 10) is None
+    assert pick_failed_image(None, 10) is None
+
+
+def test_contrast_card_puts_failed_left_and_nailed_right_with_crew_credit():
+    html = render_contrast_block(SYNCED, "f-b")
+    assert html.index("Failed it.") < html.index("Nailed it.")
+    assert html.index("thumbnail?id=f-b") < html.index("thumbnail?id=nail1")
+    assert "Not one of ours." in html
+    assert "crew: Andre Smith and Thomas Payne" in html
+    # The credit belongs to the Nailed It side only.
+    assert html.index("crew:") > html.index("Nailed it.")
+    assert html.count("width='50%'") == 2
+    assert "max-width:600px" in html
+
+
+def test_contrast_falls_back_to_nailed_alone_and_needs_a_nailed_photo():
+    assert render_contrast_block(SYNCED, None) == render_nailed_block(SYNCED)
+    assert render_contrast_block(SYNCED, "") == render_nailed_block(SYNCED)
+    assert render_contrast_block(None, "f-a") == ""
+    assert render_contrast_block({"id": ""}, "f-a") == ""
+
+
+def test_failed_it_folder_files_are_never_nailed_it_candidates():
+    # The Failed It folder sits under the CRM Sync root, so the picker lists
+    # its files; they carry no sync-style name and no description.
+    now = datetime(2026, 11, 6, 12, 0, tzinfo=timezone.utc)
+    for name in ("failed_it_01_rats_nest.jpg", "found-online-rack-mess.png", "IMG_2041.JPG"):
+        f = {"id": "x", "name": name, "mimeType": "image/jpeg",
+             "createdTime": "2026-11-06T10:00:00Z", "parents": [NAILED_IT_FAILED_FOLDER_ID]}
+        assert not is_candidate(f, now)
+
+
+def test_tbd_client_falls_back_to_the_job_label():
+    f = parse_sync_filename("2026-11-05_DealUnknown_TBD_AndreSmith_Leon-and-Sony_a1b2c3.jpg")
+    assert f["job_name"] == "Leon and Sony"
+    assert f["installed"] == ""
+    f = parse_sync_filename("2026-11-05_Deal32504_UnknownClient_AndreSmith_Frame-TV_a1b2c3.jpg")
+    assert f["job_name"] == "Frame TV" and f["installed"] == "Deal 32504"
+    # A real client is untouched.
+    f = parse_sync_filename("2026-11-05_Deal32504_NickAbbate_AndreSmith_Frame-TV_a1b2c3.jpg")
+    assert f["job_name"] == "Nick Abbate" and f["installed"] == "Frame TV"

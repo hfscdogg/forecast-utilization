@@ -40,9 +40,19 @@ void send_actuals_email(Map result)
     // Henry picked from Sunday's picker email (Nailed_It_Photos, Status
     // "Picked"), else Sunday's "Suggested" top vision-scored photo (only
     // written when it cleared NAILED_IT_MIN_SCORE), else no card. The only
-    // bar is photo quality. The staged "Failed it" images and the 75%
-    // TEAM_VERDICT_TARGET gate (2026-11-04 design) are retired; the per-tech
-    // congrats targets above are unrelated and unchanged.
+    // bar is photo quality. The 75% TEAM_VERDICT_TARGET gate (2026-11-04
+    // design) is retired; the per-tech congrats targets above are unrelated
+    // and unchanged.
+    // Failed It contrast (Henry 2026-11-06 11:58): when the curated Drive
+    // folder below has images, the card shows two photos side by side,
+    // Failed It on the left (someone else's bad install found online, never
+    // a Livewire crew) and Nailed It on the right. Still no tie to
+    // utilization. Humans curate the folder; it sits under Livewire Job
+    // Photos (CRM Sync), so its files inherit "anyone with the link". The
+    // week's image is the folder's files sorted by name, index
+    // ws.getWeekOfYear() % count. Empty folder or a failed listing means
+    // the Nailed It card alone. Keep in sync with config.dg.
+    NAILED_IT_FAILED_FOLDER_ID = "1befbCvOuzb4bFO9u3sBzVmpxsaW0Lk8W";
 
     // Full distribution — Henry 2026-09-10: "forecast & utilization
     // reports going to all@getlivewire.com effective immediately."
@@ -656,16 +666,74 @@ void send_actuals_email(Map result)
                     // Website photo (interim source): already a public URL.
                     img_src = image_id;
                 }
-                verdict_block =
-                    "<table role='presentation' cellpadding='0' cellspacing='0' border='0' width='100%' style='width:100%;max-width:600px;background:" + RF_CARD_BG + ";border:1px solid " + RF_CARD_BORDER + ";border-collapse:separate;margin:0 0 16px;'>" +
-                    "<tr><td style='padding:0;'>" +
-                    "<img src='" + img_src + "' width='600' alt='" + alt_text + "' style='display:block;width:100%;max-width:600px;height:auto;border:0;'>" +
-                    "</td></tr>" +
-                    "<tr><td style='padding:12px 20px 14px;'>" +
-                    "<p style='margin:0;font-family:" + RF_SANS_STACK + ";font-size:20px;line-height:24px;font-weight:700;color:" + RF_COPPER + ";'>" + headline + "</p>" +
-                    "<p style='margin:4px 0 0;font-family:" + RF_SANS_STACK + ";font-size:14px;line-height:20px;color:" + RF_INK + ";'>" + line_text + "</p>" +
-                    "<p style='margin:6px 0 0;font-family:" + RF_SANS_STACK + ";font-size:11px;line-height:14px;color:" + RF_TEXT_SECONDARY + ";'>" + credit + "</p>" +
-                    "</td></tr></table>";
+                // This week's Failed It image. Its own try: a failed listing
+                // only drops the left side, never the Nailed It photo.
+                failed_id = "";
+                try
+                {
+                    fparams = Map();
+                    fparams.put("q", "'" + NAILED_IT_FAILED_FOLDER_ID + "' in parents and trashed = false and mimeType contains 'image/'");
+                    fparams.put("fields", "files(id,name)");
+                    fparams.put("orderBy", "name");
+                    fparams.put("pageSize", "100");
+                    fparams.put("supportsAllDrives", "true");
+                    fparams.put("includeItemsFromAllDrives", "true");
+                    fresp = invokeurl
+                    [
+                        url: "https://www.googleapis.com/drive/v3/files"
+                        type: GET
+                        parameters: fparams
+                        connection: "google_drive"
+                    ];
+                    ffiles = fresp.get("files");
+                    if(ffiles != null && ffiles.size() > 0)
+                    {
+                        failed_id = ffiles.get(ws.getWeekOfYear() % ffiles.size()).get("id");
+                    }
+                }
+                catch (failed_err)
+                {
+                    info "failed it image skipped: " + failed_err;
+                    failed_id = "";
+                }
+
+                card_open = "<table role='presentation' cellpadding='0' cellspacing='0' border='0' width='100%' style='width:100%;max-width:600px;background:" + RF_CARD_BG + ";border:1px solid " + RF_CARD_BORDER + ";border-collapse:separate;margin:0 0 16px;'>";
+                if(failed_id != null && failed_id != "")
+                {
+                    failed_headline = "Failed it.";
+                    failed_line = "Spotted in the wild. Not one of ours.";
+                    failed_alt = "Failed it: a bad install found online, not Livewire work.";
+                    verdict_block =
+                        card_open +
+                        "<tr><td style='padding:12px;'>" +
+                        "<table role='presentation' cellpadding='0' cellspacing='0' border='0' width='100%' style='width:100%;'><tr>" +
+                        "<td width='50%' valign='top' style='width:50%;vertical-align:top;border:0;padding:0 6px 0 0;'>" +
+                        "<img src='https://drive.google.com/thumbnail?id=" + failed_id + "&sz=w1200' width='282' alt='" + failed_alt + "' style='display:block;width:100%;max-width:282px;height:auto;border:0;'>" +
+                        "<p style='margin:10px 0 0;font-family:" + RF_SANS_STACK + ";font-size:18px;line-height:22px;font-weight:700;color:" + RF_INK + ";'>" + failed_headline + "</p>" +
+                        "<p style='margin:4px 0 0;font-family:" + RF_SANS_STACK + ";font-size:13px;line-height:18px;color:" + RF_INK + ";'>" + failed_line + "</p>" +
+                        "</td>" +
+                        "<td width='50%' valign='top' style='width:50%;vertical-align:top;border:0;padding:0 0 0 6px;'>" +
+                        "<img src='" + img_src + "' width='282' alt='" + alt_text + "' style='display:block;width:100%;max-width:282px;height:auto;border:0;'>" +
+                        "<p style='margin:10px 0 0;font-family:" + RF_SANS_STACK + ";font-size:18px;line-height:22px;font-weight:700;color:" + RF_COPPER + ";'>" + headline + "</p>" +
+                        "<p style='margin:4px 0 0;font-family:" + RF_SANS_STACK + ";font-size:13px;line-height:18px;color:" + RF_INK + ";'>" + line_text + "</p>" +
+                        "<p style='margin:6px 0 0;font-family:" + RF_SANS_STACK + ";font-size:11px;line-height:14px;color:" + RF_TEXT_SECONDARY + ";'>" + credit + "</p>" +
+                        "</td>" +
+                        "</tr></table>" +
+                        "</td></tr></table>";
+                }
+                else
+                {
+                    verdict_block =
+                        card_open +
+                        "<tr><td style='padding:0;'>" +
+                        "<img src='" + img_src + "' width='600' alt='" + alt_text + "' style='display:block;width:100%;max-width:600px;height:auto;border:0;'>" +
+                        "</td></tr>" +
+                        "<tr><td style='padding:12px 20px 14px;'>" +
+                        "<p style='margin:0;font-family:" + RF_SANS_STACK + ";font-size:20px;line-height:24px;font-weight:700;color:" + RF_COPPER + ";'>" + headline + "</p>" +
+                        "<p style='margin:4px 0 0;font-family:" + RF_SANS_STACK + ";font-size:14px;line-height:20px;color:" + RF_INK + ";'>" + line_text + "</p>" +
+                        "<p style='margin:6px 0 0;font-family:" + RF_SANS_STACK + ";font-size:11px;line-height:14px;color:" + RF_TEXT_SECONDARY + ";'>" + credit + "</p>" +
+                        "</td></tr></table>";
+                }
             }
         }
     }

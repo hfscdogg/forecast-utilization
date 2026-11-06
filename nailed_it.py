@@ -24,7 +24,13 @@ Rules:
        and the customer OK'd sharing.
 - No photo that clears the bar and no pick from Henry means no card.
 - The 2026-11-04 "Failed It" verdict (TEAM_VERDICT_TARGET, staged gag
-  images) is retired.
+  images tied to the utilization number) is retired.
+- Henry 2026-11-06 11:58: Failed It is back as a CONTRAST, never a
+  verdict. When the curated Drive folder "Failed It" has images, the card
+  shows two photos side by side: Failed It on the left (someone else's bad
+  install, found online, never a Livewire crew) and Nailed It on the right.
+  Still no tie to utilization. render_contrast_block below; mirrors
+  send_actuals_email.dg.
 """
 
 import html
@@ -32,6 +38,12 @@ import re
 from datetime import datetime, timedelta
 
 PHOTO_MAX_AGE_DAYS = 30
+
+# Curated "Failed It" folder under Livewire Job Photos (CRM Sync), so its
+# files inherit "anyone with the link". Humans add found images; Claude does
+# not scrape the web for them. Mirrors NAILED_IT_FAILED_FOLDER_ID in
+# deluge/config.dg and send_actuals_email.dg.
+NAILED_IT_FAILED_FOLDER_ID = "1befbCvOuzb4bFO9u3sBzVmpxsaW0Lk8W"
 MAX_CANDIDATES = 6
 
 # Root folders the picker reads, each with its direct subfolders. Mirrors
@@ -116,10 +128,14 @@ def parse_sync_filename(name):
     if not m:
         return None
     client = "" if m["client"] == "UnknownClient" else _uncamel(m["client"])
+    job = (m["job"] or "").replace("-", " ").strip()
+    if client.upper() in ("", "TBD"):
+        # No deal and a title like "Livewire - #TBD - Leon and Sony": label
+        # the photo by its job instead of the "TBD" placeholder.
+        client, job = job, ""
     crew = "" if m["crew"] == "UnknownInstaller" else " and ".join(
         _uncamel(part) for part in m["crew"].split("-") if part)
     deal = "" if m["deal"] == "DealUnknown" else "Deal " + m["deal"][4:]
-    job = (m["job"] or "").replace("-", " ").strip()
     return {"job_name": client, "sent_by": crew, "installed": job or deal,
             "deal": deal, "date": m["date"], "source": "crm_sync"}
 
@@ -235,6 +251,25 @@ def _pct(x):
     return f"{x * 100:.2f}%"
 
 
+def _credit_line(photo):
+    """Escaped credit for the Nailed It side: client, job, then crew or uploader."""
+    credit_bits = [html.escape(b) for b in (photo.get("job_name"), photo.get("installed")) if b]
+    credit = " &middot; ".join(credit_bits)
+    if photo.get("sent_by"):
+        # An email address or domain (website photos) is the uploader; a plain name is the crew.
+        who = "photo by" if ("@" in photo["sent_by"] or "." in photo["sent_by"]) else "crew:"
+        credit = (credit + " &middot; " if credit else "") + f"{who} {html.escape(photo['sent_by'])}"
+    return credit
+
+
+NAILED_HEADLINE = "Nailed it."
+NAILED_LINE = "Finished work from our crews this week. Nice job, team."
+NAILED_ALT = "Nailed it: photo of recent finished Livewire work."
+FAILED_HEADLINE = "Failed it."
+FAILED_LINE = "Spotted in the wild. Not one of ours."
+FAILED_ALT = "Failed it: a bad install found online, not Livewire work."
+
+
 def render_nailed_block(photo=None):
     """HTML for the Nailed It showcase card, or "" when there is no photo.
 
@@ -244,32 +279,82 @@ def render_nailed_block(photo=None):
     if not photo or not photo.get("id"):
         return ""
     image_id = photo["id"]
-    headline = "Nailed it."
-    line = "Finished work from our crews this week. Nice job, team."
-    credit_bits = [html.escape(b) for b in (photo.get("job_name"), photo.get("installed")) if b]
-    credit = " &middot; ".join(credit_bits)
-    if photo.get("sent_by"):
-        # An email address or domain (website photos) is the uploader; a plain name is the crew.
-        who = "photo by" if ("@" in photo["sent_by"] or "." in photo["sent_by"]) else "crew:"
-        credit = (credit + " &middot; " if credit else "") + f"{who} {html.escape(photo['sent_by'])}"
-    alt = "Nailed it: photo of recent finished Livewire work."
-    accent = RF_COPPER
+    credit = _credit_line(photo)
 
     return (
         "<table role='presentation' cellpadding='0' cellspacing='0' border='0' width='100%' "
         f"style='width:100%;max-width:600px;background:{RF_CARD_BG};border:1px solid {RF_CARD_BORDER};"
         "border-collapse:separate;margin:0 0 16px;'>"
         "<tr><td style='padding:0;'>"
-        f"<img src='{drive_image_url(image_id)}' width='600' alt='{alt}' "
+        f"<img src='{drive_image_url(image_id)}' width='600' alt='{NAILED_ALT}' "
         "style='display:block;width:100%;max-width:600px;height:auto;border:0;'>"
         "</td></tr>"
         "<tr><td style='padding:12px 20px 14px;'>"
         f"<p style='margin:0;font-family:{RF_SANS_STACK};font-size:20px;line-height:24px;"
-        f"font-weight:700;color:{accent};'>{headline}</p>"
+        f"font-weight:700;color:{RF_COPPER};'>{NAILED_HEADLINE}</p>"
         f"<p style='margin:4px 0 0;font-family:{RF_SANS_STACK};font-size:14px;line-height:20px;"
-        f"color:{RF_INK};'>{line}</p>"
+        f"color:{RF_INK};'>{NAILED_LINE}</p>"
         f"<p style='margin:6px 0 0;font-family:{RF_SANS_STACK};font-size:11px;line-height:14px;"
         f"color:{RF_TEXT_SECONDARY};'>{credit}</p>"
+        "</td></tr></table>"
+    )
+
+
+def pick_failed_image(files, week_of_year):
+    """Failed It file id for the week, or None when the folder is empty.
+
+    files: Drive listing of the Failed It folder ({"id", "name"}), any order.
+    Sorted by name, then index = week_of_year % count, the same rotation
+    send_actuals_email.dg uses with ws.getWeekOfYear(). Taking the week
+    number as an input keeps this mirror independent of Deluge's own week
+    numbering.
+    """
+    ordered = sorted((f for f in files or () if f.get("id")), key=lambda f: f.get("name") or "")
+    if not ordered:
+        return None
+    return ordered[week_of_year % len(ordered)]["id"]
+
+
+def _contrast_cell(image_id, alt, headline, color, line, credit, side):
+    pad = "padding:0 6px 0 0;" if side == "left" else "padding:0 0 0 6px;"
+    credit_html = (
+        f"<p style='margin:6px 0 0;font-family:{RF_SANS_STACK};font-size:11px;line-height:14px;"
+        f"color:{RF_TEXT_SECONDARY};'>{credit}</p>" if credit else ""
+    )
+    return (
+        f"<td width='50%' valign='top' style='width:50%;vertical-align:top;border:0;{pad}'>"
+        f"<img src='{drive_image_url(image_id)}' width='282' alt='{alt}' "
+        "style='display:block;width:100%;max-width:282px;height:auto;border:0;'>"
+        f"<p style='margin:10px 0 0;font-family:{RF_SANS_STACK};font-size:18px;line-height:22px;"
+        f"font-weight:700;color:{color};'>{headline}</p>"
+        f"<p style='margin:4px 0 0;font-family:{RF_SANS_STACK};font-size:13px;line-height:18px;"
+        f"color:{RF_INK};'>{line}</p>"
+        f"{credit_html}"
+        "</td>"
+    )
+
+
+def render_contrast_block(photo=None, failed_id=None):
+    """The Monday card: Failed It (left) next to Nailed It (right).
+
+    No Nailed It photo means no card at all. No Failed It image (empty
+    folder, or the listing failed) means the Nailed It card alone, as before.
+    """
+    if not photo or not photo.get("id"):
+        return ""
+    if not failed_id:
+        return render_nailed_block(photo)
+    left = _contrast_cell(failed_id, FAILED_ALT, FAILED_HEADLINE, RF_INK, FAILED_LINE, "", "left")
+    right = _contrast_cell(photo["id"], NAILED_ALT, NAILED_HEADLINE, RF_COPPER, NAILED_LINE,
+                           _credit_line(photo), "right")
+    return (
+        "<table role='presentation' cellpadding='0' cellspacing='0' border='0' width='100%' "
+        f"style='width:100%;max-width:600px;background:{RF_CARD_BG};border:1px solid {RF_CARD_BORDER};"
+        "border-collapse:separate;margin:0 0 16px;'>"
+        "<tr><td style='padding:12px;'>"
+        "<table role='presentation' cellpadding='0' cellspacing='0' border='0' width='100%' style='width:100%;'>"
+        f"<tr>{left}{right}</tr>"
+        "</table>"
         "</td></tr></table>"
     )
 

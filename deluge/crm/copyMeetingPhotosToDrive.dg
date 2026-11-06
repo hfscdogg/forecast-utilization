@@ -184,6 +184,15 @@ void automation.copyMeetingPhotosToDrive()
 		{
 			jobText = parts.get(parts.size() - 1).trim();
 		}
+		// No deal and a title like "Livewire - #TBD - Leon and Sony": the
+		// client segment is a placeholder ("#TBD") or empty, so the job
+		// segment ("Leon and Sony") is the best label for the photo.
+		clientKey = client.replaceAll("[^A-Za-z0-9]","").toUpperCase();
+		if(clientKey == "" || clientKey == "TBD")
+		{
+			client = jobText;
+			jobText = "";
+		}
 		crewFromEvent = "";
 		if(ev.get("Owner") != null)
 		{

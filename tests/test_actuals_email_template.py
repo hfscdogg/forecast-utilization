@@ -176,3 +176,17 @@ def test_card_in_pending_mode_and_none_by_default():
     assert "Nailed it." in html
     full = [make_tech_full("A", 36, 40)]
     assert "Nailed it" not in render_actuals_email(full, WS, WE, company_rollup(full))
+
+
+def test_contrast_card_when_a_failed_image_is_available():
+    techs = [make_tech_full("A", 36, 40), make_tech_full("B", 34, 40)]
+    html = render_actuals_email(techs, WS, WE, company_rollup(techs),
+                                nailed_photo=NAILED_PHOTO, failed_image_id="failed9")
+    assert html.index("Failed it.") < html.index("Nailed it.") < html.index("Congrats to")
+    assert "thumbnail?id=failed9" in html and "lib123" in html
+
+
+def test_no_failed_side_without_a_nailed_photo():
+    techs = [make_tech_full("A", 36, 40)]
+    html = render_actuals_email(techs, WS, WE, company_rollup(techs), failed_image_id="failed9")
+    assert "Failed it" not in html and "failed9" not in html

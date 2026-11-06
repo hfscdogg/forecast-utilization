@@ -221,6 +221,14 @@ List nailed_it_candidates(int max_count)
                                     }
                                 }
                             }
+                            // An event with no deal and a title like
+                            // "Livewire - #TBD - Leon and Sony" names the
+                            // client "TBD": label it by the job instead.
+                            if(job_name == "" || job_name.toUpperCase() == "TBD")
+                            {
+                                job_name = job_part.replaceAll("-", " ").trim();
+                                job_part = "";
+                            }
                             installed = job_part.replaceAll("-", " ").trim();
                             if(installed == "" && deal_part != "DealUnknown")
                             {

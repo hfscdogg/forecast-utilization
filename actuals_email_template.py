@@ -15,7 +15,7 @@ specifically is banned), no Oxford commas, HTML <strong> for emphasis.
 
 from datetime import datetime
 
-from nailed_it import render_nailed_block
+from nailed_it import render_contrast_block
 
 COMPANY_UTILIZATION_TARGET = 0.625
 
@@ -74,7 +74,7 @@ def _fmt_week_label(week_start, week_end):
 
 
 def render_actuals_email(per_tech_results, week_start, week_end, rollup,
-                         nailed_photo=None):
+                         nailed_photo=None, failed_image_id=None):
     """Return HTML for the lagging actuals email body.
 
     per_tech_results: list of dicts from actuals_for_technician
@@ -83,6 +83,9 @@ def render_actuals_email(per_tech_results, week_start, week_end, rollup,
     nailed_photo: input for the Nailed It showcase card
         (nailed_it.render_nailed_block); omit for no card. The card does
         not depend on utilization, so it renders in pending mode too.
+    failed_image_id: Drive id of this week's Failed It image (from
+        nailed_it.pick_failed_image). With it, the card shows Failed It and
+        Nailed It side by side; without it, Nailed It alone.
     """
     isolved_pending = rollup.get("isolved_pending", True)
     week_label = _fmt_week_label(week_start, week_end)
@@ -168,7 +171,7 @@ def render_actuals_email(per_tech_results, week_start, week_end, rollup,
             )
 
 
-    verdict_block = render_nailed_block(nailed_photo)
+    verdict_block = render_contrast_block(nailed_photo, failed_image_id)
 
     return f"""<!DOCTYPE html>
 <html>
