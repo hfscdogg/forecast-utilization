@@ -145,25 +145,42 @@ void automation.copyMeetingPhotosToDrive()
 		sourceText = if(dealName != "",dealName,eventTitle);
 
 		// Livewire's real format (checked against live Events 2026-11-06):
-		//   title: "Andre and Thomas - Nick Abbate - #32504 - Frame TV"
-		//   deal:  "Nick Abbate - #32504 - Frame TV"
-		// so segment 1 is the client, the first 3-6 digit run is the deal
-		// number ("#TBD" gives none), and the deal's last segment is the job.
-		// The crew comes from the event's Owner and Helper1 fields, which are
-		// cleaner than the title's first segment ("Andre and Thomas").
-		dealNum = "";
-		if(sourceText.matches(".*\\d{3,6}.*"))
-		{
-			dealNum = sourceText.replaceFirst("^\\D*(\\d{3,6}).*$","$1");
-		}
+		//   deal:  "Andy Stefanovich - #32274 - Home Improvements"
+		//   title: "Andre and Thomas - Andy Stefanovich - #32274 - Home Improvements"
+		// The deal name starts with the client; the title starts with the crew.
+		// The deal number is the segment whose digits run 3-6 long ("#32274",
+		// "#P-1451" splits into "#P" and "1451"); "#TBD" gives none. The job is
+		// the last segment. No regex with \d here: Deluge passes backslashes
+		// through verbatim, so [0-9] classes only.
 		parts = sourceText.toList("-");
-		client = "";
-		if(parts.size() >= 2)
+		clientIdx = 0;
+		if(dealName == "")
 		{
-			client = parts.get(1).trim();
+			clientIdx = 1;
+		}
+		client = "";
+		if(parts.size() > clientIdx)
+		{
+			client = parts.get(clientIdx).trim().replaceAll("[*]","");
+		}
+		dealNum = "";
+		dealIdx = -1;
+		pi = 0;
+		for each  part in parts
+		{
+			if(pi > clientIdx && dealNum == "")
+			{
+				digits = part.replaceAll("[^0-9]","");
+				if(digits.length() >= 3 && digits.length() <= 6)
+				{
+					dealNum = digits;
+					dealIdx = pi;
+				}
+			}
+			pi = pi + 1;
 		}
 		jobText = "";
-		if(parts.size() >= 4)
+		if(parts.size() - 1 > clientIdx && parts.size() - 1 != dealIdx)
 		{
 			jobText = parts.get(parts.size() - 1).trim();
 		}
@@ -224,7 +241,7 @@ void automation.copyMeetingPhotosToDrive()
 			// dropped: "AndreSmith-ThomasPayne"); job words are joined by "-"
 			// ("Frame-TV"). The Creator picker reverses both.
 			safeInstaller = installer.replaceAll("[^A-Za-z0-9-]","");
-			safeJob = jobText.replaceAll("\\s+","-").replaceAll("[^A-Za-z0-9-]","");
+			safeJob = jobText.replaceAll("[ ]+","-").replaceAll("[^A-Za-z0-9-]","");
 			if(safeClient == "")
 			{
 				safeClient = "UnknownClient";
