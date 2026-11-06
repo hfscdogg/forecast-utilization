@@ -905,3 +905,27 @@ Plus: run the CRM photo sync once and run the picker as a final test.
 - Final test 11:42 ET: picker email to Henry led with real synced photos
   and crew credits ("VA Medical Center Richmond · Brandy Williams Upgrades
   2026 · crew: Patrick Jones and Thomas Payne").
+
+### Henry 2026-11-06 11:58 ET — Failed It is back, as a contrast, never a verdict
+
+"There's supposed to be a Nailed It, Failed It contrast. Failed. That
+should be funny but also true, but not call any of our folks out. There
+should be failed images from around the internet."
+
+- Every Monday the card shows two photos side by side: Failed It on the
+  left (a found image of someone else's bad install, funny but real) and
+  Nailed It on the right (our finished work from the CRM sync, with the
+  crew credit). No tie to utilization in either direction.
+- Failed It source: Drive folder *Failed It*
+  (`1befbCvOuzb4bFO9u3sBzVmpxsaW0Lk8W`) under *Livewire Job Photos (CRM
+  Sync)*, so it inherits "anyone with the link". Seeded with the six staged
+  illustrations from assets/failed_it (not real photos; placeholders until
+  real ones are dropped in). Henry or anyone can add found images there and
+  they rotate in. Claude does not scrape photos off the web for this:
+  rights are unclear, so the humans curate the folder.
+- Never a Livewire crew's own work on the Failed It side.
+- Not built yet (handed to Claude Code): send_actuals_email lists images in
+  that folder, picks one by week of year, renders the two-column card;
+  nailed_it.py mirror and tests; nailed_it_candidates must keep ignoring
+  that subfolder (its files have no sync-style name and no description, so
+  they are already ineligible).
