@@ -1034,3 +1034,26 @@ picker".
   `drive_crop_url(id, meta)`, `picker_thumb_url`. Creator needs three
   re-pastes: `send_actuals_email`, `nailed_it_candidates` and
   `scheduled_photo_picker`.
+
+### 2026-11-06 — Deployed: crop from the top and the picker crop (Henry)
+
+PR #58 is live in Creator ("Forecast Utilization", account hfsclifford).
+Henry pasted the three functions from `main` (CodeMirror `setValue`,
+Save), then reloaded and checked the markers:
+
+| Function | Size after save (record only) | Markers after reload |
+|---|---|---|
+| send_actuals_email | 43,980 chars | `sz=w564-h423-c` x2, `height:211px;overflow:hidden;` x2, `nailed it photo size unknown` x1 |
+| nailed_it_candidates | 15,058 chars | `c.put("img_meta"` x1 |
+| scheduled_photo_picker | 10,018 chars | `height:150px;overflow:hidden;` x1 |
+
+- **Nothing was run.** No schedule changed, no Creator variables
+  (including `ANTHROPIC_API_KEY`) were touched, and nothing was deleted
+  or renamed.
+- **Formatter artifacts.** Creator normalized the code in ways the deploy
+  guide now lists (step 4): lowercased `thisapp.variables`, an
+  auto-added `Added_User = zoho.loginuser` in `insert into`, collapsed
+  concatenations and more. These are not drift. The repo stays as written.
+- **Status.** As of this deploy, every Nailed It function in Creator
+  matches `main`. The first live runs are Sunday's picker (4pm ET) and
+  Monday's actuals email.
