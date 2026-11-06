@@ -340,4 +340,3 @@ void automation.copyMeetingPhotosToDrive()
 	}
 	info "Photos copied this run: " + uploads;
 }
-
