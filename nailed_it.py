@@ -241,8 +241,8 @@ def render_nailed_block(photo=None):
     credit_bits = [html.escape(b) for b in (photo.get("job_name"), photo.get("installed")) if b]
     credit = " &middot; ".join(credit_bits)
     if photo.get("sent_by"):
-        # An email address is the uploader; a plain name is the crew.
-        who = "photo by" if "@" in photo["sent_by"] else "crew:"
+        # An email address or domain (website photos) is the uploader; a plain name is the crew.
+        who = "photo by" if ("@" in photo["sent_by"] or "." in photo["sent_by"]) else "crew:"
         credit = (credit + " &middot; " if credit else "") + f"{who} {html.escape(photo['sent_by'])}"
     alt = "Nailed it: photo of recent finished Livewire work."
     accent = RF_COPPER

@@ -253,6 +253,8 @@ def test_synced_photo_is_eligible_without_description_and_credits_the_crew():
     html = render_nailed_block({"id": "s1", "job_name": "Smith Residence",
                                "installed": "Deal 31234", "sent_by": "Brian Redden"})
     assert "crew: Brian Redden" in html and "photo by" not in html
+    site = render_nailed_block({"id": "https://x/y.jpg", "job_name": "Lobby", "sent_by": "getlivewire.com"})
+    assert "photo by getlivewire.com" in site and "crew:" not in site
 
 
 def test_picker_reads_sync_folder_first():

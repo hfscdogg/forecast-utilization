@@ -90,7 +90,7 @@ void scheduled_photo_picker()
                     {
                         meta = meta + " &middot; ";
                     }
-                    if(c.get("sent_by").contains("@"))
+                    if(c.get("sent_by").contains("@") || c.get("sent_by").contains("."))
                     {
                         meta = meta + "sent by " + c.get("sent_by");
                     }
