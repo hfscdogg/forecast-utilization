@@ -1,8 +1,11 @@
 List nailed_it_candidates(int max_count)
 {
     // "Nailed It" photo candidates for the Monday actuals email, newest
-    // first. Python mirror: nailed_it.py (parse_photo_description,
-    // is_candidate, select_candidates). Keep in sync.
+    // first and spread across deals: each deal's newest photo, then each
+    // deal's second newest, and so on, so one deal with many photos shares
+    // the list instead of filling it (Henry 2026-11-06). Python mirror:
+    // nailed_it.py (parse_photo_description, is_candidate,
+    // select_candidates, photo_group). Keep in sync.
     //
     // Sources (Henry 2026-11-06: "focus on getting it right now"): two
     // Drive folders, each read one level deep (the root plus its direct
@@ -66,6 +69,10 @@ List nailed_it_candidates(int max_count)
 
     cutoff = zoho.currenttime.subDay(PHOTO_MAX_AGE_DAYS).toString("yyyy-MM-dd'T'HH:mm:ss");
 
+    // Newest-first eligible photos, up to POOL_CAP, before spreading by deal.
+    POOL_CAP = max_count * 4;
+    pool = List();
+    group_counts = Map();
     candidates = List();
     page_token = "";
     keep_going = true;
@@ -129,7 +136,7 @@ List nailed_it_candidates(int max_count)
             {
                 for each f in files
                 {
-                    if(candidates.size() < max_count && !used_ids.contains(f.get("id")))
+                    if(pool.size() < POOL_CAP && !used_ids.contains(f.get("id")))
                     {
                         desc = f.get("description");
                         if(desc == null)
@@ -137,6 +144,7 @@ List nailed_it_candidates(int max_count)
                             desc = "";
                         }
                         job = "";
+                        deal_part = "";
                         event_name = "";
                         sent_by = "";
                         installed = "";
@@ -249,13 +257,36 @@ List nailed_it_candidates(int max_count)
                             // Width, height and rotation, so the picker can
                             // show the same top or center crop as the email.
                             c.put("img_meta", f.get("imageMediaMetadata"));
-                            candidates.add(c);
+                            // Group by deal, else by job name, else the photo
+                            // stands alone. Mirror: nailed_it.photo_group.
+                            group_key = "";
+                            if(deal_part != "" && deal_part != "DealUnknown")
+                            {
+                                group_key = deal_part;
+                            }
+                            if(group_key == "")
+                            {
+                                group_key = job_name;
+                            }
+                            if(group_key == "")
+                            {
+                                group_key = f.get("id");
+                            }
+                            group_rank = 0;
+                            if(group_counts.containKey(group_key))
+                            {
+                                group_rank = group_counts.get(group_key);
+                            }
+                            group_counts.put(group_key, group_rank + 1);
+                            c.put("group", group_key);
+                            c.put("group_rank", group_rank);
+                            pool.add(c);
                         }
                     }
                 }
             }
             next_token = resp.get("nextPageToken");
-            if(candidates.size() >= max_count || next_token == null || next_token == "")
+            if(pool.size() >= POOL_CAP || next_token == null || next_token == "")
             {
                 keep_going = false;
             }
@@ -271,6 +302,26 @@ List nailed_it_candidates(int max_count)
         info "nailed_it_candidates: Drive library skipped: " + drive_err;
     }
 
+    // Spread by deal: round 0 takes each deal's newest photo, round 1 each
+    // deal's second, and so on, keeping newest-first order inside a round.
+    // No while loop in Deluge, so the pool itself serves as the round
+    // counter (there are never more rounds than photos).
+    round_no = 0;
+    for each unused_round in pool
+    {
+        if(candidates.size() < max_count)
+        {
+            for each p in pool
+            {
+                if(candidates.size() < max_count && p.get("group_rank") == round_no)
+                {
+                    candidates.add(p);
+                }
+            }
+        }
+        round_no = round_no + 1;
+    }
+
     for each w in WEBSITE_PHOTOS
     {
         if(candidates.size() < max_count && !used_ids.contains(w.get("url")))
@@ -284,6 +335,7 @@ List nailed_it_candidates(int max_count)
             c.put("created", "");
             c.put("view_url", w.get("url"));
             c.put("thumb_url", w.get("url"));
+            c.put("group", w.get("url"));
             candidates.add(c);
         }
     }

@@ -1057,3 +1057,38 @@ Save), then reloaded and checked the markers:
 - **Status.** As of this deploy, every Nailed It function in Creator
   matches `main`. The first live runs are Sunday's picker (4pm ET) and
   Monday's actuals email.
+
+### 2026-11-06 — Spread photos across deals, this week's pick only, no "TBD" credit (Henry)
+
+Henry's read-only checks found three things:
+- The Drive thumbnail endpoint serves rotated photos upright (`_992019`,
+  rotation 1, comes back 564x752), so the rotation-adjusted portrait
+  check stands.
+- A test `Picked` record for Mon 2026-11-09 with Job_Name "TBD" would
+  have beaten Sunday's pick and suggestion.
+- The dry run showed 1 of 6 Deal32504 photos. That was the newest-first
+  cut-off at `max_count` 6, not a dedupe: nothing grouped by deal.
+
+Decisions:
+- **Test pick:** Henry deletes the leftover record by hand in the report.
+  It is not flipped to `Used`, because `Used` would bar that photo from
+  every future pool. A Sunday pick also replaces it automatically.
+- **Spread by deal:** `nailed_it_candidates` collects up to 4x
+  `max_count` newest-first photos, then takes each deal's newest, then
+  each deal's second newest, and so on. Deals are grouped by the deal
+  number, else the job name, else the photo stands alone.
+- **Picker:** the Sunday email shows at most 2 photos per deal, then
+  fills any places left with the next best, still in score order.
+- **This week's pick only:** `send_actuals_email` takes a `Picked` record
+  only if its Send_Date is within the last 7 days, the same window
+  `Suggested` already had. A pick that never went out cannot resurface.
+- **No "TBD" in the credit.** A Job_Name of "TBD" is left out of the
+  credit line. The source was fixed earlier; this covers old records.
+- **Not added:** a send-time check that the picked photo is still a
+  current candidate. It would make Monday's send depend on a full Drive
+  scan. `pick_nailed_photo` already checks eligibility at pick time.
+- **Mirror:** `nailed_it.photo_group`, `spread_by_group`,
+  `select_candidates`, `picker_shown`, `monday_record` and `_credit_line`.
+- **Deploy:** re-paste `nailed_it_candidates`, `scheduled_photo_picker`
+  and `send_actuals_email` after the Mon 2026-11-09 send, so that
+  Monday runs on the code already checked.

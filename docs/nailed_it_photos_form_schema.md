@@ -76,10 +76,10 @@ pasted, and nothing syncs them automatically. On 2026-11-06 the live
 
 | Function | Marker after reload |
 |---|---|
-| send_actuals_email | `sz=w564-h423-c` x2, `height:211px;overflow:hidden;` x2 and `nailed it photo size unknown` |
-| nailed_it_candidates | `job_name.toUpperCase() == "TBD"` and `c.put("img_meta"` |
+| send_actuals_email | `sz=w564-h423-c` x2, `height:211px;overflow:hidden;` x2, `nailed it photo size unknown`, `subDay(7)` x2 and `toUpperCase() != "TBD"` |
+| nailed_it_candidates | `job_name.toUpperCase() == "TBD"`, `c.put("img_meta"` and `round_no` |
 | nailed_it_share | `permissions(type,role)` |
-| scheduled_photo_picker | `c.get("sent_by").contains("@")` and `height:150px;overflow:hidden;` |
+| scheduled_photo_picker | `c.get("sent_by").contains("@")`, `height:150px;overflow:hidden;` and `PER_DEAL_SHOWN` |
 | pick_nailed_photo | `actuals email.");`, and no `only if the team hits target` |
 | nailed_it_score | `return fallback;` just before the final `}` |
 | generate_actuals, generate_forecast | `SALES_ROLE_NAME = "Sales";` |
@@ -111,13 +111,16 @@ mirror instead (`actuals_email_template.render_actuals_email` with
 ## Weekly flow
 
 - **Sunday 4pm:** Claude scores up to 15 eligible photos on how well they
-  show off the work. Henry gets "Pick tomorrow's Nailed It photo" with the
-  best 6, each with a score and a one-line reason, and photos under the bar
-  listed separately. The top photo is saved as `Suggested` if it scores 7
+  show off the work. The 15 are spread across deals (each deal's newest
+  photo first), so one big job cannot fill the pool. Henry gets "Pick
+  tomorrow's Nailed It photo" with the best 6, at most 2 per deal unless
+  there are not enough others, each with a score and a one-line reason,
+  and photos under the bar listed separately. The top photo is saved as `Suggested` if it scores 7
   or higher. Clicking **Use this one** creates or replaces the `Picked`
   record for Monday.
-- **Monday 4pm:** the email shows the picked photo, else this week's
-  `Suggested` photo, else no photo. When the Failed It folder has images,
+- **Monday 4pm:** the email shows this week's picked photo, else this
+  week's `Suggested` photo, else no photo. "This week" means a Send_Date
+  in the last 7 days, so an old unused pick never comes back. When the Failed It folder has images,
   that week's Failed It image sits to its left as a contrast. Utilization plays no part (Henry
   2026-11-06); the only bar is photo quality. After the send, the record
   flips to `Used`.
