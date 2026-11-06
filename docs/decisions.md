@@ -929,3 +929,79 @@ should be failed images from around the internet."
   nailed_it.py mirror and tests; nailed_it_candidates must keep ignoring
   that subfolder (its files have no sync-style name and no description, so
   they are already ineligible).
+
+### 2026-11-06 — Failed It / Nailed It contrast built (Claude Code)
+
+- **Card.** One light card with two photos side by side. "Failed it." is
+  on the left, with the line "Spotted in the wild. Not one of ours." and
+  no credit. "Nailed it." is on the right, with the existing credit
+  (client, job, crew). It is a two-column table with inline styles, 600px
+  max (282px per photo).
+- **Fallbacks.** No Failed It image (empty folder or a failed listing)
+  means the Nailed It card alone, as before. No Nailed It photo means no
+  card. Utilization plays no part.
+- **Rotation.** `send_actuals_email` lists the Failed It folder
+  (`NAILED_IT_FAILED_FOLDER_ID`) with the `google_drive` connection,
+  `orderBy=name`, and uses index `ws.getWeekOfYear() % count`. The listing
+  has its own try/catch inside the card's, so a Drive error only drops the
+  left side.
+- **Mirror.** `nailed_it.pick_failed_image(files, week_of_year)` and
+  `render_contrast_block(photo, failed_id)`.
+  `actuals_email_template.render_actuals_email(..., failed_image_id=)`.
+  The mirror takes the week number as an input rather than imitating
+  Deluge's week numbering.
+- **Picker isolation.** Failed It files sit in a direct subfolder of the
+  CRM Sync root, so the picker lists them. They never pass the filter,
+  because they have no sync-style name and no description. There is a
+  test for this.
+- **TBD client fix.** An event with no deal and a title like "Livewire -
+  #TBD - Leon and Sony" produced client "TBD". The CRM sync now uses the
+  job segment as the client when the client is empty or TBD. The picker
+  (`nailed_it_candidates`) and `parse_sync_filename` do the same for
+  files already named `_TBD_`, so these show as "Leon and Sony".
+- **`toList("\n")` open item.** No change needed. `send_actuals_email`'s
+  Raving Fan block has split the published CSV with `rf_text.toList("\n")`
+  in production since 2026-09, so the same call in `nailed_it_candidates`
+  splits on real newlines.
+- **Testing rule.** The setup doc's "temporarily point EMAIL_TO at Henry"
+  advice is replaced: never run `send_actuals_email` or
+  `scheduled_actuals`. Preview with the Python mirror instead.
+- **Creator paste still needed:** `send_actuals_email` and
+  `nailed_it_candidates`. The CRM paste of `copyMeetingPhotosToDrive` is
+  by hand.
+- **Deployed by hand 2026-11-06** (Henry, via Cowork):
+  - **Creator:** `send_actuals_email` and `nailed_it_candidates` were
+    replaced with the PR #56 versions and saved. After reload they match
+    the repo with whitespace ignored, apart from two Creator formatter
+    artifacts: it drops the `;` after the sendmail block's closing `]`,
+    and it lowercases the `List` return type to `list`. Neither function
+    was run. The Monday actuals and Thursday forecast schedules and
+    `ANTHROPIC_API_KEY` are untouched.
+  - **CRM:** `copyMeetingPhotosToDrive` was replaced and saved, not run.
+    `lookbackMinutes = 130`, 2-hour schedule unchanged.
+  - **CRM signature rule.** The signature line is fixed by Zoho CRM and
+    must be line 1: `void schedule.copymeetingphotostodrive()`.
+  - **Why the first paste failed.** CRM rejects anything before the
+    signature ("Improper code format"). The repo file opened with a
+    comment block and `void automation.copyMeetingPhotosToDrive()`.
+  - **Repo fixed to match.** The file now starts with the CRM signature,
+    and its header comments sit just inside the opening brace, so the
+    whole file pastes as is.
+
+### 2026-11-06 — Side-by-side photos cropped to 4:3 (Henry)
+
+The first preview paired a portrait crew phone photo with a wide Failed It
+image. The right half ran about three times taller than the left. Henry
+chose to crop both to 4:3.
+
+- **Crop at the source.** In the side-by-side card, both photos request
+  `thumbnail?id=<id>&sz=w564-h423-c`: a 2x 282-wide box with Google's
+  center crop. This is unverified from the sandbox, which cannot reach
+  drive.google.com. Check once by opening a Drive id with that suffix.
+  If it does not crop, drop `-c` and the box below still evens the halves.
+- **Box in the markup.** Each photo sits in a 211px-tall `overflow:hidden`
+  div with the img at `height:auto`. This keeps the halves even for
+  website URLs, which Drive cannot crop, and never stretches an image.
+  Outlook desktop ignores overflow and shows the full image.
+- **Single Nailed It card unchanged:** `sz=w1200`, natural height.
+- **Creator re-paste needed:** `send_actuals_email` only.

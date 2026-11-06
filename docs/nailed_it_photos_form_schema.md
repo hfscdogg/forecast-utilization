@@ -50,16 +50,21 @@ One record per pick.
 7. **Plan B (only if link sharing is blocked on the shared drive):** create
    a My Drive folder, share it "anyone with the link: viewer", and put its
    id in the App Variable `NAILED_IT_EMAIL_ASSETS_FOLDER_ID`.
-8. **Failed It images:** retired 2026-11-06 (Henry: the card shows off the
-   work and is not tied to utilization). The six `assets/failed_it/`
-   illustrations stay in the library's Failed It folder, unused.
+8. **Failed It images:** back as a contrast (Henry 2026-11-06 11:58). Drop
+   found images of other people's bad installs into the Drive folder
+   *Failed It* (`1befbCvOuzb4bFO9u3sBzVmpxsaW0Lk8W`, under Livewire Job
+   Photos (CRM Sync), so files inherit "anyone with the link"). Never a
+   Livewire crew's own work. It starts with the six staged illustrations
+   from `assets/failed_it/` as placeholders. One image rotates in per week
+   (sorted by name, week of year modulo the count).
 
 ## Testing without emailing everyone
 
-`send_actuals_email` sends to `EMAIL_TO = "all@getlivewire.com"`. To test the
-card by hand, temporarily change `EMAIL_TO` to `henry@getlivewire.com`, run
-the actuals send, check the email, then change it back. Running
-`scheduled_photo_picker` by hand is always safe: it only emails Henry.
+Never run `send_actuals_email` or `scheduled_actuals` to test: they send to
+all@getlivewire.com (Henry 2026-11-06). Preview the card with the Python
+mirror instead (`actuals_email_template.render_actuals_email` with
+`nailed_photo` and `failed_image_id`) and send Henry the HTML. Running
+`scheduled_photo_picker` by hand is safe: it only emails Henry.
 
 ## Weekly flow
 
@@ -70,6 +75,7 @@ the actuals send, check the email, then change it back. Running
   or higher. Clicking **Use this one** creates or replaces the `Picked`
   record for Monday.
 - **Monday 4pm:** the email shows the picked photo, else this week's
-  `Suggested` photo, else no photo. Utilization plays no part (Henry
+  `Suggested` photo, else no photo. When the Failed It folder has images,
+  that week's Failed It image sits to its left as a contrast. Utilization plays no part (Henry
   2026-11-06); the only bar is photo quality. After the send, the record
   flips to `Used`.

@@ -1,22 +1,26 @@
-// Zoho CRM function (NOT a Creator function). Source of truth for the hourly
-// photo sync described in "Zoho Meeting Photos to Drive: Workflow Spec"
-// (Google Doc 1pp-wo0RBts0tGUpCvCTRi-o2siUwaa6-owtdCaQiS5Q). Lives in
-// CRM > Setup > Developer Hub > Functions, run by an hourly CRM Schedule.
-//
-// Status 2026-11-06: being created in CRM by hand (Claude in Chrome cannot
-// drive crm.zoho.com in Henry's managed profile). zohoConn is the existing
-// "zohocrm" connection; googleConn is a new Google Drive connection named
-// google_drive_sync (scopes drive + spreadsheets, authorized by henry@).
-//
-// Output consumed by Creator's nailed_it_candidates: files named
-// YYYY-MM-DD_Deal####_Client_Crew_Job_xxxxxx.ext in YYYY-MM subfolders of
-// "Livewire Job Photos (CRM Sync)", a folder this function creates (Crew = event Owner + Helper1, e.g.
-// AndreSmith-ThomasPayne; Job = the deal's last title segment, e.g.
-// Frame-TV). The picker credits the Crew segment. Lines marked VERIFY are
-// the spec's own first-run checks.
-
-void automation.copyMeetingPhotosToDrive()
+void schedule.copymeetingphotostodrive()
 {
+	// The signature above is fixed by Zoho CRM and must stay on line 1:
+	// CRM rejects a paste with comments or blank lines before it
+	// ("Improper code format").
+	//
+	// Zoho CRM function (NOT a Creator function). Source of truth for the hourly
+	// photo sync described in "Zoho Meeting Photos to Drive: Workflow Spec"
+	// (Google Doc 1pp-wo0RBts0tGUpCvCTRi-o2siUwaa6-owtdCaQiS5Q). Lives in
+	// CRM > Setup > Developer Hub > Functions, run by an hourly CRM Schedule.
+	//
+	// Status 2026-11-06: being created in CRM by hand (Claude in Chrome cannot
+	// drive crm.zoho.com in Henry's managed profile). zohoConn is the existing
+	// "zohocrm" connection; googleConn is a new Google Drive connection named
+	// google_drive_sync (scopes drive + spreadsheets, authorized by henry@).
+	//
+	// Output consumed by Creator's nailed_it_candidates: files named
+	// YYYY-MM-DD_Deal####_Client_Crew_Job_xxxxxx.ext in YYYY-MM subfolders of
+	// "Livewire Job Photos (CRM Sync)", a folder this function creates (Crew = event Owner + Helper1, e.g.
+	// AndreSmith-ThomasPayne; Job = the deal's last title segment, e.g.
+	// Frame-TV). The picker credits the Crew segment. Lines marked VERIFY are
+	// the spec's own first-run checks.
+
 	// ===================== CONFIG =====================
 	// Connections: CRM requires literal link names in invokeurl, so they are
 	// inlined below: "zohocrm" (existing Zoho CRM connection) and
@@ -183,6 +187,15 @@ void automation.copyMeetingPhotosToDrive()
 		if(parts.size() - 1 > clientIdx && parts.size() - 1 != dealIdx)
 		{
 			jobText = parts.get(parts.size() - 1).trim();
+		}
+		// No deal and a title like "Livewire - #TBD - Leon and Sony": the
+		// client segment is a placeholder ("#TBD") or empty, so the job
+		// segment ("Leon and Sony") is the best label for the photo.
+		clientKey = client.replaceAll("[^A-Za-z0-9]","").toUpperCase();
+		if(clientKey == "" || clientKey == "TBD")
+		{
+			client = jobText;
+			jobText = "";
 		}
 		crewFromEvent = "";
 		if(ev.get("Owner") != null)

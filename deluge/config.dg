@@ -345,7 +345,10 @@ MACRO_GOAL_YELLOW_AT            = 0.75;
  * Henry 2026-11-06: the photo card runs every Monday to show off finished
  * work and credit the crews. It is not tied to the utilization number; the
  * only bar is photo quality (NAILED_IT_MIN_SCORE). The 2026-11-04
- * TEAM_VERDICT_TARGET gate and the staged "Failed it" images are retired.
+ * TEAM_VERDICT_TARGET gate is retired.
+ * Henry 2026-11-06 11:58: Failed It is back as a contrast, never a
+ * verdict: Failed It (left, found online, never our crews) next to
+ * Nailed It (right) whenever NAILED_IT_FAILED_FOLDER_ID has images.
  * ============================================================ */
 
 /* Photo sources. CRM-sync files are eligible by file name; upload-form
@@ -372,10 +375,16 @@ NAILED_IT_PICKER_DAY       = "Sunday";
 NAILED_IT_PICKER_TIME      = "16:00";              /* America/New_York, 24h before actuals */
 NAILED_IT_FORM             = "Nailed_It_Photos";   /* see docs/nailed_it_photos_form_schema.md */
 
-/* Retired 2026-11-06: the staged "Failed it" images (assets/failed_it/)
- * stay in the asset library's Failed It folder but are no longer used.
- * They have no upload-form description, so they never pass the Nailed It
- * candidate filter. */
+/* Failed It contrast source: Drive folder "Failed It" under Livewire Job
+ * Photos (CRM Sync), so its files inherit "anyone with the link". Humans
+ * curate it with found images of other people's bad installs (seeded with
+ * the six staged illustrations from assets/failed_it as placeholders);
+ * never a Livewire crew's work, and Claude does not scrape the web for it.
+ * send_actuals_email lists it with the google_drive connection, sorts by
+ * name and uses index ws.getWeekOfYear() % count. Its files have no
+ * sync-style name and no description, so they never pass the Nailed It
+ * candidate filter even though the picker lists that subfolder. */
+NAILED_IT_FAILED_FOLDER_ID = "1befbCvOuzb4bFO9u3sBzVmpxsaW0Lk8W";
 
 /* Creator App Variables (not in this repo):
  *   NAILED_IT_PICK_API_URL            published "Nailed It Pick" page URL incl. key;
