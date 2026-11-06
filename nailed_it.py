@@ -101,7 +101,8 @@ def parse_photo_description(description):
 
 def _uncamel(s):
     """"ClientName" -> "Client Name"; the sync strips spaces from names."""
-    return re.sub(r"(?<=[a-z0-9])(?=[A-Z])", " ", s or "").strip()
+    out = re.sub(r"(?<=[a-z0-9])(?=[A-Z])", " ", s or "")
+    return re.sub(r"(?<=[A-Z])(?=[A-Z][a-z])", " ", out).strip()
 
 
 def parse_sync_filename(name):

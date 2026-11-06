@@ -204,7 +204,7 @@ List nailed_it_candidates(int max_count)
                             job_name = "";
                             if(client_part != "UnknownClient")
                             {
-                                job_name = client_part.replaceAll("([a-z0-9])([A-Z])", "$1 $2");
+                                job_name = client_part.replaceAll("([a-z0-9])([A-Z])", "$1 $2").replaceAll("([A-Z])([A-Z][a-z])", "$1 $2");
                             }
                             sent_by = "";
                             if(crew_part != "UnknownInstaller")
@@ -217,7 +217,7 @@ List nailed_it_candidates(int max_count)
                                         {
                                             sent_by = sent_by + " and ";
                                         }
-                                        sent_by = sent_by + member.replaceAll("([a-z0-9])([A-Z])", "$1 $2");
+                                        sent_by = sent_by + member.replaceAll("([a-z0-9])([A-Z])", "$1 $2").replaceAll("([A-Z])([A-Z][a-z])", "$1 $2");
                                     }
                                 }
                             }

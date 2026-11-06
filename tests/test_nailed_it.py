@@ -237,6 +237,8 @@ def test_sync_filename_gives_client_crew_job_and_deal():
     assert five["sent_by"] == "Brian Redden" and five["installed"] == "Deal 31234"
     unknown = parse_sync_filename("2026-11-05_DealUnknown_UnknownClient_UnknownInstaller__zz9.heic")
     assert unknown["job_name"] == "" and unknown["sent_by"] == "" and unknown["installed"] == ""
+    va = parse_sync_filename("2026-10-28_Deal32344_VAMedicalCenterRichmond_PatrickJones-ThomasPayne_Brandy-Williams-Upgrades-2026_865039.jpg")
+    assert va["job_name"] == "VA Medical Center Richmond" and va["sent_by"] == "Patrick Jones and Thomas Payne"
     assert parse_sync_filename("IMG_4412.jpg") is None
     assert parse_sync_filename(None) is None
 
