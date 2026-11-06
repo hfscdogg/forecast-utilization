@@ -10,7 +10,7 @@
 //
 // Output consumed by Creator's nailed_it_candidates: files named
 // YYYY-MM-DD_Deal####_Client_Crew_Job_xxxxxx.ext in YYYY-MM subfolders of
-// "Livewire Job Photos" (Crew = event Owner + Helper1, e.g.
+// "Livewire Job Photos (CRM Sync)", a folder this function creates (Crew = event Owner + Helper1, e.g.
 // AndreSmith-ThomasPayne; Job = the deal's last title segment, e.g.
 // Frame-TV). The picker credits the Crew segment. Lines marked VERIFY are
 // the spec's own first-run checks.
@@ -20,7 +20,12 @@ void automation.copyMeetingPhotosToDrive()
 	// ===================== CONFIG =====================
 	zohoConn = "zohocrm";                         // existing CRM connection (Setup > Connections > "Zoho CRM", link name zohocrm)
 	googleConn = "google_drive_sync";             // Google Drive connection, scopes drive + spreadsheets, authorized by henry@
-	rootFolderId = "1lKMpk79F3h69bODbW7bRR0WTvkFwp78L"; // "Livewire Job Photos" (Henry's My Drive)
+	// Zoho CRM's built-in Google connection offers only the drive.file scope,
+	// which sees just the files this app created. So the root folder is one
+	// this function creates itself (in henry@'s My Drive) and finds again by
+	// name on every run. The hand-made "Livewire Job Photos" folder
+	// (1lKMpk79F3h69bODbW7bRR0WTvkFwp78L) is NOT used.
+	rootFolderName = "Livewire Job Photos (CRM Sync)";
 	sheetId = "1airp0kuzyYsHUKzAG_J7Ej2LHBgoZhHKMeezUfKlK_E"; // "Job Photo Log" sheet (tab Log)
 	sheetTab = "Log";                             // tab name in the log sheet
 	crmOrgId = "2701844";                         // used only to build the event link (org prefix added below)
@@ -78,6 +83,39 @@ void automation.copyMeetingPhotosToDrive()
 		}
 	}
 	info "Events found: " + events.size();
+
+	// ---------- 2b. Find or create the root folder (drive.file sees only app-created files) ----------
+	rootFolderId = "";
+	rootParams = Map();
+	rootParams.put("q","name = '" + rootFolderName + "' and mimeType = 'application/vnd.google-apps.folder' and trashed = false");
+	rootParams.put("fields","files(id,name)");
+	rootResp = invokeurl
+	[
+		url :"https://www.googleapis.com/drive/v3/files"
+		type :GET
+		parameters:rootParams
+		connection:googleConn
+	];
+	if(rootResp.get("files") != null && rootResp.get("files").size() > 0)
+	{
+		rootFolderId = rootResp.get("files").get(0).get("id");
+	}
+	else
+	{
+		rootBody = Map();
+		rootBody.put("name",rootFolderName);
+		rootBody.put("mimeType","application/vnd.google-apps.folder");
+		rootCreate = invokeurl
+		[
+			url :"https://www.googleapis.com/drive/v3/files"
+			type :POST
+			parameters:rootBody.toString()
+			headers:{"Content-Type":"application/json"}
+			connection:googleConn
+		];
+		rootFolderId = rootCreate.get("id");
+	}
+	info "Root folder: " + rootFolderName + " (" + rootFolderId + ")";
 
 	// ---------- 3. Process each event ----------
 	folderCache = Map();   // YYYY-MM -> folder id, so each run looks a folder up only once
