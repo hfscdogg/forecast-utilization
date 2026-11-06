@@ -15,6 +15,9 @@ void scheduled_photo_picker()
     PICKER_FROM = "henry@getlivewire.com";
     POOL_SIZE = 15;
     MAX_SHOWN = 6;
+    // At most this many photos per deal in the email, unless there are not
+    // enough other photos to fill MAX_SHOWN (Henry 2026-11-06).
+    PER_DEAL_SHOWN = 2;
     INK = "#1A1A1A";
     TEXT_SECONDARY = "#6B6B60";
     COPPER = "#F7941D";
@@ -67,12 +70,42 @@ void scheduled_photo_picker()
             joiner = "&";
         }
 
-        above_cards = "";
-        below_cards = "";
-        shown = 0;
+        // Which photos to show, kept in score order below: first pass
+        // takes up to PER_DEAL_SHOWN per deal, second pass fills any places
+        // left with the next best. Mirror: nailed_it.picker_shown.
+        show_ids = List();
+        deal_shown = Map();
         for each c in ranked
         {
-            if(shown < MAX_SHOWN)
+            g = c.get("group");
+            if(g == null || g == "")
+            {
+                g = c.get("id");
+            }
+            g_count = 0;
+            if(deal_shown.containKey(g))
+            {
+                g_count = deal_shown.get(g);
+            }
+            if(show_ids.size() < MAX_SHOWN && g_count < PER_DEAL_SHOWN)
+            {
+                show_ids.add(c.get("id"));
+                deal_shown.put(g, g_count + 1);
+            }
+        }
+        for each c in ranked
+        {
+            if(show_ids.size() < MAX_SHOWN && !show_ids.contains(c.get("id")))
+            {
+                show_ids.add(c.get("id"));
+            }
+        }
+
+        above_cards = "";
+        below_cards = "";
+        for each c in ranked
+        {
+            if(show_ids.contains(c.get("id")))
             {
                 label = c.get("job_name");
                 if(label == null || label == "")
@@ -166,7 +199,6 @@ void scheduled_photo_picker()
                 {
                     above_cards = above_cards + card;
                 }
-                shown = shown + 1;
             }
         }
 

@@ -175,16 +175,70 @@ def is_candidate(photo, now, used_ids=(), max_age_days=PHOTO_MAX_AGE_DAYS):
     return True
 
 
+def photo_group(photo, fields=None):
+    """Which job a photo belongs to, so one deal cannot fill the list.
+
+    Sync files group by deal ("Deal 32402"), else by job name; upload-form
+    photos by job name; anything else stands alone (its id). Mirrors the
+    "group" key in deluge/nailed_it_candidates.dg.
+    """
+    fields = fields if fields is not None else photo_fields(photo)
+    return fields.get("deal") or fields.get("job_name") or photo.get("id") or ""
+
+
+def spread_by_group(items, group_of):
+    """Interleave groups: each group's 1st item, then each group's 2nd...
+
+    Keeps the incoming order inside each round, so a newest-first list stays
+    newest first within every deal (Henry 2026-11-06: five Deal32402 photos
+    should not crowd out everything else).
+    """
+    seen = {}
+    ranked = []
+    for i, item in enumerate(items):
+        g = group_of(item)
+        ranked.append((seen.get(g, 0), i, item))
+        seen[g] = seen.get(g, 0) + 1
+    return [item for _, _, item in sorted(ranked, key=lambda t: (t[0], t[1]))]
+
+
 def select_candidates(photos, now, used_ids=(), limit=MAX_CANDIDATES):
-    """Newest-first eligible photos, at most `limit`, each with parsed fields."""
+    """Eligible photos, at most `limit`, each with parsed fields and a group.
+
+    Newest first, then spread across deals: one photo per deal in turn, so
+    a deal with many photos shares the list instead of filling it.
+    """
     eligible = [p for p in photos if is_candidate(p, now, used_ids)]
     eligible.sort(key=lambda p: p.get("createdTime") or "", reverse=True)
-    out = []
-    for p in eligible[:limit]:
+    items = []
+    for p in eligible:
         item = dict(p)
         item["fields"] = photo_fields(p)
-        out.append(item)
-    return out
+        item["group"] = photo_group(p, item["fields"])
+        items.append(item)
+    return spread_by_group(items, lambda c: c["group"])[:limit]
+
+
+PICKER_PER_GROUP = 2
+
+
+def picker_shown(ranked, max_shown=6, per_group=PICKER_PER_GROUP):
+    """Ids the Sunday picker email shows, in score order.
+
+    At most `per_group` photos per deal first; any places left are filled
+    with the next best photos regardless of deal. Mirrors the show_ids pass
+    in deluge/scheduled_photo_picker.dg.
+    """
+    shown, counts = [], {}
+    for c in ranked:
+        g = c.get("group") or c.get("id")
+        if len(shown) < max_shown and counts.get(g, 0) < per_group:
+            shown.append(c["id"])
+            counts[g] = counts.get(g, 0) + 1
+    for c in ranked:
+        if len(shown) < max_shown and c["id"] not in shown:
+            shown.append(c["id"])
+    return [c["id"] for c in ranked if c["id"] in shown]
 
 
 def drive_image_url(file_id):
@@ -252,8 +306,14 @@ def _pct(x):
 
 
 def _credit_line(photo):
-    """Escaped credit for the Nailed It side: client, job, then crew or uploader."""
-    credit_bits = [html.escape(b) for b in (photo.get("job_name"), photo.get("installed")) if b]
+    """Escaped credit for the Nailed It side: client, job, then crew or uploader.
+
+    A "TBD" job name (records saved before the sync fix) is left out.
+    """
+    job_name = photo.get("job_name")
+    if (job_name or "").strip().upper() == "TBD":
+        job_name = ""
+    credit_bits = [html.escape(b) for b in (job_name, photo.get("installed")) if b]
     credit = " &middot; ".join(credit_bits)
     if photo.get("sent_by"):
         # An email address or domain (website photos) is the uploader; a plain name is the crew.
@@ -554,3 +614,24 @@ def suggested_pick(ranked, scored):
     if not scored:
         return ranked[0]
     return ranked[0] if ranked[0]["above_bar"] else None
+
+
+def monday_record(records, today):
+    """The Nailed_It_Photos record Monday's email uses, or None.
+
+    This week's "Picked" record first, else this week's "Suggested" one.
+    "This week" is Send_Date in (today - 7 days, today], for both statuses,
+    so a pick that never went out cannot resurface weeks later. Mirrors
+    the record lookup in deluge/send_actuals_email.dg (records are dicts
+    with Status and Send_Date as a date).
+    """
+    def this_week(r, status):
+        d = r.get("Send_Date")
+        return r.get("Status") == status and d is not None and today - timedelta(days=7) < d <= today
+
+    for status in ("Picked", "Suggested"):
+        hits = sorted((r for r in records if this_week(r, status)),
+                      key=lambda r: r["Send_Date"], reverse=True)
+        if hits:
+            return hits[0]
+    return None

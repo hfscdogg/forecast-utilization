@@ -590,7 +590,9 @@ void send_actuals_email(Map result)
     try
     {
         today = zoho.currentdate;
-        picks = Nailed_It_Photos[Status == "Picked" && Send_Date <= today] sort by Send_Date desc;
+        // This week's pick only, same window as the suggestion below, so a
+        // pick that never went out cannot resurface weeks later.
+        picks = Nailed_It_Photos[Status == "Picked" && Send_Date <= today && Send_Date > today.subDay(7)] sort by Send_Date desc;
         for each pk in picks
         {
             if(nailed_rec_id == null)
@@ -626,7 +628,9 @@ void send_actuals_email(Map result)
             image_id = rec.Public_File_ID;
             credit = "";
             credit_parts = List();
-            if(rec.Job_Name != null && rec.Job_Name != "")
+            // "TBD" is the CRM placeholder for an event with no deal; records
+            // saved before the sync fix can still carry it. Leave it out.
+            if(rec.Job_Name != null && rec.Job_Name != "" && rec.Job_Name.trim().toUpperCase() != "TBD")
             {
                 credit_parts.add(rec.Job_Name);
             }

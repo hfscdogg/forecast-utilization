@@ -376,3 +376,84 @@ def test_picker_thumb_shows_the_same_crop():
     assert picker_thumb_url(lh3, LANDSCAPE).endswith("=w400-h300-c")
     assert picker_thumb_url(lh3, None).endswith("=w400-h300-c")
     assert picker_thumb_url("https://www.getlivewire.com/x.jpg", PORTRAIT) == "https://www.getlivewire.com/x.jpg"
+
+
+# --- spread by deal, picker cap, Monday record (Henry 2026-11-06) -----------
+
+from datetime import timedelta  # noqa: E402
+
+from nailed_it import (  # noqa: E402
+    _credit_line,
+    monday_record,
+    photo_group,
+    picker_shown,
+)
+
+_SYNC_NOW = datetime(2026, 11, 8, 21, 0, tzinfo=timezone.utc)
+# The real sync folder on 2026-11-06: five Alex Darragh photos (Deal32402)
+# created before six Nick Abbate photos (Deal32504).
+_DARRAGH = [f"2026-11-05_Deal32402_AlexDarragh_AndreSmith-ThomasPayne_Security-and-Sonos-Upgrades_{s}.jpg"
+            for s in ("510036", "510037", "510038", "510039", "510040")]
+_ABBATE = [f"2026-11-06_Deal32504_NickAbbate_AndreSmith-ThomasPayne_Frame-TV_{s}.jpg"
+           for s in ("992019", "064008", "067001", "068001", "069001", "071001")]
+
+
+def _synced(name, created):
+    return {"id": name.rsplit("_", 1)[1][:-4], "name": name, "mimeType": "image/jpeg",
+            "createdTime": created}
+
+
+def _real_folder():
+    photos = [_synced(n, f"2026-11-05T15:0{i}:00Z") for i, n in enumerate(_DARRAGH)]
+    photos += [_synced(n, f"2026-11-06T19:00:{10 - i:02d}Z") for i, n in enumerate(_ABBATE)]
+    return photos
+
+
+def test_candidates_alternate_deals_newest_first_within_each():
+    cands = select_candidates(_real_folder(), _SYNC_NOW, limit=6)
+    assert [c["group"] for c in cands] == ["Deal 32504", "Deal 32402"] * 3
+    assert [c["id"] for c in cands[:2]] == ["992019", "510040"]
+    full = select_candidates(_real_folder(), _SYNC_NOW, limit=15)
+    assert len(full) == 11
+    assert [c["group"] for c in full[-1:]] == ["Deal 32504"]  # the leftover sixth Abbate photo
+
+
+def test_group_falls_back_to_job_then_id():
+    assert photo_group({"id": "x", "name": _DARRAGH[0]}) == "Deal 32402"
+    assert photo_group({"id": "x", "description": "Job: Block Party"}) == "Block Party"
+    assert photo_group({"id": "lonely"}) == "lonely"
+
+
+def test_picker_shows_two_per_deal_then_fills():
+    ranked = ([{"id": f"a{i}", "group": "A"} for i in range(5)]
+              + [{"id": "b0", "group": "B"}, {"id": "c0", "group": "C"}])
+    assert picker_shown(ranked) == ["a0", "a1", "a2", "a3", "b0", "c0"]
+    ranked = [{"id": f"a{i}", "group": "A"} for i in range(4)] + [{"id": f"b{i}", "group": "B"} for i in range(4)]
+    assert picker_shown(ranked) == ["a0", "a1", "a2", "a3", "b0", "b1"]  # score order kept
+    ranked = [{"id": f"a{i}", "group": "A"} for i in range(4)] + [{"id": f"b{i}", "group": "B"} for i in range(4)]
+    ranked.sort(key=lambda c: c["id"][1])  # a0 b0 a1 b1 a2 b2 ...
+    assert picker_shown(ranked) == ["a0", "b0", "a1", "b1", "a2", "b2"]
+
+
+def test_picker_caps_a_deal_when_others_can_fill():
+    ranked = [{"id": f"a{i}", "group": "A"} for i in range(5)] + [{"id": f"o{i}"} for i in range(4)]
+    assert picker_shown(ranked) == ["a0", "a1", "o0", "o1", "o2", "o3"]
+
+
+def test_monday_uses_this_weeks_pick_then_suggestion_never_a_stale_pick():
+    monday = date(2026, 11, 9)
+    stale_pick = {"Status": "Picked", "Send_Date": monday - timedelta(days=7), "id": "old"}
+    pick = {"Status": "Picked", "Send_Date": monday, "id": "pick"}
+    sugg = {"Status": "Suggested", "Send_Date": monday, "id": "sugg"}
+    used = {"Status": "Used", "Send_Date": monday, "id": "used"}
+    assert monday_record([stale_pick, sugg, pick, used], monday)["id"] == "pick"
+    assert monday_record([stale_pick, sugg], monday)["id"] == "sugg"
+    assert monday_record([stale_pick, used], monday) is None
+    future = {"Status": "Picked", "Send_Date": monday + timedelta(days=7), "id": "next"}
+    assert monday_record([future], monday) is None
+
+
+def test_credit_drops_a_tbd_job_name():
+    credit = _credit_line({"job_name": "TBD", "installed": "Leon and Sony", "sent_by": "Andre Smith"})
+    assert credit == "Leon and Sony &middot; crew: Andre Smith"
+    assert "TBD" not in _credit_line({"job_name": " tbd ", "installed": "x"})
