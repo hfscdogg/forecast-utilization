@@ -31,7 +31,7 @@ void automation.copyMeetingPhotosToDrive()
 	sheetTab = "Log";                             // tab name in the log sheet
 	crmOrgId = "2701844";                         // used only to build the event link (org prefix added below)
 	tzOffset = "-05:00";                          // VERIFY: org time zone offset (-04:00 during daylight time)
-	lookbackMinutes = 65;                         // one-off backfill: set to 43200 (30 days) for the first run, then back to 65
+	lookbackMinutes = 130;                        // CRM schedules run every 2 hours at minimum (Zoho floor), so 2h + 10min slack. First run used 43200 (30-day backfill).
 	maxPages = 5;                                 // up to 5 x 200 events per run
 	maxUploadsPerRun = 40;                        // stay well inside Deluge execution limits
 	photoExts = {"jpg","jpeg","png","heic"};
