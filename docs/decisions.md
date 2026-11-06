@@ -987,3 +987,21 @@ should be failed images from around the internet."
   - **Repo fixed to match.** The file now starts with the CRM signature,
     and its header comments sit just inside the opening brace, so the
     whole file pastes as is.
+
+### 2026-11-06 — Side-by-side photos cropped to 4:3 (Henry)
+
+The first preview paired a portrait crew phone photo with a wide Failed It
+image. The right half ran about three times taller than the left. Henry
+chose to crop both to 4:3.
+
+- **Crop at the source.** In the side-by-side card, both photos request
+  `thumbnail?id=<id>&sz=w564-h423-c`: a 2x 282-wide box with Google's
+  center crop. This is unverified from the sandbox, which cannot reach
+  drive.google.com. Check once by opening a Drive id with that suffix.
+  If it does not crop, drop `-c` and the box below still evens the halves.
+- **Box in the markup.** Each photo sits in a 211px-tall `overflow:hidden`
+  div with the img at `height:auto`. This keeps the halves even for
+  website URLs, which Drive cannot crop, and never stretches an image.
+  Outlook desktop ignores overflow and shows the full image.
+- **Single Nailed It card unchanged:** `sz=w1200`, natural height.
+- **Creator re-paste needed:** `send_actuals_email` only.

@@ -315,6 +315,23 @@ def pick_failed_image(files, week_of_year):
     return ordered[week_of_year % len(ordered)]["id"]
 
 
+# Side-by-side photos are cropped to 4:3 so both halves line up (Henry
+# 2026-11-06; crew phone photos are mostly portrait). Two layers:
+# Drive's thumbnail service center-crops to 2x this box ("-c"), and a
+# fixed-height overflow box keeps the halves even where that crop does not
+# apply (website URLs) or is ignored. Outlook desktop ignores overflow and
+# shows the full image.
+CONTRAST_IMG_W = 282
+CONTRAST_IMG_H = 211
+
+
+def drive_crop_url(file_id, w=564, h=423):  # 2x of 282 wide, exact 4:3
+    """Center-cropped Drive thumbnail URL; an http(s) URL is returned as is."""
+    if file_id.startswith("http"):
+        return file_id
+    return f"https://drive.google.com/thumbnail?id={file_id}&sz=w{w}-h{h}-c"
+
+
 def _contrast_cell(image_id, alt, headline, color, line, credit, side):
     pad = "padding:0 6px 0 0;" if side == "left" else "padding:0 0 0 6px;"
     credit_html = (
@@ -323,8 +340,10 @@ def _contrast_cell(image_id, alt, headline, color, line, credit, side):
     )
     return (
         f"<td width='50%' valign='top' style='width:50%;vertical-align:top;border:0;{pad}'>"
-        f"<img src='{drive_image_url(image_id)}' width='282' alt='{alt}' "
-        "style='display:block;width:100%;max-width:282px;height:auto;border:0;'>"
+        f"<div style='height:{CONTRAST_IMG_H}px;overflow:hidden;'>"
+        f"<img src='{drive_crop_url(image_id)}' width='{CONTRAST_IMG_W}' alt='{alt}' "
+        f"style='display:block;width:100%;max-width:{CONTRAST_IMG_W}px;height:auto;border:0;'>"
+        "</div>"
         f"<p style='margin:10px 0 0;font-family:{RF_SANS_STACK};font-size:18px;line-height:22px;"
         f"font-weight:700;color:{color};'>{headline}</p>"
         f"<p style='margin:4px 0 0;font-family:{RF_SANS_STACK};font-size:13px;line-height:18px;"

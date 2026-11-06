@@ -324,3 +324,18 @@ def test_tbd_client_falls_back_to_the_job_label():
     # A real client is untouched.
     f = parse_sync_filename("2026-11-05_Deal32504_NickAbbate_AndreSmith_Frame-TV_a1b2c3.jpg")
     assert f["job_name"] == "Nick Abbate" and f["installed"] == "Frame TV"
+
+
+def test_contrast_photos_are_cropped_to_4_by_3_and_boxed():
+    from nailed_it import drive_crop_url
+    html = render_contrast_block(SYNCED, "f-b")
+    assert "thumbnail?id=f-b&sz=w564-h423-c" in html
+    assert "thumbnail?id=nail1&sz=w564-h423-c" in html
+    assert html.count("height:211px;overflow:hidden;") == 2
+    assert "sz=w1200" not in html
+    # Website photos cannot be cropped by Drive; still boxed to the same height.
+    site = render_contrast_block({"id": "https://x/y.jpg", "job_name": "Lobby"}, "f-b")
+    assert "src='https://x/y.jpg'" in site and site.count("height:211px;overflow:hidden;") == 2
+    assert drive_crop_url("https://x/y.jpg") == "https://x/y.jpg"
+    # The single Nailed It card keeps the full-size, uncropped image.
+    assert "thumbnail?id=nail1&sz=w1200" in render_nailed_block(SYNCED)

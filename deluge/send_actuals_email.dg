@@ -700,6 +700,18 @@ void send_actuals_email(Map result)
                 card_open = "<table role='presentation' cellpadding='0' cellspacing='0' border='0' width='100%' style='width:100%;max-width:600px;background:" + RF_CARD_BG + ";border:1px solid " + RF_CARD_BORDER + ";border-collapse:separate;margin:0 0 16px;'>";
                 if(failed_id != null && failed_id != "")
                 {
+                    // Both photos cropped to 4:3 so the halves line up
+                    // (Henry 2026-11-06; crew phone photos are mostly
+                    // portrait). Drive's thumbnail service center-crops to
+                    // 564x423 ("-c"); the 211px overflow box keeps the halves
+                    // even where that does not apply (website URLs). Outlook
+                    // desktop ignores overflow and shows the full image.
+                    failed_src = "https://drive.google.com/thumbnail?id=" + failed_id + "&sz=w564-h423-c";
+                    nailed_side_src = "https://drive.google.com/thumbnail?id=" + image_id + "&sz=w564-h423-c";
+                    if(image_id.startsWith("http"))
+                    {
+                        nailed_side_src = image_id;
+                    }
                     failed_headline = "Failed it.";
                     failed_line = "Spotted in the wild. Not one of ours.";
                     failed_alt = "Failed it: a bad install found online, not Livewire work.";
@@ -708,12 +720,16 @@ void send_actuals_email(Map result)
                         "<tr><td style='padding:12px;'>" +
                         "<table role='presentation' cellpadding='0' cellspacing='0' border='0' width='100%' style='width:100%;'><tr>" +
                         "<td width='50%' valign='top' style='width:50%;vertical-align:top;border:0;padding:0 6px 0 0;'>" +
-                        "<img src='https://drive.google.com/thumbnail?id=" + failed_id + "&sz=w1200' width='282' alt='" + failed_alt + "' style='display:block;width:100%;max-width:282px;height:auto;border:0;'>" +
+                        "<div style='height:211px;overflow:hidden;'>" +
+                        "<img src='" + failed_src + "' width='282' alt='" + failed_alt + "' style='display:block;width:100%;max-width:282px;height:auto;border:0;'>" +
+                        "</div>" +
                         "<p style='margin:10px 0 0;font-family:" + RF_SANS_STACK + ";font-size:18px;line-height:22px;font-weight:700;color:" + RF_INK + ";'>" + failed_headline + "</p>" +
                         "<p style='margin:4px 0 0;font-family:" + RF_SANS_STACK + ";font-size:13px;line-height:18px;color:" + RF_INK + ";'>" + failed_line + "</p>" +
                         "</td>" +
                         "<td width='50%' valign='top' style='width:50%;vertical-align:top;border:0;padding:0 0 0 6px;'>" +
-                        "<img src='" + img_src + "' width='282' alt='" + alt_text + "' style='display:block;width:100%;max-width:282px;height:auto;border:0;'>" +
+                        "<div style='height:211px;overflow:hidden;'>" +
+                        "<img src='" + nailed_side_src + "' width='282' alt='" + alt_text + "' style='display:block;width:100%;max-width:282px;height:auto;border:0;'>" +
+                        "</div>" +
                         "<p style='margin:10px 0 0;font-family:" + RF_SANS_STACK + ";font-size:18px;line-height:22px;font-weight:700;color:" + RF_COPPER + ";'>" + headline + "</p>" +
                         "<p style='margin:4px 0 0;font-family:" + RF_SANS_STACK + ";font-size:13px;line-height:18px;color:" + RF_INK + ";'>" + line_text + "</p>" +
                         "<p style='margin:6px 0 0;font-family:" + RF_SANS_STACK + ";font-size:11px;line-height:14px;color:" + RF_TEXT_SECONDARY + ";'>" + credit + "</p>" +
