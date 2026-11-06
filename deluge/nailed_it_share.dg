@@ -19,6 +19,40 @@ String nailed_it_share(String file_id)
     {
         return file_id;
     }
+    // Plan 0 (2026-11-06): the CRM-sync folder "Livewire Job Photos (CRM
+    // Sync)" is shared "anyone with the link" by Henry, so its photos are
+    // already viewable; the google_drive connection cannot set permissions
+    // itself (Google refused Plan A on a My Drive file), but it can read
+    // them. Any existing "anyone" permission means the file is good to go.
+    try
+    {
+        check_params = Map();
+        check_params.put("fields", "permissions(type,role)");
+        check_params.put("supportsAllDrives", "true");
+        check_resp = invokeurl
+        [
+            url: "https://www.googleapis.com/drive/v3/files/" + file_id
+            type: GET
+            parameters: check_params
+            connection: "google_drive"
+        ];
+        existing = check_resp.get("permissions");
+        if(existing != null)
+        {
+            for each ep in existing
+            {
+                if(ep.get("type") == "anyone")
+                {
+                    return file_id;
+                }
+            }
+        }
+    }
+    catch (check_err)
+    {
+        info "nailed_it_share: permission check errored for " + file_id + ": " + check_err;
+    }
+
     perm = Map();
     perm.put("role", "reader");
     perm.put("type", "anyone");
