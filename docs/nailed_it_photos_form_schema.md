@@ -86,10 +86,16 @@ pasted, and nothing syncs them automatically. On 2026-11-06 the live
 | CRM copyMeetingPhotosToDrive | `clientKey == "TBD"` |
 
    When a change adds a new marker, update this table in the same PR.
-4. **Expected formatter artifacts**, which are fine:
-   - Creator drops the `;` after a `sendmail [ ... ]` block's closing `]`.
-   - It sometimes lowercases the `List` return type to `list`.
-   - It strips blank lines and changes indentation.
+4. **Expected formatter artifacts**, which are fine. Do not change the
+   repo to match them.
+   - Creator drops the `;` after a `sendmail [ ... ]` or `insert into ... [ ... ]`
+     block's closing `]`.
+   - It sometimes lowercases the `List` return type to `list`, and
+     `thisapp.Variables.X` to `thisapp.variables.X`.
+   - It adds `Added_User = zoho.loginuser` inside `insert into` blocks.
+   - It strips blank lines, retabs indentation, normalizes spaces around
+     `=` and `:`, joins `}` and `catch`, and collapses multi-line string
+     concatenations onto one line.
 5. **Never run `send_actuals_email` or `scheduled_actuals` to test.** They
    email all@getlivewire.com. Do not touch the Monday actuals or Thursday
    forecast schedules.
