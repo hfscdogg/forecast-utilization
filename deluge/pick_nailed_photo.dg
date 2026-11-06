@@ -1,16 +1,20 @@
 Map pick_nailed_photo(String file_id)
 {
     // Target of the "Use this one" links in the Sunday picker email
-    // (scheduled_photo_picker.dg). Exposed as a Creator Custom API
-    // (GET, API-key auth); its full URL including the key lives in the
+    // (scheduled_photo_picker.dg). Custom APIs need Creator 6, and this
+    // account is Creator 5, so it is called from the published Creator
+    // page "Nailed It Pick" (link name Nailed_It_Pick): a Text page
+    // variable file_id plus an HTML snippet that runs
+    // thisapp.pick_nailed_photo(input.file_id) and shows the message. The
+    // page's published perma link (it carries the access key) lives in the
     // Creator App Variable NAILED_IT_PICK_API_URL, never in this repo.
     //
     // Locks the chosen library photo in for the next Monday actuals
     // email: re-checks it is still eligible, makes it loadable by email
     // clients (nailed_it_share), and records it in Nailed_It_Photos with
     // Status "Picked". Clicking a different photo later replaces the pick.
-    // The photo only shows if the team hits TEAM_VERDICT_TARGET; on a
-    // miss it stays unused and can be offered again next week.
+    // The photo runs every Monday regardless of utilization (Henry
+    // 2026-11-06).
     out = Map();
     if(file_id == null || file_id == "")
     {
@@ -61,6 +65,6 @@ Map pick_nailed_photo(String file_id)
     {
         label = chosen.get("name");
     }
-    out.put("message", "Locked in: " + label + " for the " + send_date.toString("EEE MMM d") + " actuals email. It shows only if the team hits target.");
+    out.put("message", "Locked in: " + label + " for the " + send_date.toString("EEE MMM d") + " actuals email.");
     return out;
 }

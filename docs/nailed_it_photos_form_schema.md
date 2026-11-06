@@ -2,6 +2,7 @@
 
 Tracks which asset-library photo goes into the **Nailed It** card of the
 Monday Utilization Actuals email, and which photos have already been used.
+Photo folder: shared drive *Livewire Brand Library* > *Job Photos* > *2026*.
 One record per pick.
 
 **Form name:** `Nailed_It_Photos`
@@ -19,7 +20,7 @@ One record per pick.
 | Send Date | `Send_Date` | Date | Yes | The Monday the photo is meant for. |
 | Status | `Status` | Dropdown: `Suggested`, `Picked`, `Used` | Yes | `Suggested` = Sunday's top-scored photo (no-pick fallback). `Picked` = Henry's choice. Whichever goes out becomes `Used`. |
 | Picked By | `Picked_By` | Single Line | No | "Henry (picker email)" or "Auto (top score)". |
-| Company Utilization | `Company_Utilization` | Decimal | No | Filled when the photo is used. |
+| Company Utilization | `Company_Utilization` | Decimal | No | Filled when the photo is used, if the number is known. For the record only; it does not gate the photo. |
 | Score | `Score` | Number | No | Vision score 1-10 (Suggested records). Blank when scoring was unavailable. |
 | Score Reason | `Score_Reason` | Single Line | No | Claude's one-line reason for the score. |
 
@@ -34,9 +35,13 @@ One record per pick.
 3. **Functions:** paste in `nailed_it_candidates`, `nailed_it_share`, `nailed_it_score`,
    `pick_nailed_photo` and `scheduled_photo_picker` from `deluge/`, plus the
    updated `send_actuals_email`.
-4. **Custom API:** publish `pick_nailed_photo` as a GET Custom API with
-   API-key auth and a `file_id` parameter. Store the full URL, including the
-   key, in the App Variable `NAILED_IT_PICK_API_URL`.
+4. **Pick page (done 2026-11-05):** Custom APIs need Creator 6 and this
+   account is Creator 5, so `pick_nailed_photo` runs from a published page
+   **Nailed It Pick** (link name `Nailed_It_Pick`): a Text page variable
+   `file_id` plus an HTML snippet that calls
+   `thisapp.pick_nailed_photo(input.file_id)` and shows the message. Publish
+   the page (Settings > Publish) and store its perma link, which includes the
+   access key, in the App Variable `NAILED_IT_PICK_API_URL`.
 5. **Claude API key:** put an Anthropic API key in the App Variable
    `ANTHROPIC_API_KEY`. Without it the picker still works, unscored and
    newest first. One call a week, about $0.10.
@@ -45,11 +50,9 @@ One record per pick.
 7. **Plan B (only if link sharing is blocked on the shared drive):** create
    a My Drive folder, share it "anyone with the link: viewer", and put its
    id in the App Variable `NAILED_IT_EMAIL_ASSETS_FOLDER_ID`.
-8. **Failed It images:** done 2026-11-04. The six `assets/failed_it/`
-   illustrations are in the asset library and their ids are in
-   `FAILED_IT_IMAGE_IDS`. On a missed week the email shares that week's
-   image at send time through `nailed_it_share`, which needs the
-   `google_drive` connection from step 2.
+8. **Failed It images:** retired 2026-11-06 (Henry: the card shows off the
+   work and is not tied to utilization). The six `assets/failed_it/`
+   illustrations stay in the library's Failed It folder, unused.
 
 ## Testing without emailing everyone
 
@@ -66,8 +69,7 @@ the actuals send, check the email, then change it back. Running
   listed separately. The top photo is saved as `Suggested` if it scores 7
   or higher. Clicking **Use this one** creates or replaces the `Picked`
   record for Monday.
-- **Monday 4pm:** if company utilization is at or above `TEAM_VERDICT_TARGET`,
-  the email shows the picked photo, else this week's `Suggested` photo,
-  else no photo. After the send, the record flips to `Used`.
-- **Missed week:** the email shows a staged Failed It image. Any pick stays
-  `Picked` and the photo comes back as a candidate next Sunday.
+- **Monday 4pm:** the email shows the picked photo, else this week's
+  `Suggested` photo, else no photo. Utilization plays no part (Henry
+  2026-11-06); the only bar is photo quality. After the send, the record
+  flips to `Used`.

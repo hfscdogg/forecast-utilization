@@ -771,3 +771,61 @@ I'm building a deluge function to sync photos from Zoho CRM. Second Phase."
   still run.
 - **Phase 2:** Henry's Zoho CRM photo sync replaces this list. Only
   `nailed_it_candidates.dg` needs to change.
+
+## 2026-11-05/06 — Creator setup done; photo card decoupled from utilization
+
+Setup done in Zoho Creator "Forecast Utilization" (Creator 5 account, US
+DC) by Claude in Chrome with Henry approving each step. Live and tested
+end to end on 2026-11-06 (picker email, Suggested record, "Use this one",
+Picked record).
+
+- **No Custom API on this plan.** Custom APIs are Creator 6 only (plus a
+  Premium or Enterprise support plan). `pick_nailed_photo` is instead
+  called from a published Creator page **Nailed It Pick**
+  (`Nailed_It_Pick`): a Text page variable `file_id` and an HTML snippet
+  that runs `thisapp.pick_nailed_photo(input.file_id)` and shows the
+  message. Its published perma link (carries the access key) is the value
+  of `NAILED_IT_PICK_API_URL`; the picker email appends `?file_id=`.
+  Henry 2026-11-06: keep the page, revisit Creator 6 only when something
+  else needs it.
+- **Two compile fixes** Creator required (commit b754a9b): a trailing
+  `return fallback;` in `nailed_it_score`, and the loop variable `p`
+  renamed `pk` in `send_actuals_email` (Deluge refuses to reuse a string
+  variable as a record).
+- **Connection `google_drive`** is the built-in Google Drive service
+  (Actions list, all 13 checked; BYOC OAuth client; authorized as
+  henry@getlivewire.com, who is an organizer on the Livewire Brand Library
+  shared drive). Link sharing is allowed on that drive ("Anyone with the
+  link" is selectable), so Plan A works. `NAILED_IT_EMAIL_ASSETS_FOLDER_ID`
+  holds a single space because Creator refuses an empty value; the code
+  treats it as empty in effect.
+- **Photo folder path:** shared drive *Livewire Brand Library* > *Job
+  Photos* > *2026* (`17vdHcT-3YYMsQ7o0zH0OGf_uht5XsgtJ`).
+
+### Henry 2026-11-06 — the card is a showcase, not a verdict
+
+"I want the photos. No matter what, it doesn't really have anything to do
+with utilization. It's meant to show off our work and give kudos to our
+team and praise individual installation crews." And: "The bar is more
+about the quality of the photo than the team performance."
+
+- **Every Monday shows the photo:** Henry's pick, else the week's
+  Suggested photo (only written when it scored `NAILED_IT_MIN_SCORE` 7 or
+  better), else no card. The quality bar stays; the 75%
+  `TEAM_VERDICT_TARGET` gate is gone, and the card renders in iSolved
+  pending mode too.
+- **Failed It retired.** The six staged images stay in the library's
+  Failed It folder, unused. `FAILED_IT_IMAGE_IDS` removed from the code.
+- **Card copy:** headline "Nailed it.", line "Finished work from our crews
+  this week. Nice job, team.", credit line unchanged (job, install, photo
+  by). The pick page and picker email no longer say "only if the team hits
+  target".
+- **Crew credit:** today the credit is the uploader ("photo by ..."). To
+  name the install crew, the upload form (or the CRM photo sync) needs to
+  write a "Who installed it?" line into the photo description.
+- **Open:** the 2026-11-06 test email had only website photos. The two
+  real photos in the 2026 folder lack the Finished/consent description
+  lines, or the Drive listing was skipped (check Creator Logs for
+  "nailed_it_candidates: Drive library skipped"). The CRM photo sync
+  targets a "Livewire Job Photos" folder, not this 2026 folder, and may not
+  write the description lines the candidate filter needs.

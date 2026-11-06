@@ -7,13 +7,10 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from nailed_it import (  # noqa: E402
-    TEAM_VERDICT_TARGET,
     is_candidate,
     parse_photo_description,
-    pick_failed_image,
-    render_verdict_block,
+    render_nailed_block,
     select_candidates,
-    team_verdict,
 )
 
 # Verbatim descriptions from the asset-library Drive folder (2026-11-04).
@@ -99,22 +96,6 @@ def test_select_candidates_newest_first_and_limited():
     assert picked[0]["fields"]["job_name"] == "Test Job"
 
 
-# --- verdict ---------------------------------------------------------------
-
-def test_verdict_at_target_counts_as_nailed():
-    assert team_verdict(TEAM_VERDICT_TARGET) == "nailed"
-    assert team_verdict(TEAM_VERDICT_TARGET + 0.01) == "nailed"
-    assert team_verdict(TEAM_VERDICT_TARGET - 0.0001) == "failed"
-    assert team_verdict(None) is None
-
-
-def test_failed_image_rotates_by_week():
-    ids = ["f0", "f1", "f2"]
-    # 2026-09-20 is ISO week 38 -> 38 % 3 = 2
-    assert pick_failed_image(ids, date(2026, 9, 20)) == "f2"
-    assert pick_failed_image([], date(2026, 9, 20)) is None
-
-
 # --- rendering -------------------------------------------------------------
 
 PHOTO = {"id": "abc123", "job_name": "Block Party", "installed": "Event",
@@ -122,32 +103,23 @@ PHOTO = {"id": "abc123", "job_name": "Block Party", "installed": "Event",
 
 
 def test_nailed_block_shows_photo_and_credit():
-    html = render_verdict_block(0.84, photo=PHOTO, failed_image_id="fail1")
+    html = render_nailed_block(PHOTO)
     assert "Nailed it." in html
     assert "thumbnail?id=abc123" in html
-    assert "fail1" not in html
     assert "Block Party" in html and "photo by brianredden@getlivewire.com" in html
-    assert "84.00% team utilization vs our 75.00% target" in html
-    # Alt text carries the verdict when images are blocked
-    assert "alt='Nailed it: 84.00%" in html
+    # Henry 2026-11-06: no utilization verdict on the card
+    assert "utilization" not in html and "target" not in html
+    assert "alt='Nailed it: photo of recent finished Livewire work.'" in html
 
 
-def test_failed_block_uses_staged_image_and_no_names():
-    html = render_verdict_block(0.66, photo=PHOTO, failed_image_id="fail1")
-    assert "Failed it... this week." in html
-    assert "thumbnail?id=fail1" in html
-    assert "abc123" not in html
-    assert "Block Party" not in html
-
-
-def test_no_block_when_utilization_unknown_or_image_missing():
-    assert render_verdict_block(None, photo=PHOTO, failed_image_id="fail1") == ""
-    assert render_verdict_block(0.9, photo=None) == ""
-    assert render_verdict_block(0.5, failed_image_id=None) == ""
+def test_no_block_without_a_photo():
+    assert render_nailed_block(None) == ""
+    assert render_nailed_block({}) == ""
+    assert render_nailed_block({"id": ""}) == ""
 
 
 def test_caption_escapes_html():
-    html = render_verdict_block(0.9, photo={"id": "x", "job_name": "Smith's <Den>"})
+    html = render_nailed_block({"id": "x", "job_name": "Smith's <Den>"})
     assert "Smith&#x27;s &lt;Den&gt;" in html
 
 
@@ -247,5 +219,5 @@ def test_website_candidates_skip_used_and_feed_scoring():
 
 def test_website_photo_renders_directly_in_nailed_card():
     url = WEBSITE_PHOTOS[0][0]
-    html = render_verdict_block(0.9, photo={"id": url, "job_name": "Boardroom"})
+    html = render_nailed_block({"id": url, "job_name": "Boardroom"})
     assert f"src='{url}'" in html

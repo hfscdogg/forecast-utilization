@@ -15,7 +15,7 @@ specifically is banned), no Oxford commas, HTML <strong> for emphasis.
 
 from datetime import datetime
 
-from nailed_it import render_verdict_block
+from nailed_it import render_nailed_block
 
 COMPANY_UTILIZATION_TARGET = 0.625
 
@@ -74,14 +74,15 @@ def _fmt_week_label(week_start, week_end):
 
 
 def render_actuals_email(per_tech_results, week_start, week_end, rollup,
-                         nailed_photo=None, failed_image_id=None):
+                         nailed_photo=None):
     """Return HTML for the lagging actuals email body.
 
     per_tech_results: list of dicts from actuals_for_technician
     week_start, week_end: datetime instances bounding the lag week
     rollup: company_rollup output (must include isolved_pending flag)
-    nailed_photo / failed_image_id: inputs for the Nailed It / Failed It
-        card (nailed_it.render_verdict_block); omit both for no card.
+    nailed_photo: input for the Nailed It showcase card
+        (nailed_it.render_nailed_block); omit for no card. The card does
+        not depend on utilization, so it renders in pending mode too.
     """
     isolved_pending = rollup.get("isolved_pending", True)
     week_label = _fmt_week_label(week_start, week_end)
@@ -131,7 +132,6 @@ def render_actuals_email(per_tech_results, week_start, week_end, rollup,
             f"<strong>{_fmt_hrs(rollup['total_non_billable'])}</strong>.</p>"
         )
         congrats_line = ""
-        verdict_block = ""
     else:
         missing = rollup.get("timecard_missing_techs") or []
         if missing:
@@ -167,11 +167,8 @@ def render_actuals_email(per_tech_results, week_start, week_end, rollup,
                 f"target last week.</p>"
             )
 
-        verdict_block = render_verdict_block(
-            rollup.get("company_utilization"),
-            photo=nailed_photo,
-            failed_image_id=failed_image_id,
-        )
+
+    verdict_block = render_nailed_block(nailed_photo)
 
     return f"""<!DOCTYPE html>
 <html>

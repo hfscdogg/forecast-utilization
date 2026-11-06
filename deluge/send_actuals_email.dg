@@ -34,21 +34,15 @@ void send_actuals_email(Map result)
     RAVING_FAN_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRsQaH6Q29LCTAkbX_t8_yB3cTXLcXt9EUU9OEn8xE8vzla4j8ijx7Wb1exPNAuDUw79_EBil_N2Gfc/pub?output=csv";
     RAVING_FAN_URL = "https://hfscdogg.github.io/raving-fan/";
 
-    // Nailed It / Failed It verdict card (Henry 2026-11-04). Python
-    // mirror: nailed_it.py. Team number only: company utilization vs
-    // TEAM_VERDICT_TARGET, never a per-tech "failed it".
-    // Nailed: the photo Henry picked from Sunday's picker email
-    // (Nailed_It_Photos, Status "Picked"), else Sunday's "Suggested"
-    // top vision-scored photo (only written when it cleared the bar), else
-    // no photo. Failed: a staged gag image, never a real customer
-    // job, rotated by week from FAILED_IT_IMAGE_IDS: Drive file ids of the
-    // assets/failed_it/ illustrations, uploaded to the asset library
-    // (private shared drive) 2026-11-04. The week's image goes through
-    // nailed_it_share at send time (link share, or a copy into the public
-    // folder) so email clients can load it. Keep in sync with config.dg.
-    // Henry 2026-11-04: 75%, separate from the per-tech congrats targets.
-    TEAM_VERDICT_TARGET = 0.75;
-    FAILED_IT_IMAGE_IDS = {"1Iz4-Bh74XCmvG0ou-4YDW7D7qrcUyHw0", "1LlopF51yyIEasLi3GYLYcCm_Odg3Fmoo", "1Tfjevoc2tWYWGgoyN-nhCKI5GGAoGQTj", "1gfpGb8XYMrXSfWcKOXl7e6BCQ1t3iuy4", "1sOnXcl-N2FTwRtqpr0Mv0HmYS163icK4", "1PfMx_U3-AYtfIssxN0KiGw3drgKj_G5u"};
+    // Nailed It showcase card (Henry 2026-11-06). Python mirror:
+    // nailed_it.py. Every Monday shows one real photo of finished work to
+    // show off the crews, independent of the utilization number: the photo
+    // Henry picked from Sunday's picker email (Nailed_It_Photos, Status
+    // "Picked"), else Sunday's "Suggested" top vision-scored photo (only
+    // written when it cleared NAILED_IT_MIN_SCORE), else no card. The only
+    // bar is photo quality. The staged "Failed it" images and the 75%
+    // TEAM_VERDICT_TARGET gate (2026-11-04 design) are retired; the per-tech
+    // congrats targets above are unrelated and unchanged.
 
     // Full distribution — Henry 2026-09-10: "forecast & utilization
     // reports going to all@getlivewire.com effective immediately."
@@ -579,99 +573,72 @@ void send_actuals_email(Map result)
         }
     }
 
-    // Nailed It / Failed It verdict card. Silent on any error, like the
-    // Raving Fan block: the email must never fail over a photo.
+    // Nailed It showcase card. Silent on any error, like the Raving Fan
+    // block: the email must never fail over a photo.
     verdict_block = "";
     nailed_rec_id = null;
-    if(!isolved_pending && rollup.get("company_utilization") != null)
+    try
     {
-        try
+        today = zoho.currentdate;
+        picks = Nailed_It_Photos[Status == "Picked" && Send_Date <= today] sort by Send_Date desc;
+        for each pk in picks
         {
-            cu = rollup.get("company_utilization");
-            cu_pct = (cu * 100).round(2) + "%";
-            tgt_pct = (TEAM_VERDICT_TARGET * 100).round(2) + "%";
-            image_id = "";
-            headline = "";
-            line_text = "";
-            credit = "";
-            alt_text = "";
-            accent = RF_INK;
-            if(cu >= TEAM_VERDICT_TARGET)
+            if(nailed_rec_id == null)
             {
-                today = zoho.currentdate;
-                picks = Nailed_It_Photos[Status == "Picked" && Send_Date <= today] sort by Send_Date desc;
-                for each pk in picks
-                {
-                    if(nailed_rec_id == null)
-                    {
-                        nailed_rec_id = pk.ID;
-                    }
-                }
+                nailed_rec_id = pk.ID;
+            }
+        }
+        if(nailed_rec_id == null)
+        {
+            // No pick: Sunday's "Suggested" record, the top vision-scored
+            // photo, written only when it cleared the score bar
+            // (scheduled_photo_picker.dg). It is made public only now, at
+            // send time. No suggestion means no card this week rather than
+            // a mediocre photo. Only this week's suggestion: an older one
+            // belongs to a week that was never re-scored.
+            suggestions = Nailed_It_Photos[Status == "Suggested" && Send_Date <= today && Send_Date > today.subDay(7)] sort by Send_Date desc;
+            for each sg in suggestions
+            {
                 if(nailed_rec_id == null)
                 {
-                    // No pick: Sunday's "Suggested" record, the top
-                    // vision-scored photo, written only when it cleared the
-                    // score bar (scheduled_photo_picker.dg). It is made
-                    // public only now, at send time. No suggestion means no
-                    // photo this week rather than a mediocre one.
-                    // Only this week's suggestion: an older one belongs to a week
-                    // that missed target and was never re-scored.
-                    suggestions = Nailed_It_Photos[Status == "Suggested" && Send_Date <= today && Send_Date > today.subDay(7)] sort by Send_Date desc;
-                    for each sg in suggestions
+                    public_id = thisapp.nailed_it_share(sg.File_ID);
+                    if(public_id != "")
                     {
-                        if(nailed_rec_id == null)
-                        {
-                            public_id = thisapp.nailed_it_share(sg.File_ID);
-                            if(public_id != "")
-                            {
-                                sg.Public_File_ID = public_id;
-                                nailed_rec_id = sg.ID;
-                            }
-                        }
+                        sg.Public_File_ID = public_id;
+                        nailed_rec_id = sg.ID;
                     }
-                }
-                if(nailed_rec_id != null)
-                {
-                    rec = Nailed_It_Photos[ID == nailed_rec_id];
-                    image_id = rec.Public_File_ID;
-                    headline = "Nailed it.";
-                    line_text = cu_pct + " team utilization vs our " + tgt_pct + " target.";
-                    credit_parts = List();
-                    if(rec.Job_Name != null && rec.Job_Name != "")
-                    {
-                        credit_parts.add(rec.Job_Name);
-                    }
-                    if(rec.Installed != null && rec.Installed != "")
-                    {
-                        credit_parts.add(rec.Installed);
-                    }
-                    if(rec.Sent_By != null && rec.Sent_By != "")
-                    {
-                        credit_parts.add("photo by " + rec.Sent_By);
-                    }
-                    for each cp in credit_parts
-                    {
-                        if(credit != "")
-                        {
-                            credit = credit + " &middot; ";
-                        }
-                        credit = credit + cp.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
-                    }
-                    alt_text = "Nailed it: " + cu_pct + " team utilization vs " + tgt_pct + " target. Photo of recent Livewire work.";
-                    accent = RF_COPPER;
                 }
             }
-            else if(FAILED_IT_IMAGE_IDS.size() > 0)
+        }
+        if(nailed_rec_id != null)
+        {
+            rec = Nailed_It_Photos[ID == nailed_rec_id];
+            image_id = rec.Public_File_ID;
+            credit = "";
+            credit_parts = List();
+            if(rec.Job_Name != null && rec.Job_Name != "")
             {
-                // Rotation only, so Deluge's week numbering need not match
-                // Python's ISO week exactly.
-                // Private library file: make it loadable first ("" skips the card).
-                image_id = thisapp.nailed_it_share(FAILED_IT_IMAGE_IDS.get(ws.getWeekOfYear() % FAILED_IT_IMAGE_IDS.size()));
-                headline = "Failed it... this week.";
-                line_text = cu_pct + " team utilization vs our " + tgt_pct + " target. Next week we nail it.";
-                credit = "Staged photo. No customer jobs were harmed.";
-                alt_text = "Failed it this week: " + cu_pct + " team utilization vs " + tgt_pct + " target.";
+                credit_parts.add(rec.Job_Name);
             }
+            if(rec.Installed != null && rec.Installed != "")
+            {
+                credit_parts.add(rec.Installed);
+            }
+            if(rec.Sent_By != null && rec.Sent_By != "")
+            {
+                credit_parts.add("photo by " + rec.Sent_By);
+            }
+            for each cp in credit_parts
+            {
+                if(credit != "")
+                {
+                    credit = credit + " &middot; ";
+                }
+                credit = credit + cp.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
+            }
+            headline = "Nailed it.";
+            line_text = "Finished work from our crews this week. Nice job, team.";
+            alt_text = "Nailed it: photo of recent finished Livewire work.";
             if(image_id != null && image_id != "")
             {
                 img_src = "https://drive.google.com/thumbnail?id=" + image_id + "&sz=w1200";
@@ -686,18 +653,18 @@ void send_actuals_email(Map result)
                     "<img src='" + img_src + "' width='600' alt='" + alt_text + "' style='display:block;width:100%;max-width:600px;height:auto;border:0;'>" +
                     "</td></tr>" +
                     "<tr><td style='padding:12px 20px 14px;'>" +
-                    "<p style='margin:0;font-family:" + RF_SANS_STACK + ";font-size:20px;line-height:24px;font-weight:700;color:" + accent + ";'>" + headline + "</p>" +
+                    "<p style='margin:0;font-family:" + RF_SANS_STACK + ";font-size:20px;line-height:24px;font-weight:700;color:" + RF_COPPER + ";'>" + headline + "</p>" +
                     "<p style='margin:4px 0 0;font-family:" + RF_SANS_STACK + ";font-size:14px;line-height:20px;color:" + RF_INK + ";'>" + line_text + "</p>" +
                     "<p style='margin:6px 0 0;font-family:" + RF_SANS_STACK + ";font-size:11px;line-height:14px;color:" + RF_TEXT_SECONDARY + ";'>" + credit + "</p>" +
                     "</td></tr></table>";
             }
         }
-        catch (verdict_err)
-        {
-            info "verdict block skipped: " + verdict_err;
-            verdict_block = "";
-            nailed_rec_id = null;
-        }
+    }
+    catch (verdict_err)
+    {
+        info "nailed it card skipped: " + verdict_err;
+        verdict_block = "";
+        nailed_rec_id = null;
     }
 
     // Footer totals.
@@ -765,6 +732,9 @@ void send_actuals_email(Map result)
     {
         used = Nailed_It_Photos[ID == nailed_rec_id];
         used.Status = "Used";
-        used.Company_Utilization = rollup.get("company_utilization");
+        if(rollup.get("company_utilization") != null)
+        {
+            used.Company_Utilization = rollup.get("company_utilization");
+        }
     }
 }

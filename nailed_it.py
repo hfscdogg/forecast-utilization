@@ -1,28 +1,25 @@
 """
-"Nailed It / Failed It" verdict block for the Utilization Actuals email.
+"Nailed It" showcase card for the Utilization Actuals email.
 
 Python reference for the Deluge side:
 - deluge/nailed_it_candidates.dg   (parse_photo_description, is_candidate,
                                      select_candidates)
-- deluge/send_actuals_email.dg     (team_verdict, pick_failed_image,
-                                     render_verdict_block)
+- deluge/send_actuals_email.dg     (render_nailed_block)
 Keep in sync.
 
-Rules (Henry 2026-11-04):
-- The verdict is for the TEAM number only (company utilization vs
-  TEAM_VERDICT_TARGET). No per-tech "failed it" call-outs.
+Rules:
+- Henry 2026-11-06: the card runs every Monday to show off finished work
+  and credit the crews. It is NOT tied to the utilization number. The only
+  bar is photo quality (NAILED_IT_MIN_SCORE, vision scoring below).
 - "Nailed It" shows a real job photo from the Livewire asset library, but
   only one marked Finished whose customer said OK to sharing.
-- "Failed It" shows a staged gag image, never a real customer job.
-- No verdict block when utilization is unknown (iSolved pending).
+- No photo that clears the bar and no pick from Henry means no card.
+- The 2026-11-04 "Failed It" verdict (TEAM_VERDICT_TARGET, staged gag
+  images) is retired.
 """
 
 import html
 from datetime import datetime, timedelta
-
-# Company utilization at or above this is "Nailed it". Mirrors
-# TEAM_VERDICT_TARGET in deluge/config.dg and send_actuals_email.dg.
-TEAM_VERDICT_TARGET = 0.75  # Henry 2026-11-04
 
 PHOTO_MAX_AGE_DAYS = 30
 MAX_CANDIDATES = 6
@@ -106,21 +103,6 @@ def select_candidates(photos, now, used_ids=(), limit=MAX_CANDIDATES):
     return out
 
 
-def team_verdict(company_utilization, target=TEAM_VERDICT_TARGET):
-    """'nailed', 'failed', or None when the number isn't known."""
-    if company_utilization is None:
-        return None
-    return "nailed" if company_utilization >= target else "failed"
-
-
-def pick_failed_image(failed_image_ids, week_start):
-    """Rotate the staged Failed It images by ISO week of the lag week."""
-    if not failed_image_ids:
-        return None
-    week = week_start.isocalendar()[1]
-    return failed_image_ids[week % len(failed_image_ids)]
-
-
 def drive_image_url(file_id):
     """Public render URL for a photo id.
 
@@ -185,39 +167,23 @@ def _pct(x):
     return f"{x * 100:.2f}%"
 
 
-def render_verdict_block(company_utilization, photo=None, failed_image_id=None,
-                         target=TEAM_VERDICT_TARGET):
-    """HTML for the verdict card, or "" when there is nothing to show.
+def render_nailed_block(photo=None):
+    """HTML for the Nailed It showcase card, or "" when there is no photo.
 
-    photo: {"id", "job_name", "sent_by", "installed"} for a nailed week.
-    failed_image_id: Drive id of the staged image for a failed week.
+    photo: {"id", "job_name", "sent_by", "installed"}; id is a Drive file id
+    or, for the interim website source, a public URL.
     """
-    verdict = team_verdict(company_utilization, target)
-    if verdict is None:
+    if not photo or not photo.get("id"):
         return ""
-    util = _pct(company_utilization)
-    tgt = _pct(target)
-    if verdict == "nailed":
-        if not photo:
-            return ""
-        image_id = photo["id"]
-        headline = "Nailed it."
-        line = f"{util} team utilization vs our {tgt} target."
-        credit_bits = [html.escape(b) for b in (photo.get("job_name"), photo.get("installed")) if b]
-        credit = " &middot; ".join(credit_bits)
-        if photo.get("sent_by"):
-            credit = (credit + " &middot; " if credit else "") + f"photo by {html.escape(photo['sent_by'])}"
-        alt = f"Nailed it: {util} team utilization vs {tgt} target. Photo of recent Livewire work."
-        accent = RF_COPPER
-    else:
-        if not failed_image_id:
-            return ""
-        image_id = failed_image_id
-        headline = "Failed it... this week."
-        line = f"{util} team utilization vs our {tgt} target. Next week we nail it."
-        credit = "Staged photo. No customer jobs were harmed."
-        alt = f"Failed it this week: {util} team utilization vs {tgt} target."
-        accent = RF_INK
+    image_id = photo["id"]
+    headline = "Nailed it."
+    line = "Finished work from our crews this week. Nice job, team."
+    credit_bits = [html.escape(b) for b in (photo.get("job_name"), photo.get("installed")) if b]
+    credit = " &middot; ".join(credit_bits)
+    if photo.get("sent_by"):
+        credit = (credit + " &middot; " if credit else "") + f"photo by {html.escape(photo['sent_by'])}"
+    alt = "Nailed it: photo of recent finished Livewire work."
+    accent = RF_COPPER
 
     return (
         "<table role='presentation' cellpadding='0' cellspacing='0' border='0' width='100%' "
