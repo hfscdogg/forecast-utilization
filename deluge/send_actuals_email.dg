@@ -600,11 +600,11 @@ void send_actuals_email(Map result)
             {
                 today = zoho.currentdate;
                 picks = Nailed_It_Photos[Status == "Picked" && Send_Date <= today] sort by Send_Date desc;
-                for each p in picks
+                for each pk in picks
                 {
                     if(nailed_rec_id == null)
                     {
-                        nailed_rec_id = p.ID;
+                        nailed_rec_id = pk.ID;
                     }
                 }
                 if(nailed_rec_id == null)

@@ -215,4 +215,5 @@ Map nailed_it_score(List candidates)
         info "nailed_it_score: errored: " + score_err;
         return fallback;
     }
+    return fallback;
 }
