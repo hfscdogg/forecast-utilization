@@ -41,10 +41,14 @@ PHOTO_ROOT_FOLDER_IDS = (
     "1EgXWaKto9U39GNwNNS7mCkZR0LpBhTFO",  # Brand Library > Job Photos (upload form)
 )
 
-# File name written by the CRM sync: YYYY-MM-DD_Deal1234_Client_Installer_abc123.jpg
+# File name written by the CRM sync (deluge/crm/copyMeetingPhotosToDrive.dg):
+#   YYYY-MM-DD_Deal32504_NickAbbate_AndreSmith-ThomasPayne_Frame-TV_a1b2c3.jpg
+# Crew members are joined by "-" with the spaces inside each name dropped;
+# job words are joined by "-". The spec's original 5-segment form (no job)
+# is accepted too.
 _SYNC_NAME = re.compile(
-    r"^(?P<date>\d{4}-\d{2}-\d{2})_(?P<deal>Deal\w+)_(?P<client>[A-Za-z0-9-]*)_"
-    r"(?P<installer>[A-Za-z0-9-]*)_(?P<att>[A-Za-z0-9]+)\.(?P<ext>[A-Za-z0-9]+)$"
+    r"^(?P<date>\d{4}-\d{2}-\d{2})_(?P<deal>Deal[A-Za-z0-9]+)_(?P<client>[A-Za-z0-9-]*)_"
+    r"(?P<crew>[A-Za-z0-9-]*)(?:_(?P<job>[A-Za-z0-9-]*))?_(?P<att>[A-Za-z0-9]+)\.(?P<ext>[A-Za-z0-9]+)$"
 )
 
 # Labels the asset-library upload form writes into each photo's Drive
@@ -104,16 +108,19 @@ def parse_sync_filename(name):
     """Fields from a CRM-sync file name, or None when the name is not one.
 
     Unknown parts (UnknownClient, UnknownInstaller, DealUnknown) come back
-    empty so the credit line skips them.
+    empty so the credit line skips them. `installed` is the job when the
+    name carries one, else "Deal ####".
     """
     m = _SYNC_NAME.match(name or "")
     if not m:
         return None
     client = "" if m["client"] == "UnknownClient" else _uncamel(m["client"])
-    installer = "" if m["installer"] == "UnknownInstaller" else _uncamel(m["installer"])
+    crew = "" if m["crew"] == "UnknownInstaller" else " and ".join(
+        _uncamel(part) for part in m["crew"].split("-") if part)
     deal = "" if m["deal"] == "DealUnknown" else "Deal " + m["deal"][4:]
-    return {"job_name": client, "sent_by": installer, "installed": deal,
-            "date": m["date"], "source": "crm_sync"}
+    job = (m["job"] or "").replace("-", " ").strip()
+    return {"job_name": client, "sent_by": crew, "installed": job or deal,
+            "deal": deal, "date": m["date"], "source": "crm_sync"}
 
 
 def photo_fields(photo):

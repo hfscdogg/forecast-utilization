@@ -228,11 +228,14 @@ def test_website_photo_renders_directly_in_nailed_card():
 from nailed_it import parse_sync_filename, photo_fields, PHOTO_ROOT_FOLDER_IDS  # noqa: E402
 
 
-def test_sync_filename_gives_client_crew_and_deal():
-    f = parse_sync_filename("2026-11-05_Deal31234_SmithResidence_BrianRedden_a1b2c3.jpg")
-    assert f == {"job_name": "Smith Residence", "sent_by": "Brian Redden",
-                 "installed": "Deal 31234", "date": "2026-11-05", "source": "crm_sync"}
-    unknown = parse_sync_filename("2026-11-05_DealUnknown_UnknownClient_UnknownInstaller_zz9.heic")
+def test_sync_filename_gives_client_crew_job_and_deal():
+    f = parse_sync_filename("2026-11-06_Deal32504_NickAbbate_AndreSmith-ThomasPayne_Frame-TV_a1b2c3.jpg")
+    assert f == {"job_name": "Nick Abbate", "sent_by": "Andre Smith and Thomas Payne",
+                 "installed": "Frame TV", "deal": "Deal 32504", "date": "2026-11-06",
+                 "source": "crm_sync"}
+    five = parse_sync_filename("2026-11-05_Deal31234_SmithResidence_BrianRedden_a1b2c3.jpg")
+    assert five["sent_by"] == "Brian Redden" and five["installed"] == "Deal 31234"
+    unknown = parse_sync_filename("2026-11-05_DealUnknown_UnknownClient_UnknownInstaller__zz9.heic")
     assert unknown["job_name"] == "" and unknown["sent_by"] == "" and unknown["installed"] == ""
     assert parse_sync_filename("IMG_4412.jpg") is None
     assert parse_sync_filename(None) is None

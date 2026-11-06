@@ -1,0 +1,306 @@
+// Zoho CRM function (NOT a Creator function). Source of truth for the hourly
+// photo sync described in "Zoho Meeting Photos to Drive: Workflow Spec"
+// (Google Doc 1pp-wo0RBts0tGUpCvCTRi-o2siUwaa6-owtdCaQiS5Q). Lives in
+// CRM > Setup > Developer Hub > Functions, run by an hourly CRM Schedule.
+//
+// Status 2026-11-06: NOT yet created in CRM. Config block below is filled
+// in except the two connection names, which exist only once the CRM
+// connections (Setup > Developer Hub > Connections) are made: a Zoho CRM
+// OAuth connection (scope ZohoCRM.modules.ALL) and a Google connection
+// (scopes drive + spreadsheets, authorized by henry@).
+//
+// Output consumed by Creator's nailed_it_candidates: files named
+// YYYY-MM-DD_Deal####_Client_Crew_Job_xxxxxx.ext in YYYY-MM subfolders of
+// "Livewire Job Photos" (Crew = event Owner + Helper1, e.g.
+// AndreSmith-ThomasPayne; Job = the deal's last title segment, e.g.
+// Frame-TV). The picker credits the Crew segment. Lines marked VERIFY are
+// the spec's own first-run checks.
+
+void automation.copyMeetingPhotosToDrive()
+{
+	// ===================== CONFIG =====================
+	zohoConn = "ZOHO_CRM_CONNECTION_NAME";        // Zoho CRM connection, scope ZohoCRM.modules.ALL
+	googleConn = "GOOGLE_DRIVE_CONNECTION_NAME";  // Google connection, scopes drive (or drive.file) + spreadsheets
+	rootFolderId = "1lKMpk79F3h69bODbW7bRR0WTvkFwp78L"; // "Livewire Job Photos" (Henry's My Drive)
+	sheetId = "1airp0kuzyYsHUKzAG_J7Ej2LHBgoZhHKMeezUfKlK_E"; // "Job Photo Log" sheet (tab Log)
+	sheetTab = "Log";                             // tab name in the log sheet
+	crmOrgId = "2701844";                         // used only to build the event link (org prefix added below)
+	tzOffset = "-05:00";                          // VERIFY: org time zone offset (-04:00 during daylight time)
+	lookbackMinutes = 65;                         // one-off backfill: set to 43200 (30 days) for the first run, then back to 65
+	maxPages = 5;                                 // up to 5 x 200 events per run
+	maxUploadsPerRun = 40;                        // stay well inside Deluge execution limits
+	photoExts = {"jpg","jpeg","png","heic"};
+	// ==================================================
+
+	// ---------- 1. Load attachment ids already logged (column I) ----------
+	loggedIds = List();
+	logResp = invokeurl
+	[
+		url :"https://sheets.googleapis.com/v4/spreadsheets/" + sheetId + "/values/" + sheetTab + "!I:I"
+		type :GET
+		connection:googleConn
+	];
+	if(logResp.get("values") != null)
+	{
+		for each  row in logResp.get("values")
+		{
+			if(row.size() > 0)
+			{
+				loggedIds.add(row.get(0).toString());
+			}
+		}
+	}
+
+	// ---------- 2. Find events modified in the lookback window ----------
+	// VERIFY: confirm that adding an attachment updates the event's Modified_Time.
+	// If it does not, change the criteria to Start_DateTime in the last 3 days instead.
+	sinceTime = zoho.currenttime.subMinutes(lookbackMinutes).toString("yyyy-MM-dd'T'HH:mm:ss") + tzOffset;
+	criteria = "(Modified_Time:greater_equal:" + sinceTime + ")";
+	events = List();
+	pageList = {1,2,3,4,5};
+	keepPaging = true;
+	for each  pageNo in pageList
+	{
+		if(keepPaging && pageNo <= maxPages)
+		{
+			pageResult = zoho.crm.searchRecords("Events",criteria,pageNo,200);
+			if(pageResult != null && pageResult.size() > 0)
+			{
+				events.addAll(pageResult);
+				if(pageResult.size() < 200)
+				{
+					keepPaging = false;
+				}
+			}
+			else
+			{
+				keepPaging = false;
+			}
+		}
+	}
+	info "Events found: " + events.size();
+
+	// ---------- 3. Process each event ----------
+	folderCache = Map();   // YYYY-MM -> folder id, so each run looks a folder up only once
+	uploads = 0;
+	for each  ev in events
+	{
+		if(uploads >= maxUploadsPerRun)
+		{
+			break;
+		}
+		eventId = ev.get("id");
+		eventTitle = ifnull(ev.get("Event_Title"),"");
+		checkInCity = ifnull(ev.get("Check_In_City"),"");   // VERIFY: field API name for check-in city
+		// Meeting date for the file name and subfolder
+		startDT = ifnull(ev.get("Start_DateTime"),zoho.currenttime.toString("yyyy-MM-dd'T'HH:mm:ss"));
+		meetingDate = startDT.toString().subString(0,10);   // YYYY-MM-DD
+		monthFolderName = meetingDate.subString(0,7);       // YYYY-MM
+
+		// Deal name from What_Id, falling back to the event title
+		dealName = "";
+		whatId = ev.get("What_Id");
+		if(whatId != null && ev.get("$se_module") == "Deals")
+		{
+			dealName = ifnull(whatId.get("name"),"");
+		}
+		sourceText = if(dealName != "",dealName,eventTitle);
+
+		// Livewire's real format (checked against live Events 2026-11-06):
+		//   title: "Andre and Thomas - Nick Abbate - #32504 - Frame TV"
+		//   deal:  "Nick Abbate - #32504 - Frame TV"
+		// so segment 1 is the client, the first 3-6 digit run is the deal
+		// number ("#TBD" gives none), and the deal's last segment is the job.
+		// The crew comes from the event's Owner and Helper1 fields, which are
+		// cleaner than the title's first segment ("Andre and Thomas").
+		dealNum = "";
+		if(sourceText.matches(".*\\d{3,6}.*"))
+		{
+			dealNum = sourceText.replaceFirst("^\\D*(\\d{3,6}).*$","$1");
+		}
+		parts = sourceText.toList("-");
+		client = "";
+		if(parts.size() >= 2)
+		{
+			client = parts.get(1).trim();
+		}
+		jobText = "";
+		if(parts.size() >= 4)
+		{
+			jobText = parts.get(parts.size() - 1).trim();
+		}
+		crewFromEvent = "";
+		if(ev.get("Owner") != null)
+		{
+			crewFromEvent = ifnull(ev.get("Owner").get("name"),"");
+		}
+		helperName = ifnull(ev.get("Helper1"),"");
+		if(helperName != "" && helperName != "No Helper" && helperName != "-None-")
+		{
+			if(crewFromEvent != "")
+			{
+				crewFromEvent = crewFromEvent + "-" + helperName;
+			}
+			else
+			{
+				crewFromEvent = helperName;
+			}
+		}
+
+		// Attachments on this event
+		attachments = zoho.crm.getRelatedRecords("Attachments","Events",eventId);
+		if(attachments == null)
+		{
+			continue;
+		}
+		for each  att in attachments
+		{
+			if(uploads >= maxUploadsPerRun)
+			{
+				break;
+			}
+			attId = att.get("id").toString();
+			fileName = ifnull(att.get("File_Name"),"");
+			if(fileName.indexOf(".") < 0)
+			{
+				continue;
+			}
+			ext = fileName.subString(fileName.lastIndexOf(".") + 1).toLowerCase();
+			// Photos only, and skip anything already logged
+			if(!photoExts.contains(ext) || loggedIds.contains(attId))
+			{
+				continue;
+			}
+
+			// Installer: event title first, then the attachment's Created_By
+			installer = crewFromEvent;
+			if(installer == "" && att.get("Created_By") != null)
+			{
+				installer = ifnull(att.get("Created_By").get("name"),"");
+			}
+
+			// Build a safe file name: letters, numbers and hyphens only in each part
+			safeDeal = if(dealNum != "","Deal" + dealNum,"DealUnknown");
+			safeClient = client.replaceAll("[^A-Za-z0-9-]","");
+			// Crew members stay joined by "-" (spaces inside a name are
+			// dropped: "AndreSmith-ThomasPayne"); job words are joined by "-"
+			// ("Frame-TV"). The Creator picker reverses both.
+			safeInstaller = installer.replaceAll("[^A-Za-z0-9-]","");
+			safeJob = jobText.replaceAll("\\s+","-").replaceAll("[^A-Za-z0-9-]","");
+			if(safeClient == "")
+			{
+				safeClient = "UnknownClient";
+			}
+			if(safeInstaller == "")
+			{
+				safeInstaller = "UnknownInstaller";
+			}
+			// Keep names unique when one meeting has several photos
+			newName = meetingDate + "_" + safeDeal + "_" + safeClient + "_" + safeInstaller + "_" + safeJob + "_" + attId.right(6) + "." + ext;
+
+			// ---------- 3a. Find or create the YYYY-MM subfolder ----------
+			monthFolderId = folderCache.get(monthFolderName);
+			if(monthFolderId == null)
+			{
+				q = "name = '" + monthFolderName + "' and '" + rootFolderId + "' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false";
+				findResp = invokeurl
+				[
+					url :"https://www.googleapis.com/drive/v3/files?q=" + encodeUrl(q) + "&supportsAllDrives=true&includeItemsFromAllDrives=true&fields=files(id,name)"
+					type :GET
+					connection:googleConn
+				];
+				found = findResp.get("files");
+				if(found != null && found.size() > 0)
+				{
+					monthFolderId = found.get(0).get("id");
+				}
+				else
+				{
+					folderBody = Map();
+					folderBody.put("name",monthFolderName);
+					folderBody.put("mimeType","application/vnd.google-apps.folder");
+					folderBody.put("parents",{rootFolderId});
+					createResp = invokeurl
+					[
+						url :"https://www.googleapis.com/drive/v3/files?supportsAllDrives=true"
+						type :POST
+						parameters:folderBody.toString()
+						headers:{"Content-Type":"application/json"}
+						connection:googleConn
+					];
+					monthFolderId = createResp.get("id");
+				}
+				folderCache.put(monthFolderName,monthFolderId);
+			}
+
+			// ---------- 3b. Download the attachment from Zoho CRM ----------
+			fileObj = invokeurl
+			[
+				url :"https://www.zohoapis.com/crm/v8/Events/" + eventId + "/Attachments/" + attId
+				type :GET
+				connection:zohoConn
+			];
+			// VERIFY: on the first test, check that fileObj is a file (not an error map).
+			fileObj.setFileName(newName);
+
+			// ---------- 3c. Upload to Google Drive (multipart) ----------
+			metadata = Map();
+			metadata.put("name",newName);
+			metadata.put("parents",{monthFolderId});
+			metaPart = Map();
+			metaPart.put("paramName","metadata");
+			metaPart.put("content",metadata.toString());
+			metaPart.put("contentType","application/json");
+			metaPart.put("stringPart","true");
+			filePart = Map();
+			filePart.put("paramName","file");
+			filePart.put("content",fileObj);
+			fileParts = List();
+			fileParts.add(metaPart);
+			fileParts.add(filePart);
+			// VERIFY: Deluge sends multipart/form-data. Drive normally accepts it, but confirm
+			// the file lands with the right name and folder on the first test.
+			uploadResp = invokeurl
+			[
+				url :"https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true&fields=id,name,webViewLink"
+				type :POST
+				files:fileParts
+				connection:googleConn
+			];
+			driveId = uploadResp.get("id");
+			if(driveId == null)
+			{
+				info "Upload failed for attachment " + attId + ": " + uploadResp;
+				continue;
+			}
+			driveLink = ifnull(uploadResp.get("webViewLink"),"https://drive.google.com/file/d/" + driveId + "/view");
+
+			// ---------- 3d. Append a row to the log sheet ----------
+			eventLink = "https://crm.zoho.com/crm/org" + crmOrgId + "/tab/Events/" + eventId;
+			rowValues = List();
+			rowValues.add(zoho.currenttime.toString("yyyy-MM-dd HH:mm"));   // A date copied
+			rowValues.add(newName);                                         // B file name
+			rowValues.add(driveLink);                                       // C Drive link
+			rowValues.add(eventTitle);                                      // D event name
+			rowValues.add(eventLink);                                       // E event link
+			rowValues.add(dealName);                                        // F deal
+			rowValues.add(installer);                                       // G installer
+			rowValues.add(checkInCity);                                     // H check-in city
+			rowValues.add("'" + attId);                                     // I attachment id (leading ' keeps it as text)
+			appendBody = Map();
+			appendBody.put("values",{rowValues});
+			appendResp = invokeurl
+			[
+				url :"https://sheets.googleapis.com/v4/spreadsheets/" + sheetId + "/values/" + sheetTab + "!A:I:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS"
+				type :POST
+				parameters:appendBody.toString()
+				headers:{"Content-Type":"application/json"}
+				connection:googleConn
+			];
+			loggedIds.add(attId);
+			uploads = uploads + 1;
+		}
+	}
+	info "Photos copied this run: " + uploads;
+}
+

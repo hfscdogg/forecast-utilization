@@ -11,8 +11,9 @@ List nailed_it_candidates(int max_count)
     //   1. "Livewire Job Photos" (Henry's My Drive), filled hourly by the
     //      Zoho CRM sync copyMeetingPhotosToDrive. Those files have no
     //      description; they are eligible on their file name,
-    //        YYYY-MM-DD_Deal####_Client_Installer_xxxxxx.ext
-    //      which also gives the client (job_name) and the crew (sent_by).
+    //        YYYY-MM-DD_Deal####_Client_Crew_Job_xxxxxx.ext
+    //      which also gives the client (job_name), the crew (sent_by) and
+    //      the job (installed).
     //   2. Brand Library > Job Photos, the older upload form. Its photos
     //      are eligible only when the description says Finished and the
     //      customer OK'd sharing:
@@ -177,19 +178,28 @@ List nailed_it_candidates(int max_count)
                             job_name = job;
                         }
                         eligible = stage.toLowerCase().startsWith("finished") && consent.toLowerCase().startsWith("yes");
-                        // CRM sync file: YYYY-MM-DD_Deal####_Client_Installer_xxxxxx.ext
+                        // CRM sync file (deluge/crm/copyMeetingPhotosToDrive.dg):
+                        //   YYYY-MM-DD_Deal32504_NickAbbate_AndreSmith-ThomasPayne_Frame-TV_a1b2c3.jpg
+                        // Crew members joined by "-" (spaces dropped inside a name),
+                        // job words joined by "-". The 5-segment form without a job
+                        // is accepted too. Mirrors parse_sync_filename in nailed_it.py.
                         fname = f.get("name");
                         if(fname == null)
                         {
                             fname = "";
                         }
-                        if(fname.matches("^\\d{4}-\\d{2}-\\d{2}_Deal\\w+_[A-Za-z0-9-]*_[A-Za-z0-9-]*_[A-Za-z0-9]+\\.[A-Za-z0-9]+$"))
+                        if(fname.matches("^\\d{4}-\\d{2}-\\d{2}_Deal[A-Za-z0-9]+_[A-Za-z0-9-]*_[A-Za-z0-9-]*(_[A-Za-z0-9-]*)?_[A-Za-z0-9]+\\.[A-Za-z0-9]+$"))
                         {
                             eligible = true;
                             name_parts = fname.toList("_");
                             deal_part = name_parts.get(1);
                             client_part = name_parts.get(2);
                             crew_part = name_parts.get(3);
+                            job_part = "";
+                            if(name_parts.size() >= 6)
+                            {
+                                job_part = name_parts.get(4);
+                            }
                             job_name = "";
                             if(client_part != "UnknownClient")
                             {
@@ -198,10 +208,20 @@ List nailed_it_candidates(int max_count)
                             sent_by = "";
                             if(crew_part != "UnknownInstaller")
                             {
-                                sent_by = crew_part.replaceAll("([a-z0-9])([A-Z])", "$1 $2");
+                                for each member in crew_part.toList("-")
+                                {
+                                    if(member != "")
+                                    {
+                                        if(sent_by != "")
+                                        {
+                                            sent_by = sent_by + " and ";
+                                        }
+                                        sent_by = sent_by + member.replaceAll("([a-z0-9])([A-Z])", "$1 $2");
+                                    }
+                                }
                             }
-                            installed = "";
-                            if(deal_part != "DealUnknown")
+                            installed = job_part.replaceAll("-", " ").trim();
+                            if(installed == "" && deal_part != "DealUnknown")
                             {
                                 installed = "Deal " + deal_part.subString(4, deal_part.length());
                             }

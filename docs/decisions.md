@@ -844,24 +844,35 @@ Plus: run the CRM photo sync once and run the picker as a final test.
   them. The hardwired *2026* folder id is gone. Mirror:
   `PHOTO_ROOT_FOLDER_IDS` in `nailed_it.py`.
 - **Sync files are eligible by name.** The CRM sync writes no Drive
-  description, so a file named `YYYY-MM-DD_Deal####_Client_Installer_xxxxxx.ext`
-  is eligible as is. Client becomes `job_name`, installer becomes
-  `sent_by` (CamelCase split back into words), deal becomes `installed`
-  ("Deal 31234"). `UnknownClient` / `UnknownInstaller` / `DealUnknown`
-  come through empty. Upload-form photos still need Finished + consent.
-- **Crew credit.** A `Sent_By` without "@" renders as "crew: Brian Redden"
-  in the email card and the picker email; an address still renders as
-  "photo by ...". No form change.
-- **Crew metadata from the sync (Henry's question):** the sync captures
-  the installer from the event title's third "-" segment (else the
-  attachment's Created_By), plus deal number, client and check-in city, in
-  the file name and the Job Photo Log sheet. It does not capture a crew
-  list (event participants) or a Finished / consent flag. To praise a full
-  crew, the sync would need to add the event's participants to the file
-  name or write a description line; both are small changes to
-  `copyMeetingPhotosToDrive`.
-- **Sync status 2026-11-06 09:50 ET:** not built. No
-  `copyMeetingPhotosToDrive` function in Zoho CRM, no month subfolders in
-  *Livewire Job Photos*, the Job Photo Log sheet has only its header row.
-  As specified it looks back 65 minutes with no backfill, so a first run
-  needs a one-off wider lookback to copy anything.
+  description, so a file named
+  `YYYY-MM-DD_Deal####_Client_Crew_Job_xxxxxx.ext` is eligible as is.
+  Client becomes `job_name` ("NickAbbate" to "Nick Abbate"), crew becomes
+  `sent_by` ("AndreSmith-ThomasPayne" to "Andre Smith and Thomas Payne"),
+  job becomes `installed` ("Frame-TV" to "Frame TV", else "Deal 32504").
+  `UnknownClient` / `UnknownInstaller` / `DealUnknown` come through empty.
+  The spec's original 5-segment name (no job) still parses. Upload-form
+  photos still need Finished + consent.
+- **Crew credit.** A `Sent_By` without "@" or "." renders as "crew: Andre
+  Smith and Thomas Payne" in the email card and the picker email; an
+  address or domain (website photos) still renders as "photo by ...". No
+  form change.
+- **Crew metadata (Henry's question).** The spec took the installer from
+  the event title's third "-" segment, but live Events read
+  "Andre and Thomas - Nick Abbate - #32504 - Frame TV", so that segment
+  is the deal number. The repo copy of the sync
+  (`deluge/crm/copyMeetingPhotosToDrive.dg`) now takes the crew from the
+  event's `Owner` plus `Helper1` (both populated on real events), the
+  client from segment 1, the deal number from the first 3-6 digit run, and
+  the job from the deal's last segment. Check-in city, deal and event link
+  still go to the Job Photo Log sheet. No Finished / consent flag exists in
+  CRM; the crew attaching photos to a job meeting is taken as "finished
+  enough" for an internal email.
+- **Sync status 2026-11-06 10:30 ET:** not built in CRM. No
+  `copyMeetingPhotosToDrive` function, no month subfolders in *Livewire
+  Job Photos*, the Job Photo Log sheet has only its header row. The
+  function is ready to paste from `deluge/crm/copyMeetingPhotosToDrive.dg`
+  (folder, sheet and org ids filled in; the two CRM connection names are
+  placeholders until the connections exist). It looks back 65 minutes with
+  no backfill, so the first run should use `lookbackMinutes = 43200` (30
+  days) once, then go back to 65. Building it in this session was blocked
+  by another Chrome extension that breaks automation on crm.zoho.com.

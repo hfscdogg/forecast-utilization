@@ -2,7 +2,7 @@
 
 Tracks which asset-library photo goes into the **Nailed It** card of the
 Monday Utilization Actuals email, and which photos have already been used.
-Photo folders (each read one level deep, so year or month subfolders need no code change): *Livewire Job Photos* in Henry's My Drive (CRM sync target, eligible by file name) and shared drive *Livewire Brand Library* > *Job Photos* (upload form, eligible by Finished + consent description).
+Photo folders (each read one level deep, so year or month subfolders need no code change): *Livewire Job Photos* in Henry's My Drive (CRM sync target, eligible by file name `YYYY-MM-DD_Deal####_Client_Crew_Job_xxxxxx.ext`) and shared drive *Livewire Brand Library* > *Job Photos* (upload form, eligible by Finished + consent description).
 One record per pick.
 
 **Form name:** `Nailed_It_Photos`
