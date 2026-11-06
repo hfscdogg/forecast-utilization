@@ -112,7 +112,7 @@ List nailed_it_candidates(int max_count)
             params.put("pageSize", "100");
             params.put("supportsAllDrives", "true");
             params.put("includeItemsFromAllDrives", "true");
-            params.put("fields", "nextPageToken,files(id,name,description,createdTime,webViewLink,thumbnailLink)");
+            params.put("fields", "nextPageToken,files(id,name,description,createdTime,webViewLink,thumbnailLink,imageMediaMetadata(width,height,rotation))");
             if(page_token != "")
             {
                 params.put("pageToken", page_token);
@@ -246,6 +246,9 @@ List nailed_it_candidates(int max_count)
                             c.put("created", f.get("createdTime"));
                             c.put("view_url", f.get("webViewLink"));
                             c.put("thumb_url", f.get("thumbnailLink"));
+                            // Width, height and rotation, so the picker can
+                            // show the same top or center crop as the email.
+                            c.put("img_meta", f.get("imageMediaMetadata"));
                             candidates.add(c);
                         }
                     }

@@ -74,7 +74,7 @@ def _fmt_week_label(week_start, week_end):
 
 
 def render_actuals_email(per_tech_results, week_start, week_end, rollup,
-                         nailed_photo=None, failed_image_id=None):
+                         nailed_photo=None, failed_image_id=None, failed_image_meta=None):
     """Return HTML for the lagging actuals email body.
 
     per_tech_results: list of dicts from actuals_for_technician
@@ -171,7 +171,7 @@ def render_actuals_email(per_tech_results, week_start, week_end, rollup,
             )
 
 
-    verdict_block = render_contrast_block(nailed_photo, failed_image_id)
+    verdict_block = render_contrast_block(nailed_photo, failed_image_id, failed_image_meta)
 
     return f"""<!DOCTYPE html>
 <html>

@@ -339,3 +339,40 @@ def test_contrast_photos_are_cropped_to_4_by_3_and_boxed():
     assert drive_crop_url("https://x/y.jpg") == "https://x/y.jpg"
     # The single Nailed It card keeps the full-size, uncropped image.
     assert "thumbnail?id=nail1&sz=w1200" in render_nailed_block(SYNCED)
+
+
+# --- Top crop for portrait photos (Henry 2026-11-06) --------------------------
+
+from nailed_it import is_portrait, picker_thumb_url  # noqa: E402
+
+PORTRAIT = {"width": 3024, "height": 4032, "rotation": 0}
+LANDSCAPE = {"width": 4032, "height": 3024, "rotation": 0}
+SIDEWAYS = {"width": 4032, "height": 3024, "rotation": 1}  # stored landscape, shown portrait
+
+
+def test_portrait_detection_honours_rotation_and_unknowns():
+    assert is_portrait(PORTRAIT)
+    assert not is_portrait(LANDSCAPE)
+    assert is_portrait(SIDEWAYS)
+    assert not is_portrait({"width": 1200, "height": 600})
+    assert not is_portrait({"width": 400, "height": 300})  # exactly 4:3 is not taller
+    assert not is_portrait(None) and not is_portrait({})
+
+
+def test_portrait_photo_is_top_cropped_by_the_box_landscape_is_center_cropped():
+    from nailed_it import drive_crop_url
+    assert drive_crop_url("p1", PORTRAIT) == "https://drive.google.com/thumbnail?id=p1&sz=w564"
+    assert drive_crop_url("l1", LANDSCAPE) == "https://drive.google.com/thumbnail?id=l1&sz=w564-h423-c"
+    assert drive_crop_url("u1") == "https://drive.google.com/thumbnail?id=u1&sz=w564-h423-c"
+    html = render_contrast_block(dict(SYNCED, meta=PORTRAIT), "f-b", LANDSCAPE)
+    assert "thumbnail?id=nail1&sz=w564'" in html
+    assert "thumbnail?id=f-b&sz=w564-h423-c" in html
+    assert html.count("height:211px;overflow:hidden;") == 2
+
+
+def test_picker_thumb_shows_the_same_crop():
+    lh3 = "https://lh3.googleusercontent.com/drive-storage/abc=s220"
+    assert picker_thumb_url(lh3, PORTRAIT).endswith("=w400")
+    assert picker_thumb_url(lh3, LANDSCAPE).endswith("=w400-h300-c")
+    assert picker_thumb_url(lh3, None).endswith("=w400-h300-c")
+    assert picker_thumb_url("https://www.getlivewire.com/x.jpg", PORTRAIT) == "https://www.getlivewire.com/x.jpg"
