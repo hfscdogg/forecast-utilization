@@ -669,11 +669,12 @@ void send_actuals_email(Map result)
                 // This week's Failed It image. Its own try: a failed listing
                 // only drops the left side, never the Nailed It photo.
                 failed_id = "";
+                failed_portrait = false;
                 try
                 {
                     fparams = Map();
                     fparams.put("q", "'" + NAILED_IT_FAILED_FOLDER_ID + "' in parents and trashed = false and mimeType contains 'image/'");
-                    fparams.put("fields", "files(id,name)");
+                    fparams.put("fields", "files(id,name,imageMediaMetadata(width,height,rotation))");
                     fparams.put("orderBy", "name");
                     fparams.put("pageSize", "100");
                     fparams.put("supportsAllDrives", "true");
@@ -688,7 +689,30 @@ void send_actuals_email(Map result)
                     ffiles = fresp.get("files");
                     if(ffiles != null && ffiles.size() > 0)
                     {
-                        failed_id = ffiles.get(ws.getWeekOfYear() % ffiles.size()).get("id");
+                        ffile = ffiles.get(ws.getWeekOfYear() % ffiles.size());
+                        failed_id = ffile.get("id");
+                        // Taller than 4:3 (rotation 1 or 3 swaps the sides)?
+                        fmeta = ffile.get("imageMediaMetadata");
+                        if(fmeta != null && fmeta.get("width") != null && fmeta.get("height") != null)
+                        {
+                            fw = fmeta.get("width").toLong();
+                            fh = fmeta.get("height").toLong();
+                            frot = 0;
+                            if(fmeta.get("rotation") != null)
+                            {
+                                frot = fmeta.get("rotation").toLong();
+                            }
+                            if(frot == 1 || frot == 3)
+                            {
+                                ftmp = fw;
+                                fw = fh;
+                                fh = ftmp;
+                            }
+                            if(fh * 4 > fw * 3)
+                            {
+                                failed_portrait = true;
+                            }
+                        }
                     }
                 }
                 catch (failed_err)
@@ -700,17 +724,66 @@ void send_actuals_email(Map result)
                 card_open = "<table role='presentation' cellpadding='0' cellspacing='0' border='0' width='100%' style='width:100%;max-width:600px;background:" + RF_CARD_BG + ";border:1px solid " + RF_CARD_BORDER + ";border-collapse:separate;margin:0 0 16px;'>";
                 if(failed_id != null && failed_id != "")
                 {
-                    // Both photos cropped to 4:3 so the halves line up
-                    // (Henry 2026-11-06; crew phone photos are mostly
-                    // portrait). Drive's thumbnail service center-crops to
-                    // 564x423 ("-c"); the 211px overflow box keeps the halves
-                    // even where that does not apply (website URLs). Outlook
-                    // desktop ignores overflow and shows the full image.
+                    // Both photos shown 4:3 so the halves line up (Henry
+                    // 2026-11-06), cropped from the TOP: installs sit high on
+                    // walls and ceilings, and Google's "-c" crop can only
+                    // center. A portrait photo is fetched full width
+                    // (sz=w564) and the 211px overflow box shows its top 4:3.
+                    // A wide photo keeps the "-c" center crop, which only
+                    // trims its sides. Outlook desktop ignores overflow and
+                    // shows the full image. Mirror: nailed_it.drive_crop_url.
                     failed_src = "https://drive.google.com/thumbnail?id=" + failed_id + "&sz=w564-h423-c";
+                    if(failed_portrait)
+                    {
+                        failed_src = "https://drive.google.com/thumbnail?id=" + failed_id + "&sz=w564";
+                    }
                     nailed_side_src = "https://drive.google.com/thumbnail?id=" + image_id + "&sz=w564-h423-c";
                     if(image_id.startsWith("http"))
                     {
                         nailed_side_src = image_id;
+                    }
+                    else
+                    {
+                        // The Nailed It photo's own size, from Drive. Unknown
+                        // means the center crop, as before.
+                        try
+                        {
+                            mparams = Map();
+                            mparams.put("fields", "imageMediaMetadata(width,height,rotation)");
+                            mparams.put("supportsAllDrives", "true");
+                            mresp = invokeurl
+                            [
+                                url: "https://www.googleapis.com/drive/v3/files/" + image_id
+                                type: GET
+                                parameters: mparams
+                                connection: "google_drive"
+                            ];
+                            nmeta = mresp.get("imageMediaMetadata");
+                            if(nmeta != null && nmeta.get("width") != null && nmeta.get("height") != null)
+                            {
+                                nw = nmeta.get("width").toLong();
+                                nh = nmeta.get("height").toLong();
+                                nrot = 0;
+                                if(nmeta.get("rotation") != null)
+                                {
+                                    nrot = nmeta.get("rotation").toLong();
+                                }
+                                if(nrot == 1 || nrot == 3)
+                                {
+                                    ntmp = nw;
+                                    nw = nh;
+                                    nh = ntmp;
+                                }
+                                if(nh * 4 > nw * 3)
+                                {
+                                    nailed_side_src = "https://drive.google.com/thumbnail?id=" + image_id + "&sz=w564";
+                                }
+                            }
+                        }
+                        catch (meta_err)
+                        {
+                            info "nailed it photo size unknown, center crop: " + meta_err;
+                        }
                     }
                     failed_headline = "Failed it.";
                     failed_line = "Spotted in the wild. Not one of ours.";

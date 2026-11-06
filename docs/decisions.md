@@ -1005,3 +1005,32 @@ chose to crop both to 4:3.
   Outlook desktop ignores overflow and shows the full image.
 - **Single Nailed It card unchanged:** `sz=w1200`, natural height.
 - **Creator re-paste needed:** `send_actuals_email` only.
+
+### 2026-11-06 — Crop from the top; the picker shows the crop (Henry)
+
+The preview showed Google's center crop cutting the subject out of a
+portrait phone photo: the gas detectors sat near the ceiling and the crop
+kept the wall below. Henry: "crop from the top and show the crop in the
+picker".
+
+- **Google only crops from the center.** Drive's `-c` crop has no top
+  anchor, so the code checks orientation from Drive's
+  `imageMediaMetadata` (width, height, rotation; rotation 1 or 3 swaps
+  the sides).
+- **Portrait photos (taller than 4:3)** are fetched full width
+  (`sz=w564`). The existing 211px `overflow:hidden` box then shows their
+  top 4:3.
+- **Wide photos, or unknown sizes,** keep the `sz=w564-h423-c` center
+  crop, which only trims the sides.
+- **Failed It side.** The folder listing now asks for the metadata.
+- **Nailed It side.** `send_actuals_email` reads the picked photo's
+  metadata with one Drive GET. Any failure there falls back to the center
+  crop.
+- **Picker.** `nailed_it_candidates` carries the metadata (`img_meta`).
+  `scheduled_photo_picker` shows each thumbnail as a 200x150 box with
+  the same rule (`=w400` for portrait, `=w400-h300-c` for wide), so
+  Henry sees what Monday will show.
+- **Mirror and Creator.** Python: `nailed_it.is_portrait`,
+  `drive_crop_url(id, meta)`, `picker_thumb_url`. Creator needs three
+  re-pastes: `send_actuals_email`, `nailed_it_candidates` and
+  `scheduled_photo_picker`.

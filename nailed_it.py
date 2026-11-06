@@ -325,14 +325,38 @@ CONTRAST_IMG_W = 282
 CONTRAST_IMG_H = 211
 
 
-def drive_crop_url(file_id, w=564, h=423):  # 2x of 282 wide, exact 4:3
-    """Center-cropped Drive thumbnail URL; an http(s) URL is returned as is."""
+def is_portrait(meta):
+    """True when Drive image metadata says the photo is taller than 4:3.
+
+    meta: Drive imageMediaMetadata ({"width", "height", "rotation"}), or None.
+    rotation 1 or 3 (90 or 270 degrees) swaps width and height. Unknown
+    metadata counts as not portrait (center crop).
+    """
+    if not meta or not meta.get("width") or not meta.get("height"):
+        return False
+    w, h = int(meta["width"]), int(meta["height"])
+    if int(meta.get("rotation") or 0) in (1, 3):
+        w, h = h, w
+    return h * 4 > w * 3
+
+
+def drive_crop_url(file_id, meta=None, w=564, h=423):  # 2x of 282 wide, exact 4:3
+    """Drive thumbnail URL for a 4:3 card photo; an http(s) URL is returned as is.
+
+    Henry 2026-11-06: crop from the top. Google's "-c" crop can only center,
+    which cut the subject (installs sit high on walls and ceilings) out of
+    portrait phone photos. So a portrait photo is fetched full width and
+    uncropped, and the fixed-height overflow box shows its top 4:3. A wide
+    photo keeps the center crop, which only trims its sides.
+    """
     if file_id.startswith("http"):
         return file_id
+    if is_portrait(meta):
+        return f"https://drive.google.com/thumbnail?id={file_id}&sz=w{w}"
     return f"https://drive.google.com/thumbnail?id={file_id}&sz=w{w}-h{h}-c"
 
 
-def _contrast_cell(image_id, alt, headline, color, line, credit, side):
+def _contrast_cell(image_id, alt, headline, color, line, credit, side, meta=None):
     pad = "padding:0 6px 0 0;" if side == "left" else "padding:0 0 0 6px;"
     credit_html = (
         f"<p style='margin:6px 0 0;font-family:{RF_SANS_STACK};font-size:11px;line-height:14px;"
@@ -341,7 +365,7 @@ def _contrast_cell(image_id, alt, headline, color, line, credit, side):
     return (
         f"<td width='50%' valign='top' style='width:50%;vertical-align:top;border:0;{pad}'>"
         f"<div style='height:{CONTRAST_IMG_H}px;overflow:hidden;'>"
-        f"<img src='{drive_crop_url(image_id)}' width='{CONTRAST_IMG_W}' alt='{alt}' "
+        f"<img src='{drive_crop_url(image_id, meta)}' width='{CONTRAST_IMG_W}' alt='{alt}' "
         f"style='display:block;width:100%;max-width:{CONTRAST_IMG_W}px;height:auto;border:0;'>"
         "</div>"
         f"<p style='margin:10px 0 0;font-family:{RF_SANS_STACK};font-size:18px;line-height:22px;"
@@ -353,7 +377,25 @@ def _contrast_cell(image_id, alt, headline, color, line, credit, side):
     )
 
 
-def render_contrast_block(photo=None, failed_id=None):
+PICKER_THUMB_W = 200
+PICKER_THUMB_H = 150
+
+
+def picker_thumb_url(thumb_url, meta=None):
+    """Picker-email thumbnail showing the same 4:3 crop Monday's card will use.
+
+    thumb_url: Drive's signed thumbnailLink (lh3, ends "=s220") or a public
+    website URL. Wide photos get Google's center crop at 2x 200x150; portrait
+    photos come back full width so the 150px overflow box shows their top,
+    exactly like the email. Mirrors scheduled_photo_picker.dg.
+    """
+    if not thumb_url or "=s220" not in thumb_url:
+        return thumb_url
+    size = "=w400" if is_portrait(meta) else "=w400-h300-c"
+    return thumb_url.replace("=s220", size)
+
+
+def render_contrast_block(photo=None, failed_id=None, failed_meta=None):
     """The Monday card: Failed It (left) next to Nailed It (right).
 
     No Nailed It photo means no card at all. No Failed It image (empty
@@ -363,9 +405,10 @@ def render_contrast_block(photo=None, failed_id=None):
         return ""
     if not failed_id:
         return render_nailed_block(photo)
-    left = _contrast_cell(failed_id, FAILED_ALT, FAILED_HEADLINE, RF_INK, FAILED_LINE, "", "left")
+    left = _contrast_cell(failed_id, FAILED_ALT, FAILED_HEADLINE, RF_INK, FAILED_LINE, "", "left",
+                          failed_meta)
     right = _contrast_cell(photo["id"], NAILED_ALT, NAILED_HEADLINE, RF_COPPER, NAILED_LINE,
-                           _credit_line(photo), "right")
+                           _credit_line(photo), "right", photo.get("meta"))
     return (
         "<table role='presentation' cellpadding='0' cellspacing='0' border='0' width='100%' "
         f"style='width:100%;max-width:600px;background:{RF_CARD_BG};border:1px solid {RF_CARD_BORDER};"

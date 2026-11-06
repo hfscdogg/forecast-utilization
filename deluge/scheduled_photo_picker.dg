@@ -110,13 +110,45 @@ void scheduled_photo_picker()
                     score_html = "<p style='margin:6px 0 0;font-size:13px;color:" + INK + ";'><span style='display:inline-block;padding:2px 8px;background:" + badge_bg + ";color:#FFFFFF;font-weight:700;border-radius:10px;'>" + c.get("score") + "/10</span>&nbsp; " + c.get("reason") + "</p>";
                 }
                 // thumbnailLink is a short-lived signed URL (hours), fine
-                // for a same-day pick. Bump its size from the 220px default.
+                // for a same-day pick. Show the same 4:3 crop Monday's card
+                // will use (Henry 2026-11-06): a portrait photo comes back
+                // full width and the 150px box shows its top; a wide photo
+                // gets Google's center crop. Mirror: nailed_it.picker_thumb_url.
                 thumb = c.get("thumb_url");
                 thumb_html = "";
                 if(thumb != null && thumb != "")
                 {
-                    thumb = thumb.replaceAll("=s220", "=s400");
-                    thumb_html = "<img src='" + thumb + "' width='200' alt='' style='display:block;width:200px;height:auto;border:0;'>";
+                    portrait = false;
+                    pick_meta = c.get("img_meta");
+                    if(pick_meta != null && pick_meta.get("width") != null && pick_meta.get("height") != null)
+                    {
+                        mw = pick_meta.get("width").toLong();
+                        mh = pick_meta.get("height").toLong();
+                        mrot = 0;
+                        if(pick_meta.get("rotation") != null)
+                        {
+                            mrot = pick_meta.get("rotation").toLong();
+                        }
+                        if(mrot == 1 || mrot == 3)
+                        {
+                            mtmp = mw;
+                            mw = mh;
+                            mh = mtmp;
+                        }
+                        if(mh * 4 > mw * 3)
+                        {
+                            portrait = true;
+                        }
+                    }
+                    if(portrait)
+                    {
+                        thumb = thumb.replaceAll("=s220", "=w400");
+                    }
+                    else
+                    {
+                        thumb = thumb.replaceAll("=s220", "=w400-h300-c");
+                    }
+                    thumb_html = "<div style='width:200px;height:150px;overflow:hidden;'><img src='" + thumb + "' width='200' alt='' style='display:block;width:200px;height:auto;border:0;'></div>";
                 }
                 card = "<tr><td style='padding:12px 0;border-top:1px solid " + CARD_BORDER + ";vertical-align:top;width:212px;'>" + thumb_html + "</td>" +
                     "<td style='padding:12px 0 12px 12px;border-top:1px solid " + CARD_BORDER + ";vertical-align:top;font-family:" + SANS + ";'>" +

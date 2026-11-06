@@ -76,10 +76,10 @@ pasted, and nothing syncs them automatically. On 2026-11-06 the live
 
 | Function | Marker after reload |
 |---|---|
-| send_actuals_email | `sz=w564-h423-c` x2 and `height:211px;overflow:hidden;` x2 |
-| nailed_it_candidates | `job_name.toUpperCase() == "TBD"` |
+| send_actuals_email | `sz=w564-h423-c` x2, `height:211px;overflow:hidden;` x2 and `nailed it photo size unknown` |
+| nailed_it_candidates | `job_name.toUpperCase() == "TBD"` and `c.put("img_meta"` |
 | nailed_it_share | `permissions(type,role)` |
-| scheduled_photo_picker | `c.get("sent_by").contains("@")` |
+| scheduled_photo_picker | `c.get("sent_by").contains("@")` and `height:150px;overflow:hidden;` |
 | pick_nailed_photo | `actuals email.");`, and no `only if the team hits target` |
 | nailed_it_score | `return fallback;` just before the final `}` |
 | generate_actuals, generate_forecast | `SALES_ROLE_NAME = "Sales";` |
