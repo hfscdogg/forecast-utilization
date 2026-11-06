@@ -8,7 +8,7 @@ List nailed_it_candidates(int max_count)
     // Drive folders, each read one level deep (the root plus its direct
     // subfolders), so the YYYY-MM or year layout underneath can change
     // without touching this code.
-    //   1. "Livewire Job Photos" (Henry's My Drive), filled hourly by the
+    //   1. "Livewire Job Photos (CRM Sync)" (Henry's My Drive, created by the
     //      Zoho CRM sync copyMeetingPhotosToDrive. Those files have no
     //      description; they are eligible on their file name,
     //        YYYY-MM-DD_Deal####_Client_Crew_Job_xxxxxx.ext
@@ -32,7 +32,7 @@ List nailed_it_candidates(int max_count)
     // Needs the Creator connection "google_drive" (Google Drive service,
     // scope https://www.googleapis.com/auth/drive), authorized by a
     // Google account that can read both folders.
-    PHOTO_ROOT_FOLDER_IDS = {"1lKMpk79F3h69bODbW7bRR0WTvkFwp78L", "1EgXWaKto9U39GNwNNS7mCkZR0LpBhTFO"};
+    PHOTO_ROOT_FOLDER_IDS = {"143dzFkXWASz9EI2awBfGEWNjdrhEAqP5", "1EgXWaKto9U39GNwNNS7mCkZR0LpBhTFO"};
     PHOTO_MAX_AGE_DAYS = 30;
     // Deluge has no while loop: iterate a fixed page budget instead.
     PAGE_BUDGET = {1, 2, 3, 4, 5};

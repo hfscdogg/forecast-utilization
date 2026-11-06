@@ -37,7 +37,7 @@ MAX_CANDIDATES = 6
 # Root folders the picker reads, each with its direct subfolders. Mirrors
 # PHOTO_ROOT_FOLDER_IDS in deluge/nailed_it_candidates.dg.
 PHOTO_ROOT_FOLDER_IDS = (
-    "1lKMpk79F3h69bODbW7bRR0WTvkFwp78L",  # Livewire Job Photos (CRM sync)
+    "143dzFkXWASz9EI2awBfGEWNjdrhEAqP5",  # Livewire Job Photos (CRM Sync), folder the sync creates
     "1EgXWaKto9U39GNwNNS7mCkZR0LpBhTFO",  # Brand Library > Job Photos (upload form)
 )
 

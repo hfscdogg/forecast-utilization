@@ -261,4 +261,4 @@ def test_synced_photo_is_eligible_without_description_and_credits_the_crew():
 
 
 def test_picker_reads_sync_folder_first():
-    assert PHOTO_ROOT_FOLDER_IDS[0] == "1lKMpk79F3h69bODbW7bRR0WTvkFwp78L"
+    assert PHOTO_ROOT_FOLDER_IDS[0] == "143dzFkXWASz9EI2awBfGEWNjdrhEAqP5"

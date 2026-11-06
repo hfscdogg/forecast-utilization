@@ -350,8 +350,8 @@ MACRO_GOAL_YELLOW_AT            = 0.75;
 
 /* Photo sources. CRM-sync files are eligible by file name; upload-form
  * photos only when marked Finished with a customer OK to share. */
-NAILED_IT_PHOTO_ROOT_FOLDER_IDS = {"1lKMpk79F3h69bODbW7bRR0WTvkFwp78L", "1EgXWaKto9U39GNwNNS7mCkZR0LpBhTFO"};
-// 2026-11-06: Livewire Job Photos (CRM sync target) and Brand Library > Job
+NAILED_IT_PHOTO_ROOT_FOLDER_IDS = {"143dzFkXWASz9EI2awBfGEWNjdrhEAqP5", "1EgXWaKto9U39GNwNNS7mCkZR0LpBhTFO"};
+// 2026-11-06: Livewire Job Photos (CRM Sync) (the folder the sync creates) and Brand Library > Job
 // Photos (upload form). Each is read one level deep, so the year or
 // YYYY-MM subfolders underneath need no code change. Replaces the
 // hardwired 2026 folder 17vdHcT-3YYMsQ7o0zH0OGf_uht5XsgtJ.
