@@ -3,11 +3,10 @@
 // (Google Doc 1pp-wo0RBts0tGUpCvCTRi-o2siUwaa6-owtdCaQiS5Q). Lives in
 // CRM > Setup > Developer Hub > Functions, run by an hourly CRM Schedule.
 //
-// Status 2026-11-06: NOT yet created in CRM. Config block below is filled
-// in except the two connection names, which exist only once the CRM
-// connections (Setup > Developer Hub > Connections) are made: a Zoho CRM
-// OAuth connection (scope ZohoCRM.modules.ALL) and a Google connection
-// (scopes drive + spreadsheets, authorized by henry@).
+// Status 2026-11-06: being created in CRM by hand (Claude in Chrome cannot
+// drive crm.zoho.com in Henry's managed profile). zohoConn is the existing
+// "zohocrm" connection; googleConn is a new Google Drive connection named
+// google_drive_sync (scopes drive + spreadsheets, authorized by henry@).
 //
 // Output consumed by Creator's nailed_it_candidates: files named
 // YYYY-MM-DD_Deal####_Client_Crew_Job_xxxxxx.ext in YYYY-MM subfolders of
@@ -19,8 +18,8 @@
 void automation.copyMeetingPhotosToDrive()
 {
 	// ===================== CONFIG =====================
-	zohoConn = "ZOHO_CRM_CONNECTION_NAME";        // Zoho CRM connection, scope ZohoCRM.modules.ALL
-	googleConn = "GOOGLE_DRIVE_CONNECTION_NAME";  // Google connection, scopes drive (or drive.file) + spreadsheets
+	zohoConn = "zohocrm";                         // existing CRM connection (Setup > Connections > "Zoho CRM", link name zohocrm)
+	googleConn = "google_drive_sync";             // Google Drive connection, scopes drive + spreadsheets, authorized by henry@
 	rootFolderId = "1lKMpk79F3h69bODbW7bRR0WTvkFwp78L"; // "Livewire Job Photos" (Henry's My Drive)
 	sheetId = "1airp0kuzyYsHUKzAG_J7Ej2LHBgoZhHKMeezUfKlK_E"; // "Job Photo Log" sheet (tab Log)
 	sheetTab = "Log";                             // tab name in the log sheet
