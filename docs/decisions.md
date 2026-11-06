@@ -876,3 +876,32 @@ Plus: run the CRM photo sync once and run the picker as a final test.
   no backfill, so the first run should use `lookbackMinutes = 43200` (30
   days) once, then go back to 65. Building it in this session was blocked
   by another Chrome extension that breaks automation on crm.zoho.com.
+
+### 2026-11-06 11:45 ET — CRM photo sync is live
+
+- Built by hand in CRM (Claude in Chrome cannot act on crm.zoho.com in
+  Henry's managed Chrome profile: every click, screenshot and script fails
+  with "Cannot access a chrome-extension:// URL of different extension";
+  Creator pages are fine). Function `copyMeetingPhotosToDrive` (category
+  schedule, API name copymeetingphotostodrive), connections `zohocrm`
+  (existing) and `google_drive_sync` (Zoho's built-in Google service,
+  scopes drive.file + spreadsheets, tagged Deprecated by Zoho but working),
+  CRM schedule "Copy meeting photos to Drive" every 2 hours (Zoho's floor),
+  `lookbackMinutes = 130`.
+- drive.file sees only app-created files, so the sync creates and reuses
+  its own root folder *Livewire Job Photos (CRM Sync)*
+  (`143dzFkXWASz9EI2awBfGEWNjdrhEAqP5`, Henry's My Drive) with YYYY-MM
+  subfolders. The hand-made *Livewire Job Photos* folder is unused. The
+  picker roots are that folder plus Brand Library > Job Photos.
+- Backfill: the first run (30-day lookback) copied 40 photos with bad names
+  (deal name starts with the client, and `\d` never matches in Deluge);
+  those were trashed, the log cleared, and the parser fixed. Later runs
+  copied 80+ correctly named photos (Drew Parker, Andy Stefanovich, Molly
+  Dodd, VA Medical Center, Rob Alexander).
+- Deluge lesson, now twice: never use `\d`, `\s` or `\.` in a regex
+  string; use `[0-9]`, `[ ]`, `[.]`. CRM also requires literal connection
+  link names in `invokeurl` and the function signature on line 1 with the
+  lowercase API name (`void schedule.copymeetingphotostodrive()`).
+- Final test 11:42 ET: picker email to Henry led with real synced photos
+  and crew credits ("VA Medical Center Richmond · Brandy Williams Upgrades
+  2026 · crew: Patrick Jones and Thomas Payne").
