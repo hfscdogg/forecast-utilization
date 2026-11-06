@@ -11,18 +11,41 @@ Rules:
 - Henry 2026-11-06: the card runs every Monday to show off finished work
   and credit the crews. It is NOT tied to the utilization number. The only
   bar is photo quality (NAILED_IT_MIN_SCORE, vision scoring below).
-- "Nailed It" shows a real job photo from the Livewire asset library, but
-  only one marked Finished whose customer said OK to sharing.
+- Photos come from two Drive sources, both read one folder level deep
+  (the root plus its direct subfolders, so the YYYY-MM or year layout
+  underneath does not matter):
+    1. "Livewire Job Photos" (My Drive), filled hourly by the Zoho CRM
+       sync (copyMeetingPhotosToDrive). Those files carry no description;
+       they are eligible on their file name,
+       YYYY-MM-DD_Deal####_Client_Installer_xxxxxx.ext, which also gives
+       the client (job_name) and the crew (sent_by).
+    2. The older asset-library upload form (Brand Library > Job Photos),
+       whose photos are eligible only when the description says Finished
+       and the customer OK'd sharing.
 - No photo that clears the bar and no pick from Henry means no card.
 - The 2026-11-04 "Failed It" verdict (TEAM_VERDICT_TARGET, staged gag
   images) is retired.
 """
 
 import html
+import re
 from datetime import datetime, timedelta
 
 PHOTO_MAX_AGE_DAYS = 30
 MAX_CANDIDATES = 6
+
+# Root folders the picker reads, each with its direct subfolders. Mirrors
+# PHOTO_ROOT_FOLDER_IDS in deluge/nailed_it_candidates.dg.
+PHOTO_ROOT_FOLDER_IDS = (
+    "1lKMpk79F3h69bODbW7bRR0WTvkFwp78L",  # Livewire Job Photos (CRM sync)
+    "1EgXWaKto9U39GNwNNS7mCkZR0LpBhTFO",  # Brand Library > Job Photos (upload form)
+)
+
+# File name written by the CRM sync: YYYY-MM-DD_Deal1234_Client_Installer_abc123.jpg
+_SYNC_NAME = re.compile(
+    r"^(?P<date>\d{4}-\d{2}-\d{2})_(?P<deal>Deal\w+)_(?P<client>[A-Za-z0-9-]*)_"
+    r"(?P<installer>[A-Za-z0-9-]*)_(?P<att>[A-Za-z0-9]+)\.(?P<ext>[A-Za-z0-9]+)$"
+)
 
 # Labels the asset-library upload form writes into each photo's Drive
 # description, one per line. Some carry a "?" or ":" separator and some
@@ -72,17 +95,54 @@ def parse_photo_description(description):
     return fields
 
 
+def _uncamel(s):
+    """"ClientName" -> "Client Name"; the sync strips spaces from names."""
+    return re.sub(r"(?<=[a-z0-9])(?=[A-Z])", " ", s or "").strip()
+
+
+def parse_sync_filename(name):
+    """Fields from a CRM-sync file name, or None when the name is not one.
+
+    Unknown parts (UnknownClient, UnknownInstaller, DealUnknown) come back
+    empty so the credit line skips them.
+    """
+    m = _SYNC_NAME.match(name or "")
+    if not m:
+        return None
+    client = "" if m["client"] == "UnknownClient" else _uncamel(m["client"])
+    installer = "" if m["installer"] == "UnknownInstaller" else _uncamel(m["installer"])
+    deal = "" if m["deal"] == "DealUnknown" else "Deal " + m["deal"][4:]
+    return {"job_name": client, "sent_by": installer, "installed": deal,
+            "date": m["date"], "source": "crm_sync"}
+
+
+def photo_fields(photo):
+    """Credit fields for a photo: sync file name first, else the description."""
+    synced = parse_sync_filename(photo.get("name"))
+    if synced:
+        return synced
+    fields = parse_photo_description(photo.get("description"))
+    fields["source"] = "upload_form"
+    return fields
+
+
 def is_candidate(photo, now, used_ids=(), max_age_days=PHOTO_MAX_AGE_DAYS):
-    """True when a Drive file may be offered as this week's Nailed It photo."""
+    """True when a Drive file may be offered as this week's Nailed It photo.
+
+    CRM-sync files (recognised by name) are eligible as they are: the crew
+    attached them to a finished job's meeting. Upload-form photos need the
+    Finished and consent lines in their description.
+    """
     if photo.get("id") in set(used_ids):
         return False
     if not (photo.get("mimeType") or "").startswith("image/"):
         return False
-    fields = parse_photo_description(photo.get("description"))
-    if not fields.get("stage", "").lower().startswith("finished"):
-        return False
-    if not fields.get("consent", "").lower().startswith("yes"):
-        return False
+    if parse_sync_filename(photo.get("name")) is None:
+        fields = parse_photo_description(photo.get("description"))
+        if not fields.get("stage", "").lower().startswith("finished"):
+            return False
+        if not fields.get("consent", "").lower().startswith("yes"):
+            return False
     created = photo.get("createdTime")
     if created:
         created_dt = datetime.fromisoformat(created.replace("Z", "+00:00"))
@@ -98,7 +158,7 @@ def select_candidates(photos, now, used_ids=(), limit=MAX_CANDIDATES):
     out = []
     for p in eligible[:limit]:
         item = dict(p)
-        item["fields"] = parse_photo_description(p.get("description"))
+        item["fields"] = photo_fields(p)
         out.append(item)
     return out
 
@@ -181,7 +241,9 @@ def render_nailed_block(photo=None):
     credit_bits = [html.escape(b) for b in (photo.get("job_name"), photo.get("installed")) if b]
     credit = " &middot; ".join(credit_bits)
     if photo.get("sent_by"):
-        credit = (credit + " &middot; " if credit else "") + f"photo by {html.escape(photo['sent_by'])}"
+        # An email address is the uploader; a plain name is the crew.
+        who = "photo by" if "@" in photo["sent_by"] else "crew:"
+        credit = (credit + " &middot; " if credit else "") + f"{who} {html.escape(photo['sent_by'])}"
     alt = "Nailed it: photo of recent finished Livewire work."
     accent = RF_COPPER
 

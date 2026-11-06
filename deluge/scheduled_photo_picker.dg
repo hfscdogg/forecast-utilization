@@ -90,7 +90,14 @@ void scheduled_photo_picker()
                     {
                         meta = meta + " &middot; ";
                     }
-                    meta = meta + "sent by " + c.get("sent_by");
+                    if(c.get("sent_by").contains("@"))
+                    {
+                        meta = meta + "sent by " + c.get("sent_by");
+                    }
+                    else
+                    {
+                        meta = meta + "crew: " + c.get("sent_by");
+                    }
                 }
                 score_html = "";
                 if(c.get("score") != null)

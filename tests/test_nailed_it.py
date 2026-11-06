@@ -221,3 +221,39 @@ def test_website_photo_renders_directly_in_nailed_card():
     url = WEBSITE_PHOTOS[0][0]
     html = render_nailed_block({"id": url, "job_name": "Boardroom"})
     assert f"src='{url}'" in html
+
+
+# --- CRM sync file names (Livewire Job Photos) ------------------------------
+
+from nailed_it import parse_sync_filename, photo_fields, PHOTO_ROOT_FOLDER_IDS  # noqa: E402
+
+
+def test_sync_filename_gives_client_crew_and_deal():
+    f = parse_sync_filename("2026-11-05_Deal31234_SmithResidence_BrianRedden_a1b2c3.jpg")
+    assert f == {"job_name": "Smith Residence", "sent_by": "Brian Redden",
+                 "installed": "Deal 31234", "date": "2026-11-05", "source": "crm_sync"}
+    unknown = parse_sync_filename("2026-11-05_DealUnknown_UnknownClient_UnknownInstaller_zz9.heic")
+    assert unknown["job_name"] == "" and unknown["sent_by"] == "" and unknown["installed"] == ""
+    assert parse_sync_filename("IMG_4412.jpg") is None
+    assert parse_sync_filename(None) is None
+
+
+def test_synced_photo_is_eligible_without_description_and_credits_the_crew():
+    now = datetime(2026, 11, 8, tzinfo=timezone.utc)
+    synced = {"id": "s1", "name": "2026-11-05_Deal31234_SmithResidence_BrianRedden_a1b2c3.jpg",
+              "mimeType": "image/jpeg", "createdTime": "2026-11-05T20:00:00Z"}
+    plain = {"id": "p1", "name": "IMG_4412.jpg", "mimeType": "image/jpeg",
+             "createdTime": "2026-11-05T20:00:00Z"}
+    assert is_candidate(synced, now)
+    assert not is_candidate(plain, now)
+    cands = select_candidates([synced, plain], now)
+    assert [c["id"] for c in cands] == ["s1"]
+    assert cands[0]["fields"]["sent_by"] == "Brian Redden"
+    assert photo_fields({"description": "Sent by: x@getlivewire.com"})["source"] == "upload_form"
+    html = render_nailed_block({"id": "s1", "job_name": "Smith Residence",
+                               "installed": "Deal 31234", "sent_by": "Brian Redden"})
+    assert "crew: Brian Redden" in html and "photo by" not in html
+
+
+def test_picker_reads_sync_folder_first():
+    assert PHOTO_ROOT_FOLDER_IDS[0] == "1lKMpk79F3h69bODbW7bRR0WTvkFwp78L"

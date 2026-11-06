@@ -829,3 +829,39 @@ about the quality of the photo than the team performance."
   "nailed_it_candidates: Drive library skipped"). The CRM photo sync
   targets a "Livewire Job Photos" folder, not this 2026 folder, and may not
   write the description lines the candidate filter needs.
+
+### Henry 2026-11-06 — picker reads the sync folder; no folder restructure
+
+"Redoing the directory structure right now doesn't matter because nobody
+was using it to begin with, so let's just focus on getting it right now."
+Plus: run the CRM photo sync once and run the picker as a final test.
+
+- **Two root folders, one level deep.** `nailed_it_candidates` lists the
+  direct subfolders of *Livewire Job Photos*
+  (`1lKMpk79F3h69bODbW7bRR0WTvkFwp78L`, Henry's My Drive, the sync's
+  YYYY-MM target) and of *Brand Library > Job Photos*
+  (`1EgXWaKto9U39GNwNNS7mCkZR0LpBhTFO`) and queries images across all of
+  them. The hardwired *2026* folder id is gone. Mirror:
+  `PHOTO_ROOT_FOLDER_IDS` in `nailed_it.py`.
+- **Sync files are eligible by name.** The CRM sync writes no Drive
+  description, so a file named `YYYY-MM-DD_Deal####_Client_Installer_xxxxxx.ext`
+  is eligible as is. Client becomes `job_name`, installer becomes
+  `sent_by` (CamelCase split back into words), deal becomes `installed`
+  ("Deal 31234"). `UnknownClient` / `UnknownInstaller` / `DealUnknown`
+  come through empty. Upload-form photos still need Finished + consent.
+- **Crew credit.** A `Sent_By` without "@" renders as "crew: Brian Redden"
+  in the email card and the picker email; an address still renders as
+  "photo by ...". No form change.
+- **Crew metadata from the sync (Henry's question):** the sync captures
+  the installer from the event title's third "-" segment (else the
+  attachment's Created_By), plus deal number, client and check-in city, in
+  the file name and the Job Photo Log sheet. It does not capture a crew
+  list (event participants) or a Finished / consent flag. To praise a full
+  crew, the sync would need to add the event's participants to the file
+  name or write a description line; both are small changes to
+  `copyMeetingPhotosToDrive`.
+- **Sync status 2026-11-06 09:50 ET:** not built. No
+  `copyMeetingPhotosToDrive` function in Zoho CRM, no month subfolders in
+  *Livewire Job Photos*, the Job Photo Log sheet has only its header row.
+  As specified it looks back 65 minutes with no backfill, so a first run
+  needs a one-off wider lookback to copy anything.

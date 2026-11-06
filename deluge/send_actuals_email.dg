@@ -626,7 +626,16 @@ void send_actuals_email(Map result)
             }
             if(rec.Sent_By != null && rec.Sent_By != "")
             {
-                credit_parts.add("photo by " + rec.Sent_By);
+                // An email address is the uploader; a plain name is the crew
+                // (from the CRM sync file name).
+                if(rec.Sent_By.contains("@"))
+                {
+                    credit_parts.add("photo by " + rec.Sent_By);
+                }
+                else
+                {
+                    credit_parts.add("crew: " + rec.Sent_By);
+                }
             }
             for each cp in credit_parts
             {
