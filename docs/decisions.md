@@ -969,3 +969,21 @@ should be failed images from around the internet."
 - **Creator paste still needed:** `send_actuals_email` and
   `nailed_it_candidates`. The CRM paste of `copyMeetingPhotosToDrive` is
   by hand.
+- **Deployed by hand 2026-11-06** (Henry, via Cowork):
+  - **Creator:** `send_actuals_email` and `nailed_it_candidates` were
+    replaced with the PR #56 versions and saved. After reload they match
+    the repo with whitespace ignored, apart from two Creator formatter
+    artifacts: it drops the `;` after the sendmail block's closing `]`,
+    and it lowercases the `List` return type to `list`. Neither function
+    was run. The Monday actuals and Thursday forecast schedules and
+    `ANTHROPIC_API_KEY` are untouched.
+  - **CRM:** `copyMeetingPhotosToDrive` was replaced and saved, not run.
+    `lookbackMinutes = 130`, 2-hour schedule unchanged.
+  - **CRM signature rule.** The signature line is fixed by Zoho CRM and
+    must be line 1: `void schedule.copymeetingphotostodrive()`.
+  - **Why the first paste failed.** CRM rejects anything before the
+    signature ("Improper code format"). The repo file opened with a
+    comment block and `void automation.copyMeetingPhotosToDrive()`.
+  - **Repo fixed to match.** The file now starts with the CRM signature,
+    and its header comments sit just inside the opening brace, so the
+    whole file pastes as is.
