@@ -58,6 +58,42 @@ One record per pick.
    from `assets/failed_it/` as placeholders. One image rotates in per week
    (sorted by name, week of year modulo the count).
 
+## Deploying Deluge to Creator and CRM
+
+The repo is the source of truth. Creator and CRM run whatever was last
+pasted, and nothing syncs them automatically. On 2026-11-06 the live
+`send_actuals_email` lagged main until it was re-pasted.
+
+1. **Paste the whole file** from `main` (GitHub Raw view). In Creator's
+   editor, `document.querySelector('.CodeMirror').CodeMirror.setValue(src)`
+   works. Do not edit the code while pasting.
+2. **CRM functions keep the signature on line 1**, e.g.
+   `void schedule.copymeetingphotostodrive()`. CRM rejects anything before
+   it with "Improper code format".
+3. **Save, reload, then check marker strings**, not sizes. Creator
+   reformats code, so byte or line counts never match the repo. Search the
+   reloaded editor for a line only the latest version has:
+
+| Function | Marker after reload |
+|---|---|
+| send_actuals_email | `sz=w564-h423-c` x2 and `height:211px;overflow:hidden;` x2 |
+| nailed_it_candidates | `job_name.toUpperCase() == "TBD"` |
+| nailed_it_share | `permissions(type,role)` |
+| scheduled_photo_picker | `c.get("sent_by").contains("@")` |
+| pick_nailed_photo | `actuals email.");`, and no `only if the team hits target` |
+| nailed_it_score | `return fallback;` just before the final `}` |
+| generate_actuals, generate_forecast | `SALES_ROLE_NAME = "Sales";` |
+| CRM copyMeetingPhotosToDrive | `clientKey == "TBD"` |
+
+   When a change adds a new marker, update this table in the same PR.
+4. **Expected formatter artifacts**, which are fine:
+   - Creator drops the `;` after a `sendmail [ ... ]` block's closing `]`.
+   - It sometimes lowercases the `List` return type to `list`.
+   - It strips blank lines and changes indentation.
+5. **Never run `send_actuals_email` or `scheduled_actuals` to test.** They
+   email all@getlivewire.com. Do not touch the Monday actuals or Thursday
+   forecast schedules.
+
 ## Testing without emailing everyone
 
 Never run `send_actuals_email` or `scheduled_actuals` to test: they send to
