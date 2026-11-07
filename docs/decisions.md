@@ -1092,3 +1092,20 @@ Decisions:
 - **Deploy:** re-paste `nailed_it_candidates`, `scheduled_photo_picker`
   and `send_actuals_email` after the Mon 2026-11-09 send, so that
   Monday runs on the code already checked.
+
+### 2026-11-07 — Failed It uses real, openly licensed photos (Henry)
+
+Henry asked Claude to find real Failed It photos on the web instead of the
+staged illustrations.
+
+- **Source:** Wikimedia Commons only, and only CC0, CC BY or CC BY-SA
+  photos, so no one's copyrighted photo is used without a license.
+- **Credit:** burned into each photo along the bottom edge ("Photo: name,
+  license, Wikimedia Commons"). No code change; the Failed It side still
+  has no caption.
+- **Set:** `assets/failed_it/found/`, with sources in `CREDITS.md`. Henry
+  drags them into the Drive folder (this session cannot upload images to
+  Drive reliably), then the six staged illustrations move to Drive trash.
+- **Not used:** anything showing people, anything that isn't an install
+  (a messy bedroom, a modular synthesizer) and public-domain photos from
+  the FBI's Epstein file release.
