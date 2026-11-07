@@ -14,6 +14,7 @@ Monday card (Henry 2026-11-07). Never a Livewire crew's work.
 | File | Commons page | Photographer | License |
 |---|---|---|---|
 | `failed_it_attic_wiring.jpg` | [Cable salad in attic.JPG](https://commons.wikimedia.org/wiki/File:Cable_salad_in_attic.JPG) | Dmitry G | CC BY-SA 3.0 |
+| `failed_it_dangling_switches.jpg` | [Three light switches with exposed wiring.jpg](https://commons.wikimedia.org/wiki/File:Three_light_switches_with_exposed_wiring.jpg) | Paul Cutler from Chaska, USA | CC BY 2.0 |
 | `failed_it_fibre_panel.jpg` | [Optical fibre distribution mess in France.jpg](https://commons.wikimedia.org/wiki/File:Optical_fibre_distribution_mess_in_France.jpg) | InfosReseaux | CC BY 4.0 |
 | `failed_it_floor_cables.jpg` | [Kabelsalat.jpg](https://commons.wikimedia.org/wiki/File:Kabelsalat.jpg) | Thomas Möllmann | CC BY-SA 3.0 |
 | `failed_it_hanging_breaker.jpg` | [Exposed Wall Wiring and Breaker Box.jpg](https://commons.wikimedia.org/wiki/File:Exposed_Wall_Wiring_and_Breaker_Box.jpg) | Paul The Writer | CC0 |
