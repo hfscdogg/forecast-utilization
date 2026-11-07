@@ -376,10 +376,12 @@ NAILED_IT_PICKER_TIME      = "16:00";              /* America/New_York, 24h befo
 NAILED_IT_FORM             = "Nailed_It_Photos";   /* see docs/nailed_it_photos_form_schema.md */
 
 /* Failed It contrast source: Drive folder "Failed It" under Livewire Job
- * Photos (CRM Sync), so its files inherit "anyone with the link". Humans
- * curate it with found images of other people's bad installs (seeded with
- * the six staged illustrations from assets/failed_it as placeholders);
- * never a Livewire crew's work, and Claude does not scrape the web for it.
+ * Photos (CRM Sync), so its files inherit "anyone with the link". It holds
+ * real found photos of other people's bad installs, never a Livewire
+ * crew's work. Henry 2026-11-07: only openly licensed photos (Wikimedia
+ * Commons, CC0 / CC BY / CC BY-SA), cropped to 4:3 with the credit burned
+ * in; sources in assets/failed_it/found/CREDITS.md. The staged
+ * illustrations in assets/failed_it are retired from rotation.
  * send_actuals_email lists it with the google_drive connection, sorts by
  * name and uses index ws.getWeekOfYear() % count. Its files have no
  * sync-style name and no description, so they never pass the Nailed It

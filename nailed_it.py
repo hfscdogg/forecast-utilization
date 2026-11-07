@@ -40,8 +40,9 @@ from datetime import datetime, timedelta
 PHOTO_MAX_AGE_DAYS = 30
 
 # Curated "Failed It" folder under Livewire Job Photos (CRM Sync), so its
-# files inherit "anyone with the link". Humans add found images; Claude does
-# not scrape the web for them. Mirrors NAILED_IT_FAILED_FOLDER_ID in
+# files inherit "anyone with the link". Real found photos of other people's
+# bad installs, openly licensed only (Henry 2026-11-07), credit burned into
+# each image; see assets/failed_it/found/CREDITS.md. Mirrors NAILED_IT_FAILED_FOLDER_ID in
 # deluge/config.dg and send_actuals_email.dg.
 NAILED_IT_FAILED_FOLDER_ID = "1befbCvOuzb4bFO9u3sBzVmpxsaW0Lk8W"
 MAX_CANDIDATES = 6

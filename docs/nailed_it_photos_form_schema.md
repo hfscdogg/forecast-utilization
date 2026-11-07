@@ -54,9 +54,13 @@ One record per pick.
    found images of other people's bad installs into the Drive folder
    *Failed It* (`1befbCvOuzb4bFO9u3sBzVmpxsaW0Lk8W`, under Livewire Job
    Photos (CRM Sync), so files inherit "anyone with the link"). Never a
-   Livewire crew's own work. It starts with the six staged illustrations
-   from `assets/failed_it/` as placeholders. One image rotates in per week
-   (sorted by name, week of year modulo the count).
+   Livewire crew's own work. Henry 2026-11-07: use only openly licensed
+   photos (Wikimedia Commons, CC0 / CC BY / CC BY-SA), cropped to 4:3 with
+   the photographer credit burned in along the bottom. The current set and
+   its sources are in `assets/failed_it/found/` (`CREDITS.md`). The staged
+   illustrations in `assets/failed_it/` are retired. One image rotates in
+   per week (sorted by name, week of year modulo the count). Adding or
+   removing a file needs no code change.
 
 ## Deploying Deluge to Creator and CRM
 
