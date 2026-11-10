@@ -1,0 +1,302 @@
+Map generate_quarterly(String quarter_start, String as_of)
+{
+    // Quarterly utilization rollup (Dustin 2026-11-10: he tallies the
+    // weekly actuals emails by hand for the quarterly all-hands). Python
+    // mirror: quarterly_math.py. Keep in sync.
+    //
+    // quarter_start: first day of the quarter, yyyy-MM-dd.
+    // as_of: yyyy-MM-dd. Weeks reported after this date are left out, so
+    // a quarter still in progress comes back as a "to date" rollup.
+    //
+    // Nothing is pulled from CRM or iSolved: this reads the rows the
+    // Monday run already stores in Utilization_Actuals_History and
+    // re-applies the weekly rules.
+    //
+    // A week belongs to the quarter its Monday actuals email went out in.
+    // That email goes out 9 days after the Sun-Sat lag week ends, so
+    // Q4 2026 is the 13 weeks ending Sat Sep 26 through Sat Dec 19: the
+    // same emails Dustin tallies, complete on the first of the next
+    // quarter. Keep the 9 in step with scheduled_actuals.dg.
+    REPORT_LAG_DAYS = 9;
+    // Keep these four in sync with generate_actuals.dg.
+    TECH_UTILIZATION_TARGET = 0.80;
+    SERVICE_TECH_UTILIZATION_TARGET = 0.675;
+    SERVICE_TECH_NAMES = {"Jim Zimmerman"};
+    RAMP_UP_BILLABLE_FROM = Map();
+    RAMP_UP_BILLABLE_FROM.put("Elijah Good", "2026-10-01");
+    RAMP_UP_BILLABLE_FROM.put("Cameron Lloyd", "2026-12-16");
+    RAMP_UP_BILLABLE_FROM.put("Isaiah Luna", "2026-12-20");
+    // History rows written before a name was excluded still carry it
+    // (Joshua McDonough in the 9/20-9/26 run). Sales-role users never
+    // reach the actuals history, so the name list is enough here.
+    EXCLUDED_NON_TECH_NAMES = {"Dustin Roskam", "Josh McDonough", "Joshua McDonough", "David Hicks"};
+
+    q_start = quarter_start.toDate();
+    q_end = q_start.addMonth(3).subDay(1);
+    through = as_of.toDate();
+    last_day = q_end;
+    partial = false;
+    if(through < q_end)
+    {
+        last_day = through;
+        partial = true;
+    }
+    q_num = 1;
+    q_month = q_start.getMonth();
+    if(q_month == 4)
+    {
+        q_num = 2;
+    }
+    if(q_month == 7)
+    {
+        q_num = 3;
+    }
+    if(q_month == 10)
+    {
+        q_num = 4;
+    }
+    quarter_label = "Q" + q_num + " " + q_start.getYear();
+
+    // First report Monday on or after the quarter start. getDayOfWeek:
+    // 1 = Sunday ... 7 = Saturday, so (9 - dow) % 7 is the days forward
+    // to Monday.
+    first_monday = q_start.addDay((9 - q_start.getDayOfWeek()) % 7);
+    first_week_end = first_monday.subDay(REPORT_LAG_DAYS);
+    last_week_end = last_day.subDay(REPORT_LAG_DAYS);
+
+    // Newest run first: the first row seen for a week fixes that week's
+    // run, and rows from older runs of the same week are skipped. A
+    // re-run replaces the whole week, so a tech dropped by a fix does not
+    // leak back in from the older run.
+    rows = Utilization_Actuals_History[Lag_Week_End >= first_week_end && Lag_Week_End <= last_week_end] sort by Actuals_Generated_At desc;
+
+    run_by_week = Map();
+    wk_techs = Map();
+    wk_billed = Map();
+    wk_non_billable = Map();
+    wk_paid = Map();
+    wk_util_sum = Map();
+    wk_util_count = Map();
+
+    tech_names = List();
+    t_weeks = Map();
+    t_missing = Map();
+    t_ramp = Map();
+    t_counted = Map();
+    t_on_target = Map();
+    t_billed = Map();
+    t_billed_tc = Map();
+    t_non_billable = Map();
+    t_paid = Map();
+
+    // One pass, flat maps: same shape that keeps generate_actuals.dg
+    // under Creator's statement-execution limit.
+    for each r in rows
+    {
+        wk = r.Lag_Week_End.toString("yyyy-MM-dd");
+        if(run_by_week.get(wk) == null)
+        {
+            run_by_week.put(wk, r.Run_ID);
+            wk_techs.put(wk, 0);
+            wk_billed.put(wk, 0.0);
+            wk_non_billable.put(wk, 0.0);
+            wk_paid.put(wk, 0.0);
+            wk_util_sum.put(wk, 0.0);
+            wk_util_count.put(wk, 0);
+        }
+        tn = r.Technician;
+        // Only Sun-Sat weeks count: the 2026-10-07 manual re-run stored a
+        // Tue-Mon week under the old fixed offsets.
+        if(run_by_week.get(wk) == r.Run_ID && r.Lag_Week_End.getDayOfWeek() == 7 && !EXCLUDED_NON_TECH_NAMES.contains(tn))
+        {
+            billed = ifnull(r.Hours_Billed, 0.0);
+            non_billable = ifnull(r.Non_Billable_Hours, 0.0);
+            paid = ifnull(r.Actual_Hours_Paid, 0.0);
+            util = r.Actual_Utilization;
+
+            wk_techs.put(wk, wk_techs.get(wk) + 1);
+            wk_billed.put(wk, wk_billed.get(wk) + billed);
+            wk_non_billable.put(wk, wk_non_billable.get(wk) + non_billable);
+            wk_paid.put(wk, wk_paid.get(wk) + paid);
+
+            if(t_weeks.get(tn) == null)
+            {
+                tech_names.add(tn);
+                t_weeks.put(tn, 0);
+                t_missing.put(tn, 0);
+                t_ramp.put(tn, 0);
+                t_counted.put(tn, 0);
+                t_on_target.put(tn, 0);
+                t_billed.put(tn, 0.0);
+                t_billed_tc.put(tn, 0.0);
+                t_non_billable.put(tn, 0.0);
+                t_paid.put(tn, 0.0);
+            }
+            t_weeks.put(tn, t_weeks.get(tn) + 1);
+            t_billed.put(tn, t_billed.get(tn) + billed);
+            t_non_billable.put(tn, t_non_billable.get(tn) + non_billable);
+            t_paid.put(tn, t_paid.get(tn) + paid);
+
+            if(util == null)
+            {
+                // Timecard missing (or iSolved pending) that week: the
+                // hours stay in the totals, the week stays out of every
+                // percentage.
+                t_missing.put(tn, t_missing.get(tn) + 1);
+            }
+            else
+            {
+                t_billed_tc.put(tn, t_billed_tc.get(tn) + billed);
+                billable_from = RAMP_UP_BILLABLE_FROM.get(tn);
+                if(billable_from != null && r.Lag_Week_End < billable_from.toDate())
+                {
+                    // Ramp-up week: out of the company mean and the
+                    // on-target count, same as the weekly email.
+                    t_ramp.put(tn, t_ramp.get(tn) + 1);
+                }
+                else
+                {
+                    wk_util_sum.put(wk, wk_util_sum.get(wk) + util);
+                    wk_util_count.put(wk, wk_util_count.get(wk) + 1);
+                    t_counted.put(tn, t_counted.get(tn) + 1);
+                    tech_target = TECH_UTILIZATION_TARGET;
+                    if(SERVICE_TECH_NAMES.contains(tn))
+                    {
+                        tech_target = SERVICE_TECH_UTILIZATION_TARGET;
+                    }
+                    if(util >= tech_target)
+                    {
+                        t_on_target.put(tn, t_on_target.get(tn) + 1);
+                    }
+                }
+            }
+        }
+    }
+
+    // Weeks in report order, with the gaps named. A quarter has 13 or 14
+    // report Mondays.
+    weeks = List();
+    missing_week_ends = List();
+    weeks_expected = 0;
+    total_billable = 0.0;
+    total_non_billable = 0.0;
+    total_paid = 0.0;
+    company_sum = 0.0;
+    company_count = 0;
+    best_week = null;
+    low_week = null;
+    for each i in {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13}
+    {
+        monday = first_monday.addDay(i * 7);
+        if(monday <= last_day)
+        {
+            weeks_expected = weeks_expected + 1;
+            we = monday.subDay(REPORT_LAG_DAYS);
+            wk = we.toString("yyyy-MM-dd");
+            if(wk_techs.get(wk) == null || wk_techs.get(wk) == 0)
+            {
+                missing_week_ends.add(wk);
+            }
+            else
+            {
+                w = Map();
+                w.put("week_start", we.subDay(6).toString("yyyy-MM-dd"));
+                w.put("week_end", wk);
+                w.put("tech_count", wk_techs.get(wk));
+                w.put("total_billable", wk_billed.get(wk));
+                w.put("total_non_billable", wk_non_billable.get(wk));
+                w.put("total_actual_hours_paid", wk_paid.get(wk));
+                total_billable = total_billable + wk_billed.get(wk);
+                total_non_billable = total_non_billable + wk_non_billable.get(wk);
+                total_paid = total_paid + wk_paid.get(wk);
+                if(wk_util_count.get(wk) > 0)
+                {
+                    wk_util = wk_util_sum.get(wk) / wk_util_count.get(wk);
+                    w.put("company_utilization", wk_util);
+                    company_sum = company_sum + wk_util;
+                    company_count = company_count + 1;
+                    if(best_week == null || wk_util > best_week.get("company_utilization"))
+                    {
+                        best_week = w;
+                    }
+                    if(low_week == null || wk_util < low_week.get("company_utilization"))
+                    {
+                        low_week = w;
+                    }
+                }
+                else
+                {
+                    w.put("company_utilization", null);
+                }
+                weeks.add(w);
+            }
+        }
+    }
+
+    techs = List();
+    for each tn in tech_names
+    {
+        t = Map();
+        t.put("technician", tn);
+        tech_target = TECH_UTILIZATION_TARGET;
+        if(SERVICE_TECH_NAMES.contains(tn))
+        {
+            tech_target = SERVICE_TECH_UTILIZATION_TARGET;
+        }
+        t.put("target", tech_target);
+        t.put("weeks_reported", t_weeks.get(tn));
+        t.put("weeks_missing_timecard", t_missing.get(tn));
+        t.put("ramp_up_weeks", t_ramp.get(tn));
+        t.put("weeks_counted", t_counted.get(tn));
+        t.put("weeks_on_target", t_on_target.get(tn));
+        t.put("hours_billed", t_billed.get(tn));
+        t.put("non_billable_hours", t_non_billable.get(tn));
+        t.put("actual_hours_paid", t_paid.get(tn));
+        t.put("billable_from", null);
+        if(t_ramp.get(tn) > 0)
+        {
+            t.put("billable_from", RAMP_UP_BILLABLE_FROM.get(tn));
+        }
+        // Hours-weighted over the weeks that had a timecard, so a short
+        // week does not count as much as a full one.
+        if(t_paid.get(tn) > 0)
+        {
+            t.put("utilization", t_billed_tc.get(tn) / t_paid.get(tn));
+        }
+        else
+        {
+            t.put("utilization", null);
+        }
+        techs.add(t);
+    }
+
+    rollup = Map();
+    rollup.put("weeks_expected", weeks_expected);
+    rollup.put("weeks_reported", weeks.size());
+    rollup.put("missing_week_ends", missing_week_ends);
+    rollup.put("total_billable", total_billable);
+    rollup.put("total_non_billable", total_non_billable);
+    rollup.put("total_actual_hours_paid", total_paid);
+    // Mean of the weekly company numbers: what tallying the weekly
+    // emails gives.
+    if(company_count > 0)
+    {
+        rollup.put("company_utilization", company_sum / company_count);
+    }
+    else
+    {
+        rollup.put("company_utilization", null);
+    }
+    rollup.put("best_week", best_week);
+    rollup.put("low_week", low_week);
+
+    result = Map();
+    result.put("quarter_label", quarter_label);
+    result.put("quarter_start", q_start.toString("yyyy-MM-dd"));
+    result.put("quarter_end", q_end.toString("yyyy-MM-dd"));
+    result.put("partial", partial);
+    result.put("weeks", weeks);
+    result.put("techs", techs);
+    result.put("rollup", rollup);
+    return result;
+}

@@ -1,0 +1,220 @@
+void send_quarterly_email(Map result, String email_to)
+{
+    // Quarterly utilization email. Python mirror:
+    // quarterly_email_template.py. Keep in sync. Plain report styling,
+    // same as the weekly actuals table; no Raving Fan or photo cards.
+    BRAND_PRIMARY_COLOR = "#222222";
+    BRAND_TABLE_BORDER = "#dddddd";
+    BRAND_TABLE_HEADER_BG = "#f4f4f4";
+    BRAND_PENDING_BG = "#fff8e1";
+    BRAND_FONT_STACK = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif";
+    PLACEHOLDER = "&mdash;";
+    EMAIL_SENDER = "henry@getlivewire.com";
+
+    weeks = result.get("weeks");
+    techs = result.get("techs");
+    rollup = result.get("rollup");
+    title = "Quarterly Utilization for " + result.get("quarter_label");
+    if(result.get("partial") == true)
+    {
+        title = title + " to date";
+    }
+
+    // By week.
+    week_rows_html = "";
+    for each w in weeks
+    {
+        wu_disp = PLACEHOLDER;
+        if(w.get("company_utilization") != null)
+        {
+            wu_disp = (w.get("company_utilization") * 100).round(2) + "%";
+        }
+        week_rows_html = week_rows_html +
+            "<tr>" +
+            "<td>" + w.get("week_start").toDate().toString("MMM d") + " to " + w.get("week_end").toDate().toString("MMM d") + "</td>" +
+            "<td style='text-align:right'>" + w.get("tech_count") + "</td>" +
+            "<td style='text-align:right'>" + w.get("total_billable").round(2) + "</td>" +
+            "<td style='text-align:right'>" + w.get("total_actual_hours_paid").round(2) + "</td>" +
+            "<td style='text-align:right'>" + w.get("total_non_billable").round(2) + "</td>" +
+            "<td style='text-align:right'><strong>" + wu_disp + "</strong></td>" +
+            "</tr>";
+    }
+
+    // By technician, highest quarter utilization first; techs with no
+    // timecard hours sink to the bottom.
+    sorted_techs = List();
+    for each t in techs
+    {
+        inserted = false;
+        new_sorted = List();
+        t_key = t.get("utilization");
+        if(t_key == null)
+        {
+            t_key = -1;
+        }
+        for each existing in sorted_techs
+        {
+            e_key = existing.get("utilization");
+            if(e_key == null)
+            {
+                e_key = -1;
+            }
+            if(!inserted && t_key > e_key)
+            {
+                new_sorted.add(t);
+                inserted = true;
+            }
+            new_sorted.add(existing);
+        }
+        if(!inserted)
+        {
+            new_sorted.add(t);
+        }
+        sorted_techs = new_sorted;
+    }
+
+    tech_rows_html = "";
+    for each t in sorted_techs
+    {
+        tu_disp = PLACEHOLDER;
+        if(t.get("utilization") != null)
+        {
+            tu_disp = (t.get("utilization") * 100).round(2) + "%";
+        }
+        on_target_disp = PLACEHOLDER;
+        if(t.get("weeks_counted") > 0)
+        {
+            on_target_disp = t.get("weeks_on_target") + " of " + t.get("weeks_counted");
+        }
+        notes = "";
+        if(t.get("ramp_up_weeks") > 0)
+        {
+            notes = "ramp-up, counts from " + t.get("billable_from") + " (" + t.get("ramp_up_weeks") + " wk left out of the company average)";
+        }
+        if(t.get("weeks_missing_timecard") > 0)
+        {
+            if(notes != "")
+            {
+                notes = notes + "; ";
+            }
+            notes = notes + t.get("weeks_missing_timecard") + " wk with no timecard, left out of the percentage";
+        }
+        tech_rows_html = tech_rows_html +
+            "<tr>" +
+            "<td>" + t.get("technician") + "</td>" +
+            "<td style='text-align:right'>" + t.get("weeks_reported") + "</td>" +
+            "<td style='text-align:right'>" + t.get("hours_billed").round(2) + "</td>" +
+            "<td style='text-align:right'>" + t.get("actual_hours_paid").round(2) + "</td>" +
+            "<td style='text-align:right'><strong>" + tu_disp + "</strong></td>" +
+            "<td style='text-align:right'>" + (t.get("target") * 100).round(2) + "%</td>" +
+            "<td style='text-align:right'>" + on_target_disp + "</td>" +
+            "<td style='text-align:right'>" + t.get("non_billable_hours").round(2) + "</td>" +
+            "<td style='font-size:11px;color:#666'>" + notes + "</td>" +
+            "</tr>";
+    }
+
+    company_disp = PLACEHOLDER;
+    if(rollup.get("company_utilization") != null)
+    {
+        company_disp = (rollup.get("company_utilization") * 100).round(2) + "%";
+    }
+    span_text = "";
+    if(weeks.size() > 0)
+    {
+        span_text = " (weeks of " + weeks.get(0).get("week_start").toDate().toString("EEE MMM d") + " through " + weeks.get(weeks.size() - 1).get("week_end").toDate().toString("EEE MMM d") + ")";
+    }
+    lead_in = "<p>Across the <strong>" + rollup.get("weeks_reported") + "</strong> weekly actuals reports sent in " + result.get("quarter_label") + span_text +
+        ", company utilization averaged <strong>" + company_disp + "</strong>. We billed <strong>" + rollup.get("total_billable").round(2) +
+        "</strong> hours against <strong>" + rollup.get("total_actual_hours_paid").round(2) + "</strong> actual hours paid, with <strong>" +
+        rollup.get("total_non_billable").round(2) + "</strong> non-billable hours.</p>";
+
+    range_line = "";
+    best_week = rollup.get("best_week");
+    low_week = rollup.get("low_week");
+    if(best_week != null && low_week != null && weeks.size() > 1)
+    {
+        range_line = "<p>Best week: <strong>" + best_week.get("week_start").toDate().toString("MMM d") + " to " + best_week.get("week_end").toDate().toString("MMM d") + "</strong> at <strong>" +
+            (best_week.get("company_utilization") * 100).round(2) + "%</strong>. Lowest week: <strong>" +
+            low_week.get("week_start").toDate().toString("MMM d") + " to " + low_week.get("week_end").toDate().toString("MMM d") + "</strong> at <strong>" +
+            (low_week.get("company_utilization") * 100).round(2) + "%</strong>.</p>";
+    }
+
+    banner = "";
+    missing = rollup.get("missing_week_ends");
+    if(missing.size() > 0)
+    {
+        missing_text = "";
+        for each m in missing
+        {
+            if(missing_text != "")
+            {
+                missing_text = missing_text + ", ";
+            }
+            missing_text = missing_text + m.toDate().toString("MMM d");
+        }
+        banner = "<p style='background:" + BRAND_PENDING_BG + ";padding:10px 14px;border-left:3px solid #d4a017;font-size:13px;'>" +
+            "<strong>Weeks missing:</strong> no stored actuals for the week ending " + missing_text +
+            ". This rollup covers " + rollup.get("weeks_reported") + " of " + rollup.get("weeks_expected") + " weeks.</p>";
+    }
+
+    method_note = "<p style='font-size:12px;color:#666;'>How this is figured: a week counts in the quarter its Monday actuals email went out, so every weekly email lands in exactly one quarter. " +
+        "Company utilization is the average of the weekly company numbers from those emails. A technician's quarter utilization is hours billed divided by actual hours paid over the quarter. " +
+        "Ramp-up weeks and weeks with no timecard are left out of the company average, same as the weekly report. If a week was re-run, the latest run is used.</p>";
+
+    html = "<!DOCTYPE html>" +
+        "<html><head><meta charset='utf-8'>" +
+        "<title>" + title + "</title>" +
+        "<style>" +
+        "body { font-family: " + BRAND_FONT_STACK + "; color: " + BRAND_PRIMARY_COLOR + "; max-width: 880px; margin: 24px auto; padding: 0 16px; }" +
+        "h2 { margin-top: 0; font-size: 18px; }" +
+        "h3 { margin: 24px 0 0; font-size: 15px; }" +
+        "p { line-height: 1.5; font-size: 14px; }" +
+        "table.actuals { border-collapse: collapse; width: 100%; margin-top: 12px; font-size: 13px; }" +
+        "table.actuals th, table.actuals td { border: 1px solid " + BRAND_TABLE_BORDER + "; padding: 8px 10px; }" +
+        "table.actuals th { background: " + BRAND_TABLE_HEADER_BG + "; text-align: left; font-weight: 600; }" +
+        "table.actuals tfoot td { font-weight: 600; background: " + BRAND_TABLE_HEADER_BG + "; }" +
+        "</style></head><body>" +
+        "<h2>" + title + "</h2>" +
+        banner +
+        lead_in +
+        range_line +
+        "<h3>By week</h3>" +
+        "<table class='actuals'><thead><tr>" +
+        "<th>Week</th>" +
+        "<th style='text-align:right'>Technicians</th>" +
+        "<th style='text-align:right'>Hours Billed</th>" +
+        "<th style='text-align:right'>Actual Hours Paid</th>" +
+        "<th style='text-align:right'>Non-Billable Hours</th>" +
+        "<th style='text-align:right'>Company Utilization</th>" +
+        "</tr></thead><tbody>" + week_rows_html + "</tbody>" +
+        "<tfoot><tr>" +
+        "<td>Quarter</td>" +
+        "<td></td>" +
+        "<td style='text-align:right'>" + rollup.get("total_billable").round(2) + "</td>" +
+        "<td style='text-align:right'>" + rollup.get("total_actual_hours_paid").round(2) + "</td>" +
+        "<td style='text-align:right'>" + rollup.get("total_non_billable").round(2) + "</td>" +
+        "<td style='text-align:right'>" + company_disp + "</td>" +
+        "</tr></tfoot></table>" +
+        "<h3>By technician</h3>" +
+        "<table class='actuals'><thead><tr>" +
+        "<th>Technician</th>" +
+        "<th style='text-align:right'>Weeks</th>" +
+        "<th style='text-align:right'>Hours Billed</th>" +
+        "<th style='text-align:right'>Actual Hours Paid</th>" +
+        "<th style='text-align:right'>Quarter Utilization</th>" +
+        "<th style='text-align:right'>Target</th>" +
+        "<th style='text-align:right'>Weeks On Target</th>" +
+        "<th style='text-align:right'>Non-Billable Hours</th>" +
+        "<th>Notes</th>" +
+        "</tr></thead><tbody>" + tech_rows_html + "</tbody></table>" +
+        method_note +
+        "</body></html>";
+
+    sendmail
+    [
+        from: EMAIL_SENDER
+        to: email_to
+        subject: title
+        message: html
+    ];
+}

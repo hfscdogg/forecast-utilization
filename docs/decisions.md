@@ -1109,3 +1109,61 @@ staged illustrations.
 - **Not used:** anything showing people, anything that isn't an install
   (a messy bedroom, a modular synthesizer) and public-domain photos from
   the FBI's Epstein file release.
+
+## 2026-11-10 — Dustin: quarterly utilization report
+
+Dustin (email, Stacy on the thread): "Can you create a secondary report
+that stores this data for quarterly use, or does one already exist?
+Normally I tally these up manually for the all hands meeting." On timing:
+"set it to the first of the month at the start of each quarter. Since we
+are currently in Q4, the next one should come out on Jan 1st or 2nd and
+then every 90 days afterward."
+
+- **The data is already stored.** Every Monday run writes one row per tech
+  to `Utilization_Actuals_History`. The quarterly report reads those rows;
+  it pulls nothing new from CRM or iSolved and adds no form.
+- **New functions**: `generate_quarterly.dg` (rollup),
+  `send_quarterly_email.dg`, `scheduled_quarterly.dg` and
+  `run_quarterly_now.dg`. Python mirrors: `quarterly_math.py` and
+  `quarterly_email_template.py`.
+- **Schedule**: Jan 1, Apr 1, Jul 1 and Oct 1, not a literal 90 days (that
+  would drift off the 1st). Creator has no quarterly repeat, so the
+  schedule is monthly on day 1 and `scheduled_quarterly` returns without
+  sending in the other eight months. First send: 2027-01-01, for Q4 2026.
+- **Recipients**: Dustin, Stacy and Henry, not `all@getlivewire.com`. It is
+  prep for the all-hands. ASSUMED, not stated by Dustin; one constant in
+  `scheduled_quarterly.dg`.
+- **Which weeks are in a quarter** (ASSUMED, confirm with Dustin): a week
+  counts in the quarter its Monday actuals email went out. With the 9-day
+  lag, Q4 2026 is the 13 weeks ending Sat Sep 26 through Sat Dec 19. That
+  is the set of emails Dustin tallies, every week lands in exactly one
+  quarter, and the report is complete on the 1st. Strict calendar-quarter
+  weeks would always be missing the final week on the 1st (the week ending
+  Dec 26 is not reported until Mon Jan 4).
+- **Company number** (ASSUMED, confirm with Dustin): the average of the
+  weekly company utilization numbers, each recomputed with the weekly
+  rules (mean of per-tech utilization, ramp-up and missing-timecard rows
+  left out). Verified against the 2026-11-09 email: 78.69% for Oct 25-31.
+- **Per-tech number**: hours billed / actual hours paid over the quarter
+  (hours-weighted), plus weeks at or above target out of weeks counted.
+- **History hygiene**: the latest run per week wins, whole run at a time.
+  Weeks that do not end on a Saturday are ignored (the 2026-10-07 re-run
+  stored a Tue-Mon week). Names in `EXCLUDED_NON_TECH_NAMES` are dropped
+  (Joshua McDonough is in the 9/20-9/26 rows).
+- **Known gap**: the history form does not store the ramp-up flag, so
+  `generate_quarterly.dg` carries its own copy of `RAMP_UP_BILLABLE_FROM`,
+  the targets and `SERVICE_TECH_NAMES`. A new hire or a target change now
+  has to be made in three files (both generators and this one).
+- **Known gap**: Q4 2026 history starts with whatever the Monday runs
+  stored. A week whose run failed and was never re-run shows in the
+  "Weeks missing" banner and is left out of the average.
+
+Deploy (Creator, by hand):
+1. Create functions `generate_quarterly`, `send_quarterly_email`,
+   `scheduled_quarterly` and `run_quarterly_now` and paste each file from
+   `deluge/` unchanged.
+2. Execute `run_quarterly_now`. It emails Henry only: Q4 2026 to date.
+   Check the Oct 25-31 row reads 78.69%.
+3. Add a schedule "Quarterly Utilization": monthly, day 1, 8:00 AM,
+   `America/New_York`, action `thisapp.scheduled_quarterly();`. Do not
+   touch the Monday or Thursday schedules.

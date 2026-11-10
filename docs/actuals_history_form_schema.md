@@ -53,3 +53,10 @@ uses Deluge's native `insert into Utilization_Actuals_History [ ... ]`
 syntax (same reason as the forecast history form: `zoho.creator.createRecord`
 on this tenant requires the 6-arg signature, while `insert into` runs
 without a connection in the function's own auth context).
+
+## Quarterly rollup
+
+`generate_quarterly.dg` reads this form to build the quarterly utilization
+email (Dustin 2026-11-10). It fetches by `Lag_Week_End`, takes the latest
+`Run_ID` per week and ignores weeks that do not end on a Saturday. See
+`docs/decisions.md` (2026-11-10) for the rules.
