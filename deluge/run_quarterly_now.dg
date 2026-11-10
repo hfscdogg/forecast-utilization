@@ -1,0 +1,66 @@
+void run_quarterly_now()
+{
+    FAILURE_ALERT_TO = "henry@getlivewire.com";
+    FAILURE_ALERT_FROM = "henry@getlivewire.com";
+    // Preview only: goes to Henry, never the scheduled distribution.
+    EMAIL_TO = "henry@getlivewire.com";
+
+    try
+    {
+        // Manual quarterly run for any day. Reports the quarter in
+        // progress "to date" (the weekly reports sent so far this
+        // quarter). In the first days of a quarter, before its first
+        // Monday report, it falls back to the quarter that just ended.
+        // scheduled_quarterly is the one that sends to Dustin and Stacy.
+        today = zoho.currenttime.toDate();
+        today_str = today.toString("yyyy-MM-dd");
+        m = today.getMonth();
+        qm = 1;
+        if(m >= 4)
+        {
+            qm = 4;
+        }
+        if(m >= 7)
+        {
+            qm = 7;
+        }
+        if(m >= 10)
+        {
+            qm = 10;
+        }
+        mm = qm + "";
+        if(qm < 10)
+        {
+            mm = "0" + qm;
+        }
+        this_quarter_start = (today.getYear() + "-" + mm + "-01").toDate();
+
+        result = thisapp.generate_quarterly(this_quarter_start.toString("yyyy-MM-dd"), today_str);
+        if(result.get("rollup").get("weeks_reported") == 0)
+        {
+            result = thisapp.generate_quarterly(this_quarter_start.subMonth(3).toString("yyyy-MM-dd"), today_str);
+        }
+        if(result.get("rollup").get("weeks_reported") == 0)
+        {
+            info "Manual quarterly run: no stored actuals for this quarter or the last one. Nothing sent.";
+        }
+        else
+        {
+            thisapp.send_quarterly_email(result, EMAIL_TO);
+            info "Manual quarterly run complete for " + result.get("quarter_label") + ": " +
+                result.get("rollup").get("weeks_reported") + " of " +
+                result.get("rollup").get("weeks_expected") + " weeks, " +
+                result.get("techs").size() + " techs.";
+        }
+    }
+    catch (e)
+    {
+        sendmail
+        [
+            from: FAILURE_ALERT_FROM
+            to: FAILURE_ALERT_TO
+            subject: "Quarterly Utilization manual run FAILED"
+            message: "The manual quarterly run errored. Trace:\n\n" + e.toString()
+        ];
+    }
+}

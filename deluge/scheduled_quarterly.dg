@@ -1,0 +1,65 @@
+void scheduled_quarterly()
+{
+    FAILURE_ALERT_TO = "henry@getlivewire.com";
+    FAILURE_ALERT_FROM = "henry@getlivewire.com";
+    // Dustin asked for this for his quarterly all-hands prep (2026-11-10,
+    // Stacy on the thread). It goes to the three of them, not
+    // all@getlivewire.com: the all-hands is where the team sees it.
+    EMAIL_TO = "dustin@getlivewire.com, stacy@getlivewire.com, henry@getlivewire.com";
+
+    try
+    {
+        // Dustin 2026-11-10: "set it to the first of the month at the
+        // start of each quarter", first one Jan 1 2027. Creator schedule:
+        // monthly on day 1, America/New_York. Creator has no quarterly
+        // repeat, so this returns without sending in the other eight
+        // months. Executed by hand any day of Jan, Apr, Jul or Oct it
+        // sends the same completed-quarter report.
+        today = zoho.currenttime.toDate();
+        m = today.getMonth();
+        if(m == 1 || m == 4 || m == 7 || m == 10)
+        {
+            mm = m + "";
+            if(m < 10)
+            {
+                mm = "0" + m;
+            }
+            this_quarter_start = (today.getYear() + "-" + mm + "-01").toDate();
+            quarter_start = this_quarter_start.subMonth(3).toString("yyyy-MM-dd");
+
+            result = thisapp.generate_quarterly(quarter_start, today.toString("yyyy-MM-dd"));
+            if(result.get("rollup").get("weeks_reported") == 0)
+            {
+                sendmail
+                [
+                    from: FAILURE_ALERT_FROM
+                    to: FAILURE_ALERT_TO
+                    subject: "Quarterly Utilization not sent: no stored actuals"
+                    message: "Utilization_Actuals_History has no rows for " + result.get("quarter_label") + ", so the quarterly report was not sent."
+                ];
+            }
+            else
+            {
+                thisapp.send_quarterly_email(result, EMAIL_TO);
+                info "Quarterly run complete for " + result.get("quarter_label") + ": " +
+                    result.get("rollup").get("weeks_reported") + " of " +
+                    result.get("rollup").get("weeks_expected") + " weeks, " +
+                    result.get("techs").size() + " techs.";
+            }
+        }
+        else
+        {
+            info "Quarterly run skipped: month " + m + " does not start a quarter.";
+        }
+    }
+    catch (e)
+    {
+        sendmail
+        [
+            from: FAILURE_ALERT_FROM
+            to: FAILURE_ALERT_TO
+            subject: "Quarterly Utilization automation FAILED"
+            message: "The scheduled quarterly run errored. Trace:\n\n" + e.toString()
+        ];
+    }
+}
