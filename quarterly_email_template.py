@@ -75,6 +75,15 @@ def render_quarterly_email(summary):
         for w in weeks
     )
 
+    month_rows = "".join(
+        "<tr>"
+        f"<td>{m['month']}</td>"
+        f"<td style='text-align:right'>{m['weeks_reported']}</td>"
+        f"<td style='text-align:right'><strong>{_pct(m['average_utilization'])}</strong></td>"
+        "</tr>"
+        for m in summary["months"]
+    )
+
     tech_rows = ""
     for t in summary["techs"]:
         on_target = PLACEHOLDER
@@ -135,8 +144,9 @@ def render_quarterly_email(summary):
     method_note = (
         "<p style='font-size:12px;color:#666;'>How this is figured: a week counts in "
         "the quarter its Monday actuals email went out, so every weekly email lands in "
-        "exactly one quarter. Company utilization is the average of the weekly company "
-        "numbers from those emails. A technician's quarter utilization is hours billed "
+        "exactly one quarter and one month. Company utilization is the weekly company "
+        "numbers averaged within each month, then the monthly averages averaged for the "
+        "quarter. A technician's quarter utilization is hours billed "
         "divided by actual hours paid over the quarter. Ramp-up weeks and weeks with no "
         "timecard are left out of the company average, same as the weekly report. If a "
         "week was re-run, the latest run is used.</p>"
@@ -156,6 +166,15 @@ def render_quarterly_email(summary):
         "</style></head><body>"
         f"<h2>{title}</h2>"
         f"{banner}{lead_in}{range_line}"
+        "<h3>By month</h3>"
+        "<table class='actuals'><thead><tr>"
+        "<th>Month</th>"
+        "<th style='text-align:right'>Weekly Reports</th>"
+        "<th style='text-align:right'>Average Utilization</th>"
+        f"</tr></thead><tbody>{month_rows}</tbody>"
+        "<tfoot><tr><td>Quarter</td><td></td>"
+        f"<td style='text-align:right'>{_pct(rollup['company_utilization'])}</td>"
+        "</tr></tfoot></table>"
         "<h3>By week</h3>"
         "<table class='actuals'><thead><tr>"
         "<th>Week</th>"
@@ -169,7 +188,7 @@ def render_quarterly_email(summary):
         f"<td style='text-align:right'>{_hrs(rollup['total_billable'])}</td>"
         f"<td style='text-align:right'>{_hrs(rollup['total_actual_hours_paid'])}</td>"
         f"<td style='text-align:right'>{_hrs(rollup['total_non_billable'])}</td>"
-        f"<td style='text-align:right'>{_pct(rollup['company_utilization'])}</td>"
+        "<td></td>"
         "</tr></tfoot></table>"
         "<h3>By technician</h3>"
         "<table class='actuals'><thead><tr>"

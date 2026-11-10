@@ -1133,17 +1133,18 @@ then every 90 days afterward."
 - **Recipients**: Dustin, Stacy and Henry, not `all@getlivewire.com`. It is
   prep for the all-hands. ASSUMED, not stated by Dustin; one constant in
   `scheduled_quarterly.dg`.
-- **Which weeks are in a quarter** (ASSUMED, confirm with Dustin): a week
+- **Which weeks are in a quarter** (CONFIRMED by Dustin 2026-11-10: "That
+  sounds right to me"): a week
   counts in the quarter its Monday actuals email went out. With the 9-day
   lag, Q4 2026 is the 13 weeks ending Sat Sep 26 through Sat Dec 19. That
   is the set of emails Dustin tallies, every week lands in exactly one
   quarter, and the report is complete on the 1st. Strict calendar-quarter
   weeks would always be missing the final week on the 1st (the week ending
   Dec 26 is not reported until Mon Jan 4).
-- **Company number** (ASSUMED, confirm with Dustin): the average of the
-  weekly company utilization numbers, each recomputed with the weekly
-  rules (mean of per-tech utilization, ramp-up and missing-timecard rows
-  left out). Verified against the 2026-11-09 email: 78.69% for Oct 25-31.
+- **Company number** (SUPERSEDED the same day, see "Dustin's reply"
+  below): first built as the plain average of the weekly company
+  utilization numbers, each recomputed with the weekly rules (mean of
+  per-tech utilization, ramp-up and missing-timecard rows left out).
 - **Per-tech number**: hours billed / actual hours paid over the quarter
   (hours-weighted), plus weeks at or above target out of weeks counted.
 - **History hygiene**: the latest run per week wins, whole run at a time.
@@ -1199,22 +1200,58 @@ Hours Billed, Actual Hours Paid and the per-tech quarter utilization are
 unaffected (they come from the hours fields, which are fine at two
 decimals). The quarter headline of 71.90% carries the same error.
 
-Proposed fix (not made; Henry said no code changes yet): in
+Proposed fix (made later the same day, see the next section): in
 `generate_quarterly.dg`, keep using a null `Actual_Utilization` as the
 missing-timecard flag but compute the week's utilization as
 `Hours_Billed / Actual_Hours_Paid`. Same change in `quarterly_math.py`
 plus a test with rounded stored values. Requires a re-paste of
 `generate_quarterly` only.
 
+### 2026-11-10 — Dustin's reply; rounding fixed (code changed after the deploy)
+
+Dustin, 2026-11-10 1:00 PM, on the two questions:
+
+1. Which weeks count: "That sounds right to me."
+2. The company number: "I count the weekly utilizations for each month,
+   add them, then divide by X (where X is the number of weeks in that
+   month). Then, I take the three results for the quarter, add them, and
+   divide by 3 to get the utilization average."
+
+Changes:
+- **Company number is now Dustin's tally**: weekly company numbers
+  averaged within each month, then the mean of the monthly averages. The
+  email has a new "By month" table showing the three averages and the
+  quarter number.
+- **Which month a week belongs to** (ASSUMED, Dustin did not say): the
+  month its Monday email went out, the same rule that puts it in the
+  quarter. Q4 2026 is 4 October weeks, 5 November weeks and 4 December
+  weeks. A month whose weeks all lack a company number is left out of
+  the quarter mean.
+- **Rounding defect fixed**: a tech's weekly utilization is recomputed as
+  `Hours_Billed / Actual_Hours_Paid`; the stored `Actual_Utilization` is
+  read only for null. Tests now feed the rounded values Creator stores.
+  Residual: the hours are stored to two decimals as well, so a week can
+  still sit 0.01 of a point off its weekly email (Sep 27 to Oct 3
+  recomputes to 73.21% against the email's 73.22%).
+
+**CREATOR IS NOW STALE for two functions. Re-paste both:**
+
+| Function | In Creator (pasted 2026-11-10) | On the branch now |
+|---|---|---|
+| `generate_quarterly` | `ca241882...` | `65042350966416c8a70c44d15e582cd25944730dcd64e0bfc72026feef3e3dbb` |
+| `send_quarterly_email` | `ee05b14f...` | `c9c294a148e348512c491f0edf3fd0524814280b6df88187873c39c100030100` |
+| `scheduled_quarterly` | unchanged | `f0f2bc15b4eddd8d89befb601bfb07fe0e3b5556ebf703aa6b4a55af865adb93` |
+| `run_quarterly_now` | unchanged | `d74f9b575a4a149adf320bf67e28170ba2505bd3cc3111715d56600475fe1b3d` |
+
+Signatures are unchanged. The new Deluge has not run in Creator.
+
 Remaining steps:
-1. Fix the rounding defect above, re-paste `generate_quarterly`, re-run
-   `run_quarterly_now` and confirm Oct 25-31 reads 78.69% and Sep 27 to
-   Oct 3 reads 73.22%.
-2. Get Dustin's answers on which weeks count and how the company number
-   is figured (asked by email 2026-11-10). Change the code if he tallies
-   differently, then re-paste.
-3. Merge PR #62 so `main` has the files.
-4. Add the Creator schedule "Quarterly Utilization": monthly, day 1,
+1. Re-paste `generate_quarterly` and `send_quarterly_email`, then execute
+   `run_quarterly_now` (Henry only). Check: Oct 25-31 reads 78.69%, Sep
+   27 to Oct 3 reads 73.21% or 73.22%, and the "By month" table shows
+   October (4 weeks) and November (2 weeks).
+2. Merge PR #62 so `main` has the files.
+3. Add the Creator schedule "Quarterly Utilization": monthly, day 1,
    8:00 AM, `America/New_York`, action `thisapp.scheduled_quarterly();`.
    Do not touch the Monday or Thursday schedules. `scheduled_quarterly`
    has never been executed; its first real run is 2027-01-01.

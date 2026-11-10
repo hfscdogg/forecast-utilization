@@ -24,8 +24,18 @@ Rules (docs/decisions.md, 2026-11-10):
   re-run stored a Tue-Mon week under the old fixed offsets).
 - Weekly company utilization is the mean of per-tech utilizations, with
   ramp-up techs and missing-timecard rows left out, same as the weekly
-  email. The quarter's company number is the mean of those weekly numbers,
-  which is what tallying the emails gives.
+  email.
+- A tech's weekly utilization is recomputed as hours billed / actual hours
+  paid. The stored Actual_Utilization keeps two decimals, so 0.9663 comes
+  back as 0.97; averaging the stored values put Oct 25-31 at 78.86% when
+  the weekly email said 78.69% (found in the 2026-11-10 preview). The
+  stored value is only read for null, the missing-timecard flag.
+- The quarter's company number is Dustin's tally (2026-11-10): "I count
+  the weekly utilizations for each month, add them, then divide by X
+  (where X is the number of weeks in that month). Then, I take the three
+  results for the quarter, add them, and divide by 3." A week counts in
+  the month its Monday email went out, the same rule that puts it in the
+  quarter.
 - A tech's quarter utilization is hours billed / actual hours paid over
   the weeks that had a timecard (hours-weighted, so a short week does not
   count as much as a full one).
@@ -138,6 +148,7 @@ def quarterly_summary(rows, q_start, as_of=None):
         wk = {
             "week_start": we - timedelta(days=6),
             "week_end": we,
+            "report_date": we + timedelta(days=REPORT_LAG_DAYS),
             "tech_count": 0,
             "total_billable": 0.0,
             "total_non_billable": 0.0,
@@ -155,7 +166,11 @@ def quarterly_summary(rows, q_start, as_of=None):
             billed = r.get("hours_billed") or 0.0
             non_billable = r.get("non_billable_hours") or 0.0
             paid = r.get("actual_hours_paid") or 0.0
+            # Stored utilization is rounded to two decimals: read it only
+            # for None (timecard missing or iSolved pending) and recompute.
             util = r.get("actual_utilization")
+            if util is not None:
+                util = billed / paid if paid > 0 else 0.0
             billable_from = RAMP_UP_BILLABLE_FROM.get(name)
             ramp_up = billable_from is not None and we < billable_from
 
@@ -212,9 +227,33 @@ def quarterly_summary(rows, q_start, as_of=None):
     )
 
     scored = [w for w in weeks if w["company_utilization"] is not None]
-    company_utilization = (
-        sum(w["company_utilization"] for w in scored) / len(scored) if scored else None
-    )
+    # Month by month, then the mean of the monthly averages.
+    months = []
+    for w in weeks:
+        key = (w["report_date"].year, w["report_date"].month)
+        if not months or months[-1]["_key"] != key:
+            months.append({
+                "_key": key,
+                "month": w["report_date"].strftime("%B"),
+                "weeks_reported": 0,
+                "_sum": 0.0,
+                "_count": 0,
+                "average_utilization": None,
+            })
+        m = months[-1]
+        m["weeks_reported"] += 1
+        if w["company_utilization"] is not None:
+            m["_sum"] += w["company_utilization"]
+            m["_count"] += 1
+    for m in months:
+        if m["_count"]:
+            m["average_utilization"] = m["_sum"] / m["_count"]
+        del m["_key"], m["_sum"], m["_count"]
+    month_avgs = [
+        m["average_utilization"] for m in months
+        if m["average_utilization"] is not None
+    ]
+    company_utilization = sum(month_avgs) / len(month_avgs) if month_avgs else None
     best_week = max(scored, key=lambda w: w["company_utilization"]) if scored else None
     low_week = min(scored, key=lambda w: w["company_utilization"]) if scored else None
 
@@ -224,6 +263,7 @@ def quarterly_summary(rows, q_start, as_of=None):
         "quarter_end": q_end,
         "partial": as_of is not None and as_of < q_end,
         "weeks": weeks,
+        "months": months,
         "techs": tech_list,
         "rollup": {
             "weeks_expected": len(week_ends),

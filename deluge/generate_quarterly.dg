@@ -112,7 +112,20 @@ Map generate_quarterly(String quarter_start, String as_of)
             billed = ifnull(r.Hours_Billed, 0.0);
             non_billable = ifnull(r.Non_Billable_Hours, 0.0);
             paid = ifnull(r.Actual_Hours_Paid, 0.0);
+            // The stored Actual_Utilization keeps two decimals (0.9663
+            // comes back as 0.97): averaging it put Oct 25-31 at 78.86%
+            // against the weekly email's 78.69% (2026-11-10 preview). It
+            // is read only for null, the missing-timecard flag, and the
+            // percentage is recomputed from the hours.
             util = r.Actual_Utilization;
+            if(util != null)
+            {
+                util = 0.0;
+                if(paid > 0)
+                {
+                    util = billed / paid;
+                }
+            }
 
             wk_techs.put(wk, wk_techs.get(wk) + 1);
             wk_billed.put(wk, wk_billed.get(wk) + billed);
@@ -181,8 +194,15 @@ Map generate_quarterly(String quarter_start, String as_of)
     total_billable = 0.0;
     total_non_billable = 0.0;
     total_paid = 0.0;
-    company_sum = 0.0;
-    company_count = 0;
+    // Dustin 2026-11-10: "I count the weekly utilizations for each month,
+    // add them, then divide by X (where X is the number of weeks in that
+    // month). Then, I take the three results for the quarter, add them,
+    // and divide by 3." A week counts in the month its Monday email went
+    // out, the same rule that puts it in the quarter.
+    month_names = List();
+    m_weeks = Map();
+    m_sum = Map();
+    m_count = Map();
     best_week = null;
     low_week = null;
     for each i in {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13}
@@ -202,6 +222,15 @@ Map generate_quarterly(String quarter_start, String as_of)
                 w = Map();
                 w.put("week_start", we.subDay(6).toString("yyyy-MM-dd"));
                 w.put("week_end", wk);
+                month_name = monday.toString("MMMM");
+                if(m_weeks.get(month_name) == null)
+                {
+                    month_names.add(month_name);
+                    m_weeks.put(month_name, 0);
+                    m_sum.put(month_name, 0.0);
+                    m_count.put(month_name, 0);
+                }
+                m_weeks.put(month_name, m_weeks.get(month_name) + 1);
                 w.put("tech_count", wk_techs.get(wk));
                 w.put("total_billable", wk_billed.get(wk));
                 w.put("total_non_billable", wk_non_billable.get(wk));
@@ -213,8 +242,8 @@ Map generate_quarterly(String quarter_start, String as_of)
                 {
                     wk_util = wk_util_sum.get(wk) / wk_util_count.get(wk);
                     w.put("company_utilization", wk_util);
-                    company_sum = company_sum + wk_util;
-                    company_count = company_count + 1;
+                    m_sum.put(month_name, m_sum.get(month_name) + wk_util);
+                    m_count.put(month_name, m_count.get(month_name) + 1);
                     if(best_week == null || wk_util > best_week.get("company_utilization"))
                     {
                         best_week = w;
@@ -231,6 +260,30 @@ Map generate_quarterly(String quarter_start, String as_of)
                 weeks.add(w);
             }
         }
+    }
+
+    // Monthly averages, then the mean of those. A month whose weeks all
+    // lack a company number is listed but left out of the quarter mean.
+    months = List();
+    company_sum = 0.0;
+    company_count = 0;
+    for each mn in mns
+    {
+        mo = Map();
+        mo.put("month", mn);
+        mo.put("weeks_reported", m_weeks.get(mn));
+        if(m_count.get(mn) > 0)
+        {
+            month_avg = m_sum.get(mn) / m_count.get(mn);
+            mo.put("average_utilization", month_avg);
+            company_sum = company_sum + month_avg;
+            company_count = company_count + 1;
+        }
+        else
+        {
+            mo.put("average_utilization", null);
+        }
+        months.add(mo);
     }
 
     techs = List();
@@ -277,8 +330,7 @@ Map generate_quarterly(String quarter_start, String as_of)
     rollup.put("total_billable", total_billable);
     rollup.put("total_non_billable", total_non_billable);
     rollup.put("total_actual_hours_paid", total_paid);
-    // Mean of the weekly company numbers: what tallying the weekly
-    // emails gives.
+    // Mean of the monthly averages (Dustin's tally, above).
     if(company_count > 0)
     {
         rollup.put("company_utilization", company_sum / company_count);
@@ -296,6 +348,7 @@ Map generate_quarterly(String quarter_start, String as_of)
     result.put("quarter_end", q_end.toString("yyyy-MM-dd"));
     result.put("partial", partial);
     result.put("weeks", weeks);
+    result.put("months", months);
     result.put("techs", techs);
     result.put("rollup", rollup);
     return result;

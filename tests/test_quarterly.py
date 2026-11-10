@@ -48,18 +48,36 @@ def row(tech, week_end, billed, paid, *, non_billable=0.0, run="run-1",
 
 
 def oct_25_week():
-    """The 2026-11-09 email: company utilization 78.69% over seven techs."""
+    """The 2026-11-09 email: company utilization 78.69% over seven techs.
+    Utilization is as Creator stores it, rounded to two decimals; averaging
+    those gives 78.86%, the defect in the 2026-11-10 preview."""
     we = date(2026, 10, 31)
     return [
-        row("Jordan Toppin", we, 13.19, 13.65),
-        row("Patrick Jones", we, 33.22, 37.35, non_billable=2.0),
-        row("Elijah Good", we, 45.35, 51.65),
-        row("Jason Good", we, 57.35, 65.40),
-        row("Thomas Payne", we, 44.51, 54.55),
-        row("Andre Smith", we, 33.17, 44.65, non_billable=0.67),
-        row("Jim Zimmerman", we, 15.07, 44.50, non_billable=10.46),
-        row("Cameron Lloyd", we, 12.17, 47.92),
+        row("Jordan Toppin", we, 13.19, 13.65, util=0.97),
+        row("Patrick Jones", we, 33.22, 37.35, non_billable=2.0, util=0.89),
+        row("Elijah Good", we, 45.35, 51.65, util=0.88),
+        row("Jason Good", we, 57.35, 65.40, util=0.88),
+        row("Thomas Payne", we, 44.51, 54.55, util=0.82),
+        row("Andre Smith", we, 33.17, 44.65, non_billable=0.67, util=0.74),
+        row("Jim Zimmerman", we, 15.07, 44.50, non_billable=10.46, util=0.34),
+        row("Cameron Lloyd", we, 12.17, 47.92, util=0.25),
         row("Isaiah Luna", we, 13.27, 0.0, util=None),
+    ]
+
+
+def sep_27_week():
+    """The 2026-10-12 email: 73.22%. The preview showed 73.00%."""
+    we = date(2026, 10, 3)
+    return [
+        row("Elijah Good", we, 25.95, 22.67, util=1.14),
+        row("Thomas Payne", we, 30.20, 36.10, util=0.84),
+        row("Patrick Jones", we, 27.72, 35.32, non_billable=0.88, util=0.78),
+        row("Jordan Toppin", we, 21.60, 29.42, util=0.73),
+        row("Jason Good", we, 28.93, 42.30, util=0.68),
+        row("Andre Smith", we, 19.97, 29.35, non_billable=2.0, util=0.68),
+        row("Jim Zimmerman", we, 22.06, 84.75, non_billable=0.5, util=0.26),
+        row("Cameron Lloyd", we, 4.87, 36.03, util=0.14),
+        row("Isaiah Luna", we, 0.0, 0.0, util=0.0),
     ]
 
 
@@ -106,6 +124,14 @@ def test_weekly_company_number_matches_the_weekly_email():
     assert week["company_utilization"] == pytest.approx(0.7869, abs=5e-5)
 
 
+def test_stored_rounded_utilization_is_not_trusted():
+    s = quarterly_summary(sep_27_week(), Q4, as_of=date(2026, 11, 10))
+    week = next(w for w in s["weeks"] if w["week_end"] == date(2026, 10, 3))
+    # Hours are stored to two decimals too, so the recomputed number can
+    # sit 0.01 of a point off the email (73.21 vs 73.22), not 0.22 off.
+    assert week["company_utilization"] == pytest.approx(0.7322, abs=2e-4)
+
+
 def test_missing_weeks_are_named_and_partial_flag_set():
     s = quarterly_summary(oct_25_week(), Q4, as_of=date(2026, 11, 10))
     assert s["partial"] is True
@@ -115,18 +141,32 @@ def test_missing_weeks_are_named_and_partial_flag_set():
     assert len(s["rollup"]["missing_week_ends"]) == 5
 
 
-def test_quarter_company_number_is_the_mean_of_weekly_numbers():
+def test_quarter_company_number_is_dustins_month_then_quarter_average():
+    """Dustin 2026-11-10: average the weeks within each month, then
+    average the three monthly results."""
     w1, w2 = date(2026, 10, 17), date(2026, 10, 24)
     rows = [
         row("Jason Good", w1, 36.0, 40.0),   # 90%
         row("Thomas Payne", w1, 28.0, 40.0),  # 70%  -> week 80%
         row("Jason Good", w2, 24.0, 40.0),   # 60%  -> week 60%
+        row("Jason Good", date(2026, 10, 31), 36.0, 40.0),  # 90%
+        row("Jason Good", date(2026, 12, 5), 20.0, 40.0),   # 50%
     ]
     s = quarterly_summary(rows, Q4)
-    assert [w["company_utilization"] for w in s["weeks"]] == pytest.approx([0.8, 0.6])
-    assert s["rollup"]["company_utilization"] == pytest.approx(0.7)
-    assert s["rollup"]["best_week"]["week_end"] == w1
-    assert s["rollup"]["low_week"]["week_end"] == w2
+    assert [w["company_utilization"] for w in s["weeks"]] == pytest.approx(
+        [0.8, 0.6, 0.9, 0.5]
+    )
+    # Reported Mon Oct 26 | Mon Nov 2 and Nov 9 | Mon Dec 14.
+    assert [(m["month"], m["weeks_reported"]) for m in s["months"]] == [
+        ("October", 1), ("November", 2), ("December", 1),
+    ]
+    assert [m["average_utilization"] for m in s["months"]] == pytest.approx(
+        [0.8, 0.75, 0.5]
+    )
+    # (0.8 + 0.75 + 0.5) / 3, not the 0.70 mean of the four weeks.
+    assert s["rollup"]["company_utilization"] == pytest.approx(2.05 / 3)
+    assert s["rollup"]["best_week"]["week_end"] == date(2026, 10, 31)
+    assert s["rollup"]["low_week"]["week_end"] == date(2026, 12, 5)
     assert s["partial"] is False
 
 
@@ -182,6 +222,8 @@ def test_missing_timecard_week_keeps_hours_but_not_percentage():
     assert andre["utilization"] == pytest.approx(0.75)
     assert andre["weeks_missing_timecard"] == 1
     assert s["weeks"][1]["company_utilization"] is None
+    # November's only week has no number, so the month is left out.
+    assert s["months"][1]["average_utilization"] is None
     assert s["rollup"]["company_utilization"] == pytest.approx(0.75)
 
 
@@ -229,6 +271,9 @@ def test_email_renders_headline_tables_and_notes():
     assert quarterly_title(s) == "Quarterly Utilization for Q4 2026 to date"
     html = render_quarterly_email(s)
     assert "78.69%" in html
+    assert "78.86%" not in html
+    assert "By month" in html
+    assert "<td>November</td>" in html
     assert "Oct 25 to Oct 31" in html
     assert "Weeks missing" in html
     assert "ramp-up, counts from 2026-12-16" in html

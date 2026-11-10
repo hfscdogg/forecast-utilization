@@ -40,6 +40,23 @@ void send_quarterly_email(Map result, String email_to)
             "</tr>";
     }
 
+    // By month: the averages the quarter number is built from.
+    month_rows_html = "";
+    for each mo in result.get("months")
+    {
+        mu_disp = PLACEHOLDER;
+        if(mo.get("average_utilization") != null)
+        {
+            mu_disp = (mo.get("average_utilization") * 100).round(2) + "%";
+        }
+        month_rows_html = month_rows_html +
+            "<tr>" +
+            "<td>" + mo.get("month") + "</td>" +
+            "<td style='text-align:right'>" + mo.get("weeks_reported") + "</td>" +
+            "<td style='text-align:right'><strong>" + mu_disp + "</strong></td>" +
+            "</tr>";
+    }
+
     // By technician, highest quarter utilization first; techs with no
     // timecard hours sink to the bottom.
     sorted_techs = List();
@@ -157,8 +174,8 @@ void send_quarterly_email(Map result, String email_to)
             ". This rollup covers " + rollup.get("weeks_reported") + " of " + rollup.get("weeks_expected") + " weeks.</p>";
     }
 
-    method_note = "<p style='font-size:12px;color:#666;'>How this is figured: a week counts in the quarter its Monday actuals email went out, so every weekly email lands in exactly one quarter. " +
-        "Company utilization is the average of the weekly company numbers from those emails. A technician's quarter utilization is hours billed divided by actual hours paid over the quarter. " +
+    method_note = "<p style='font-size:12px;color:#666;'>How this is figured: a week counts in the quarter its Monday actuals email went out, so every weekly email lands in exactly one quarter and one month. " +
+        "Company utilization is the weekly company numbers averaged within each month, then the monthly averages averaged for the quarter. A technician's quarter utilization is hours billed divided by actual hours paid over the quarter. " +
         "Ramp-up weeks and weeks with no timecard are left out of the company average, same as the weekly report. If a week was re-run, the latest run is used.</p>";
 
     html = "<!DOCTYPE html>" +
@@ -178,6 +195,17 @@ void send_quarterly_email(Map result, String email_to)
         banner +
         lead_in +
         range_line +
+        "<h3>By month</h3>" +
+        "<table class='actuals'><thead><tr>" +
+        "<th>Month</th>" +
+        "<th style='text-align:right'>Weekly Reports</th>" +
+        "<th style='text-align:right'>Average Utilization</th>" +
+        "</tr></thead><tbody>" + month_rows_html + "</tbody>" +
+        "<tfoot><tr>" +
+        "<td>Quarter</td>" +
+        "<td></td>" +
+        "<td style='text-align:right'>" + company_disp + "</td>" +
+        "</tr></tfoot></table>" +
         "<h3>By week</h3>" +
         "<table class='actuals'><thead><tr>" +
         "<th>Week</th>" +
@@ -193,7 +221,7 @@ void send_quarterly_email(Map result, String email_to)
         "<td style='text-align:right'>" + rollup.get("total_billable").round(2) + "</td>" +
         "<td style='text-align:right'>" + rollup.get("total_actual_hours_paid").round(2) + "</td>" +
         "<td style='text-align:right'>" + rollup.get("total_non_billable").round(2) + "</td>" +
-        "<td style='text-align:right'>" + company_disp + "</td>" +
+        "<td></td>" +
         "</tr></tfoot></table>" +
         "<h3>By technician</h3>" +
         "<table class='actuals'><thead><tr>" +
