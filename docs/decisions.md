@@ -1234,24 +1234,57 @@ Changes:
   still sit 0.01 of a point off its weekly email (Sep 27 to Oct 3
   recomputes to 73.21% against the email's 73.22%).
 
-**CREATOR IS NOW STALE for two functions. Re-paste both:**
+The Creator state after this change is in the next section.
 
-| Function | In Creator (pasted 2026-11-10) | On the branch now |
+### 2026-11-10 — Save rejected: undefined variable `mns` (fixed)
+
+PR #62 was merged to `main`. Pasting `generate_quarterly.dg` from `main`
+(sha256 `65042350...`) into Creator failed on save:
+
+    Error at line number: 270
+    Variable 'mns' is not defined.
+
+Cause: a find-and-replace that renamed the loop variable `month_name` to
+`mn` inside the monthly-average loop also hit the list name, turning
+`month_names` into `mns`. The list is assigned as `month_names` (line
+202) and filled where the weeks are walked; the loop at 270 reads
+`m_weeks`, `m_sum` and `m_count`, all keyed by those names. Fixed to
+`for each mn in month_names`. `quarterly_math.py` never had the slip.
+
+Why nothing caught it: nothing in this repo runs Deluge. The tests
+exercise the Python mirrors, which are separate hand-written files, so a
+typo in a `.dg` file is invisible to them. The rename was made after the
+last read-through of the file.
+
+New check: `scripts/lint_deluge.py` flags any name in a `.dg` file that
+is read but never assigned, or read before its first assignment, and
+notes names assigned only inside a block they are read outside of.
+`tests/test_deluge_lint.py` runs it over every file in `deluge/`, so
+`pytest` now fails on this class of slip. It is a name tracker, not a
+Deluge parser: it does not check types, method names or field names.
+Both quarterly functions and every other `.dg` file pass.
+
+Creator state after the rejected save (Henry, 2026-11-10):
+
+| Function | In Creator | On `main` after this fix |
 |---|---|---|
-| `generate_quarterly` | `ca241882...` | `65042350966416c8a70c44d15e582cd25944730dcd64e0bfc72026feef3e3dbb` |
-| `send_quarterly_email` | `ee05b14f...` | `c9c294a148e348512c491f0edf3fd0524814280b6df88187873c39c100030100` |
-| `scheduled_quarterly` | unchanged | `f0f2bc15b4eddd8d89befb601bfb07fe0e3b5556ebf703aa6b4a55af865adb93` |
-| `run_quarterly_now` | unchanged | `d74f9b575a4a149adf320bf67e28170ba2505bd3cc3111715d56600475fe1b3d` |
+| `generate_quarterly` | first-paste version `ca241882...` (save was rejected) | `e825b90f51a7245d1ac2a02dd023044f45420189556beefe8a505929fda7f9a7` |
+| `send_quarterly_email` | first-paste version `ee05b14f...` (not re-pasted) | `c9c294a148e348512c491f0edf3fd0524814280b6df88187873c39c100030100` |
+| `scheduled_quarterly` | current | `f0f2bc15b4eddd8d89befb601bfb07fe0e3b5556ebf703aa6b4a55af865adb93` |
+| `run_quarterly_now` | current | `d74f9b575a4a149adf320bf67e28170ba2505bd3cc3111715d56600475fe1b3d` |
 
-Signatures are unchanged. The new Deluge has not run in Creator.
+**Creator is stale for `generate_quarterly` and `send_quarterly_email`.
+Paste both together**: the old `send_quarterly_email` does not read the
+new months data, and the new one needs it. `run_quarterly_now` was not
+executed this round. No Quarterly Utilization schedule exists; the Monday
+and Thursday schedules are untouched.
 
 Remaining steps:
 1. Re-paste `generate_quarterly` and `send_quarterly_email`, then execute
    `run_quarterly_now` (Henry only). Check: Oct 25-31 reads 78.69%, Sep
    27 to Oct 3 reads 73.21% or 73.22%, and the "By month" table shows
    October (4 weeks) and November (2 weeks).
-2. Merge PR #62 so `main` has the files.
-3. Add the Creator schedule "Quarterly Utilization": monthly, day 1,
+2. Add the Creator schedule "Quarterly Utilization": monthly, day 1,
    8:00 AM, `America/New_York`, action `thisapp.scheduled_quarterly();`.
    Do not touch the Monday or Thursday schedules. `scheduled_quarterly`
    has never been executed; its first real run is 2027-01-01.

@@ -267,7 +267,7 @@ Map generate_quarterly(String quarter_start, String as_of)
     months = List();
     company_sum = 0.0;
     company_count = 0;
-    for each mn in mns
+    for each mn in month_names
     {
         mo = Map();
         mo.put("month", mn);
