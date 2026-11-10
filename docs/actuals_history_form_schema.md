@@ -60,3 +60,8 @@ without a connection in the function's own auth context).
 email (Dustin 2026-11-10). It fetches by `Lag_Week_End`, takes the latest
 `Run_ID` per week and ignores weeks that do not end on a Saturday. See
 `docs/decisions.md` (2026-11-10) for the rules.
+
+`Actual_Utilization` and `Worked_Utilization` keep two decimal places, so
+the stored fraction is rounded to a whole percent (0.9663 becomes 0.97).
+Do not average the stored values; recompute from `Hours_Billed` and
+`Actual_Hours_Paid` (found 2026-11-10, see `docs/decisions.md`).

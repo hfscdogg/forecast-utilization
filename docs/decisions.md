@@ -1158,12 +1158,63 @@ then every 90 days afterward."
   stored. A week whose run failed and was never re-run shows in the
   "Weeks missing" banner and is left out of the average.
 
-Deploy (Creator, by hand):
-1. Create functions `generate_quarterly`, `send_quarterly_email`,
-   `scheduled_quarterly` and `run_quarterly_now` and paste each file from
-   `deluge/` unchanged.
-2. Execute `run_quarterly_now`. It emails Henry only: Q4 2026 to date.
-   Check the Oct 25-31 row reads 78.69%.
-3. Add a schedule "Quarterly Utilization": monthly, day 1, 8:00 AM,
-   `America/New_York`, action `thisapp.scheduled_quarterly();`. Do not
-   touch the Monday or Thursday schedules.
+### 2026-11-10 — Deployed to Creator, not scheduled (Henry)
+
+Status: **deployed, unscheduled, PR #62 not merged.**
+
+The four functions were pasted unedited from branch
+`claude/compassionate-fermi-9x141x` (commit `3ade179`) into the Creator app
+"Forecast Utilization", Default namespace. All four saved with no errors.
+The sha256 of each pasted function matches the file on the branch (checked
+with `sha256sum deluge/<name>.dg`):
+
+| Function | Signature | sha256 |
+|---|---|---|
+| `generate_quarterly` | map (string quarter_start, string as_of) | `ca241882aa677d62b6562491804b9c7a1a0d76950ec6df1e702e99db874ec243` |
+| `send_quarterly_email` | void (map result, string email_to) | `ee05b14f841ed7c47d4ecef2ae1c922ca7a7536ceda91511b1efadcc43ba836c` |
+| `scheduled_quarterly` | void () | `f0f2bc15b4eddd8d89befb601bfb07fe0e3b5556ebf703aa6b4a55af865adb93` |
+| `run_quarterly_now` | void () | `d74f9b575a4a149adf320bf67e28170ba2505bd3cc3111715d56600475fe1b3d` |
+
+**Any later change to one of these `.dg` files makes Creator stale: the
+function must be re-pasted and this table updated.** A hash that no longer
+matches the branch means Creator is behind.
+
+`run_quarterly_now` was executed once: "Manual quarterly run complete for
+Q4 2026: 6 of 6 weeks, 9 techs." No statement-execution-limit error. The
+preview went to Henry only. No weeks were missing from the history.
+
+**Preview review: one defect found, not yet fixed.** The weekly company
+percentages are slightly off from the weekly emails:
+
+| Week | Weekly email | Quarterly preview |
+|---|---|---|
+| Sep 27 to Oct 3 | 73.22% | 73.00% |
+| Oct 25 to Oct 31 | 78.69% | 78.86% |
+
+Cause: the history form's `Actual_Utilization` Decimal field keeps two
+decimal places, so the stored fraction is rounded to a whole percent
+(0.9663 is stored as 0.97). `generate_quarterly.dg` averages those stored
+values. The Python tests fed unrounded values, so they did not catch it.
+Hours Billed, Actual Hours Paid and the per-tech quarter utilization are
+unaffected (they come from the hours fields, which are fine at two
+decimals). The quarter headline of 71.90% carries the same error.
+
+Proposed fix (not made; Henry said no code changes yet): in
+`generate_quarterly.dg`, keep using a null `Actual_Utilization` as the
+missing-timecard flag but compute the week's utilization as
+`Hours_Billed / Actual_Hours_Paid`. Same change in `quarterly_math.py`
+plus a test with rounded stored values. Requires a re-paste of
+`generate_quarterly` only.
+
+Remaining steps:
+1. Fix the rounding defect above, re-paste `generate_quarterly`, re-run
+   `run_quarterly_now` and confirm Oct 25-31 reads 78.69% and Sep 27 to
+   Oct 3 reads 73.22%.
+2. Get Dustin's answers on which weeks count and how the company number
+   is figured (asked by email 2026-11-10). Change the code if he tallies
+   differently, then re-paste.
+3. Merge PR #62 so `main` has the files.
+4. Add the Creator schedule "Quarterly Utilization": monthly, day 1,
+   8:00 AM, `America/New_York`, action `thisapp.scheduled_quarterly();`.
+   Do not touch the Monday or Thursday schedules. `scheduled_quarterly`
+   has never been executed; its first real run is 2027-01-01.
