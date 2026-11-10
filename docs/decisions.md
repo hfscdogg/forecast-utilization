@@ -1279,12 +1279,88 @@ new months data, and the new one needs it. `run_quarterly_now` was not
 executed this round. No Quarterly Utilization schedule exists; the Monday
 and Thursday schedules are untouched.
 
-Remaining steps:
-1. Re-paste `generate_quarterly` and `send_quarterly_email`, then execute
-   `run_quarterly_now` (Henry only). Check: Oct 25-31 reads 78.69%, Sep
-   27 to Oct 3 reads 73.21% or 73.22%, and the "By month" table shows
-   October (4 weeks) and November (2 weeks).
-2. Add the Creator schedule "Quarterly Utilization": monthly, day 1,
-   8:00 AM, `America/New_York`, action `thisapp.scheduled_quarterly();`.
-   Do not touch the Monday or Thursday schedules. `scheduled_quarterly`
-   has never been executed; its first real run is 2027-01-01.
+### 2026-11-10 — Quarterly report deployed and scheduled (Henry)
+
+Status: **live in Creator, scheduled, code on `main`.** This section is
+the current state; the three sections above are the history of how it
+got here.
+
+Functions in the Creator app "Forecast Utilization", pasted unedited:
+
+| Function | Pasted from | sha256 (matches `main` at `2cfc8ff`) |
+|---|---|---|
+| `generate_quarterly` | `main`, after PR #63 | `e825b90f51a7245d1ac2a02dd023044f45420189556beefe8a505929fda7f9a7` |
+| `send_quarterly_email` | `main`, after PR #63 | `c9c294a148e348512c491f0edf3fd0524814280b6df88187873c39c100030100` |
+| `scheduled_quarterly` | PR #62 branch, first paste | `f0f2bc15b4eddd8d89befb601bfb07fe0e3b5556ebf703aa6b4a55af865adb93` |
+| `run_quarterly_now` | PR #62 branch, first paste | `d74f9b575a4a149adf320bf67e28170ba2505bd3cc3111715d56600475fe1b3d` |
+
+`scheduled_quarterly.dg` and `run_quarterly_now.dg` have not changed
+since the first commit of PR #62 (`3ade179`), so the first paste is
+still current. **Any later change to one of these four files makes
+Creator stale: re-paste it and update this table.**
+
+Preview after the deploy (`run_quarterly_now`, Henry only): "Manual
+quarterly run complete for Q4 2026: 6 of 6 weeks, 9 techs." No
+statement-execution-limit error. Henry reviewed the email and approved
+scheduling. What it showed:
+
+| Week | Weekly email | Quarterly preview |
+|---|---|---|
+| Sep 20 to Sep 26 | 73.02% expected (2026-10-06 entry) | 73.02% |
+| Sep 27 to Oct 3 | 73.22% | 73.21% |
+| Oct 25 to Oct 31 | 78.69% | 78.69% |
+
+By month: October 71.27% over 4 weekly reports, November 73.32% over 2,
+Q4 to date 72.30%. The rounding defect is gone; the 0.01 difference on
+Sep 27 to Oct 3 is the known residual from hours stored to two decimals.
+
+Schedule (Creator, Workflow > Schedules):
+
+- Name: Quarterly Utilization
+- On Date: 01-Dec-2026, At Time: 08:00:00
+- Time zone: Eastern Standard Time (America/New_York)
+- Run: Monthly
+- Action: Deluge script, `thisapp.scheduled_quarterly();`
+- Status: Enabled
+
+It has not been run, and `scheduled_quarterly` has never been executed.
+The Weekly Utilization Forecast, Weekly Utilization Actuals and Weekly
+Nailed It Photo Picker schedules are unchanged.
+
+Expected behavior:
+- **2026-12-01 8:00 AM ET**: first fire. Sends nothing; December does
+  not start a quarter. The run should log "Quarterly run skipped: month
+  12 does not start a quarter."
+- **2027-01-01 8:00 AM ET**: first real send, Q4 2026 (the 13 weeks
+  ending Sep 26 through Dec 19), to Dustin, Stacy and Henry.
+- Then Apr 1, Jul 1 and Oct 1, with silent fires in the other months.
+
+Creator facts that differ from what the deploy steps assumed:
+- There is no "next run" field. The schedule list's "When" column shows
+  the start date and time.
+- There is no day-of-month setting. Monthly repeats from the start date,
+  so starting on the 1st is what makes it day 1. Moving the start date
+  off the 1st would move every later run.
+- A new schedule's time zone defaulted to an Indiana Eastern zone and
+  had to be changed to America/New_York by hand in Workflow Properties.
+- The time zone on the Weekly Utilization Actuals schedule was not
+  checked, so "the same zone as Monday actuals" is unverified.
+- **After a schedule action is saved, its script panel shows an Execute
+  button. Never click it for this schedule**: in January, April, July or
+  October it emails Dustin and Stacy. Use `run_quarterly_now` to
+  preview; it goes to Henry only.
+
+Still open:
+1. The first real send (2027-01-01) is the first time
+   `scheduled_quarterly` runs for real. Its date math and the
+   three-person recipient list have only been read, never executed.
+   The Dec 1 fire exercises the function but only its skip branch.
+2. Which month a week belongs to is assumed (the month its Monday email
+   went out). Dustin has not confirmed it.
+3. Ramp-up dates, targets and the service-tech list live in three files
+   (`generate_actuals.dg`, `generate_forecast.dg`,
+   `generate_quarterly.dg`). A new hire or a target change must be made
+   in all three and re-pasted.
+4. A week whose Monday actuals run failed and was never re-run shows in
+   the "Weeks missing" banner and is left out of that month's average.
+5. The Weekly Utilization Actuals schedule's time zone is unverified.
